@@ -1,71 +1,45 @@
-# FinShield AI — Full Stack Docker Compose
-# Usage: docker-compose up --build -d
-
-version: "3.9"
+version: '3.8'
 
 services:
-  # ── Marketing Website (nginx) ──
-  website:
-    build:
-      context: ./website
-      dockerfile: Dockerfile
-    container_name: finshield-website
-    ports:
-      - "8090:80"
-    restart: unless-stopped
-    depends_on:
-      - backend
-    networks:
-      - finshield-net
-
-  # ── FastAPI Backend ──
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: finshield-backend
     ports:
       - "8091:8091"
     environment:
-      - APP_ENV=production
       - DATABASE_URL=sqlite:///./finshield.db
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-use-openssl-rand-hex-32}
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:8090
-      - DEFAULT_SIGNUP_CREDITS=50000
+      - JWT_SECRET_KEY=your-secret-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - DEBUG=false
     volumes:
       - backend-data:/app/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/api/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
     networks:
-      - finshield-net
+      - finshield-network
 
-  # ── Platform Frontend (Next.js) ──
-  platform:
+  frontend:
     build:
-      context: ./platform-app
-      dockerfile: Dockerfile
-    container_name: finshield-platform
+      context: .
+      dockerfile: platform-app/Dockerfile
+    container_name: finshield-frontend
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:8091
-    restart: unless-stopped
+      - API_URL=http://backend:8091
+      - NEXT_PUBLIC_API_URL=http://localhost:8091
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
+    restart: unless-stopped
     networks:
-      - finshield-net
+      - finshield-network
 
 volumes:
   backend-data:
     driver: local
 
 networks:
-  finshield-net:
+  finshield-network:
     driver: bridge
