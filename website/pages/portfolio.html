@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio — FinShield AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+
+  <!-- Shared Nav (abbreviated) -->
+  <div class="topbar"><div class="container topbar__inner"><div class="topbar__locations"><span>New York, USA</span><span>Dubai, UAE</span><span>London, UK</span><span>Singapore</span><span>Toronto, Canada</span></div><div class="topbar__actions"><a href="contact.html" class="topbar__link">Get In Touch</a><a href="signup.html" class="topbar__link topbar__link--cta">Start Free</a></div></div></div>
+  <nav class="nav" id="nav"><div class="container nav__inner"><a href="../index.html" class="nav__logo"><div class="nav__logo-mark"></div><span class="nav__logo-text">FinShield</span></a><div class="nav__links"><a href="portfolio.html" class="nav__link nav__link--active">Portfolio</a><a href="resources.html" class="nav__link">Resources</a><a href="about.html" class="nav__link">About</a></div><div class="nav__cta"><a href="login.html" class="nav__link">Sign In</a><a href="contact.html" class="btn btn--primary btn--magnetic">Contact Us</a></div><button class="nav__mobile-toggle" id="mobileToggle" aria-label="Open menu"><span></span><span></span><span></span></button></div></nav>
+  <div class="mobile-menu" id="mobileMenu"><button class="mobile-menu__close" id="mobileClose">&times;</button><div class="mobile-menu__links"><a href="../index.html" class="mobile-menu__link">Home</a><a href="portfolio.html" class="mobile-menu__link">Portfolio</a><a href="resources.html" class="mobile-menu__link">Resources</a><a href="about.html" class="mobile-menu__link">About</a><a href="contact.html" class="mobile-menu__link">Contact</a></div><div class="mobile-menu__cta"><a href="login.html" class="btn btn--secondary" style="width:100%;justify-content:center;">Sign In</a><a href="contact.html" class="btn btn--primary" style="width:100%;justify-content:center;">Contact Us</a></div></div>
+  <div class="mobile-menu__overlay" id="mobileOverlay"></div>
+
+  <!-- Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <div class="page-hero__breadcrumb"><a href="../index.html">Home</a><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg><span>Portfolio</span></div>
+      <h1 class="page-hero__title reveal">Real results from <span>real deployments</span></h1>
+      <p class="page-hero__subtitle reveal animate-delay-2">See how financial institutions across the globe use FinShield to transform their compliance operations.</p>
+    </div>
+  </section>
+
+  <!-- Portfolio Cases -->
+  <section class="portfolio-section">
+    <div class="container">
+      <div class="portfolio-filters reveal">
+        <button class="portfolio-filter portfolio-filter--active">All</button>
+        <button class="portfolio-filter">Fintech</button>
+        <button class="portfolio-filter">Banking</button>
+        <button class="portfolio-filter">Payments</button>
+        <button class="portfolio-filter">Crypto</button>
+      </div>
+
+      <div class="stagger-children">
+        <!-- Case 1 -->
+        <div class="portfolio-case">
+          <div class="portfolio-case__grid">
+            <div class="portfolio-case__visual" style="background: linear-gradient(135deg, #0A1628, #1A9E8F20);">
+              <div style="text-align: center; position: relative; z-index: 1;">
+                <div style="font-size: 3rem; font-weight: 800; color: #22B8A6;">94%</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.875rem;">False Positive Reduction</div>
+              </div>
+            </div>
+            <div class="portfolio-case__content">
+              <span class="portfolio-case__tag">Fintech / Neobank</span>
+              <h3>NeoPay — Scaling Compliance for 2M+ Daily Transactions</h3>
+              <p>NeoPay, a Series C neobank, replaced their legacy rule-based system with FinShield. Within 3 months, they reduced false positives by 94% while catching 3x more actual fraud cases.</p>
+              <div class="portfolio-case__metrics">
+                <div><div class="portfolio-case__metric-value">2.1M</div><div class="portfolio-case__metric-label">Daily transactions</div></div>
+                <div><div class="portfolio-case__metric-value">94%</div><div class="portfolio-case__metric-label">Fewer false positives</div></div>
+                <div><div class="portfolio-case__metric-value">3x</div><div class="portfolio-case__metric-label">More fraud caught</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Case 2 -->
+        <div class="portfolio-case">
+          <div class="portfolio-case__grid">
+            <div class="portfolio-case__visual" style="background: linear-gradient(135deg, #0A1628, #C8870E20);">
+              <div style="text-align: center; position: relative; z-index: 1;">
+                <div style="font-size: 3rem; font-weight: 800; color: #E5A628;">$2.4M</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.875rem;">Annual Compliance Cost Saved</div>
+              </div>
+            </div>
+            <div class="portfolio-case__content">
+              <span class="portfolio-case__tag">Regional Banking</span>
+              <h3>Heritage Bank — Modernizing 30-Year-Old AML Systems</h3>
+              <p>Heritage Bank was running nightly batch AML checks on a 30-year-old mainframe system. FinShield brought them to real-time screening with zero downtime during migration.</p>
+              <div class="portfolio-case__metrics">
+                <div><div class="portfolio-case__metric-value">$2.4M</div><div class="portfolio-case__metric-label">Annual savings</div></div>
+                <div><div class="portfolio-case__metric-value">0</div><div class="portfolio-case__metric-label">Downtime hours</div></div>
+                <div><div class="portfolio-case__metric-value">180ms</div><div class="portfolio-case__metric-label">Avg latency</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Case 3 -->
+        <div class="portfolio-case">
+          <div class="portfolio-case__grid">
+            <div class="portfolio-case__visual" style="background: linear-gradient(135deg, #0A1628, #1A9E8F15);">
+              <div style="text-align: center; position: relative; z-index: 1;">
+                <div style="font-size: 3rem; font-weight: 800; color: #22B8A6;">12 days</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.875rem;">SAR Filing Time Reduced</div>
+              </div>
+            </div>
+            <div class="portfolio-case__content">
+              <span class="portfolio-case__tag">Payments</span>
+              <h3>SwiftPay — Automating SAR/STR Filing Across 12 Jurisdictions</h3>
+              <p>SwiftPay processes cross-border payments in 12 countries. FinShield automated their SAR/STR filing process, reducing filing time from 18 days to 6 days while ensuring regulatory compliance.</p>
+              <div class="portfolio-case__metrics">
+                <div><div class="portfolio-case__metric-value">12</div><div class="portfolio-case__metric-label">Jurisdictions</div></div>
+                <div><div class="portfolio-case__metric-value">67%</div><div class="portfolio-case__metric-label">Faster filing</div></div>
+                <div><div class="portfolio-case__metric-value">100%</div><div class="portfolio-case__metric-label">Audit compliance</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Case 4 -->
+        <div class="portfolio-case">
+          <div class="portfolio-case__grid">
+            <div class="portfolio-case__visual" style="background: linear-gradient(135deg, #0A1628, #C8870E15);">
+              <div style="text-align: center; position: relative; z-index: 1;">
+                <div style="font-size: 3rem; font-weight: 800; color: #E5A628;">$850M</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.875rem;">Suspicious Volume Detected</div>
+              </div>
+            </div>
+            <div class="portfolio-case__content">
+              <span class="portfolio-case__tag">Crypto Exchange</span>
+              <h3>CoinVault — On-Chain + Off-Chain Compliance for Crypto</h3>
+              <p>CoinVault needed to monitor both on-chain transactions and off-chain fiat conversions. FinShield's dual monitoring pipeline detected $850M in suspicious activity in the first quarter.</p>
+              <div class="portfolio-case__metrics">
+                <div><div class="portfolio-case__metric-value">$850M</div><div class="portfolio-case__metric-label">Suspicious detected</div></div>
+                <div><div class="portfolio-case__metric-value">50ms</div><div class="portfolio-case__metric-label">Screening latency</div></div>
+                <div><div class="portfolio-case__metric-value">99.9%</div><div class="portfolio-case__metric-label">Uptime</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section--dark" style="padding: 5rem 0;">
+    <div class="container" style="text-align: center;">
+      <h2 class="reveal" style="font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 1rem;">Your success story next?</h2>
+      <p class="reveal animate-delay-1" style="color: var(--text-light); max-width: 540px; margin: 0 auto 2rem;">Join 247 institutions using FinShield to transform their compliance operations.</p>
+      <div class="reveal animate-delay-2" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="signup.html" class="btn btn--primary btn--lg btn--magnetic">Start Free Trial</a>
+        <a href="contact.html" class="btn btn--outline-light btn--lg">Talk to Sales</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer__locations"><div class="container"><div class="footer__locations-grid">
+      <div class="footer__location"><div class="footer__location-city">New York</div><div class="footer__location-address">401 Broadway, Suite 1200</div></div>
+      <div class="footer__location"><div class="footer__location-city">Dubai</div><div class="footer__location-address">DIFC, Gate Village 10</div></div>
+      <div class="footer__location"><div class="footer__location-city">London</div><div class="footer__location-address">71 Queen Victoria St</div></div>
+      <div class="footer__location"><div class="footer__location-city">Singapore</div><div class="footer__location-address">1 Raffles Place</div></div>
+      <div class="footer__location"><div class="footer__location-city">Toronto</div><div class="footer__location-address">199 Bay St</div></div>
+    </div></div></div>
+    <div class="footer__main"><div class="container"><div class="footer__grid">
+      <div class="footer__col"><div class="footer__col-title">Platform</div><a href="../index.html#features" class="footer__link">Compliance Engine</a><a href="pricing.html" class="footer__link">Pricing</a></div>
+      <div class="footer__col"><div class="footer__col-title">Company</div><a href="about.html" class="footer__link">About</a><a href="contact.html" class="footer__link">Contact</a></div>
+      <div class="footer__col"><div class="footer__col-title">Legal</div><a href="#" class="footer__link">Privacy Policy</a><a href="#" class="footer__link">Terms of Service</a></div>
+    </div></div></div>
+    <div class="footer__bottom"><div class="container footer__bottom-inner">
+      <div class="footer__copyright">&copy; 2026 FinShield AI. All rights reserved.</div>
+      <div class="footer__social">
+        <a href="#" class="footer__social-link" aria-label="LinkedIn"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+        <a href="#" class="footer__social-link" aria-label="Twitter"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+      </div>
+    </div></div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

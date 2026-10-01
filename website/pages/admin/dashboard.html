@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinShield Admin — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body class="admin-body">
+
+  <!-- Admin Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="admin-sidebar__header">
+      <div class="admin-sidebar__logo">
+        <div class="nav__logo-mark"></div>
+        <span>FinShield</span>
+      </div>
+      <span class="admin-sidebar__badge">Admin</span>
+    </div>
+
+    <nav class="admin-sidebar__nav">
+      <a href="#" class="admin-nav-item admin-nav-item--active">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Customers
+        <span class="admin-nav-item__count">247</span>
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Revenue
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        Transactions
+        <span class="admin-nav-item__count">12.4K</span>
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        Cases
+        <span class="admin-nav-item__count admin-nav-item__count--alert">23</span>
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        Filings
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        Reports
+      </a>
+      <a href="#" class="admin-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="admin-sidebar__footer">
+      <div class="admin-sidebar__user">
+        <div class="admin-sidebar__avatar">JD</div>
+        <div>
+          <div class="admin-sidebar__user-name">John Doe</div>
+          <div class="admin-sidebar__user-role">Super Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="admin-main">
+    <!-- Top Bar -->
+    <header class="admin-topbar">
+      <div class="admin-topbar__search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" placeholder="Search customers, transactions, cases...">
+      </div>
+      <div class="admin-topbar__actions">
+        <button class="admin-topbar__icon-btn" aria-label="Notifications">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span class="admin-topbar__badge">5</span>
+        </button>
+        <a href="../index.html" class="btn btn--secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">View Site</a>
+      </div>
+    </header>
+
+    <!-- Dashboard Content -->
+    <div class="admin-content">
+      <!-- Page Header -->
+      <div class="admin-page-header">
+        <div>
+          <h1 class="admin-page-header__title">Dashboard</h1>
+          <p class="admin-page-header__subtitle">Welcome back, John. Here's what's happening with your compliance platform today.</p>
+        </div>
+        <div class="admin-page-header__actions">
+          <select class="admin-select">
+            <option>Last 7 days</option>
+            <option>Last 30 days</option>
+            <option>Last 90 days</option>
+            <option>This year</option>
+          </select>
+          <button class="btn btn--primary">Export Report</button>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="admin-kpi-grid">
+        <div class="admin-kpi-card">
+          <div class="admin-kpi-card__header">
+            <span class="admin-kpi-card__label">Total Revenue</span>
+            <span class="admin-kpi-card__trend admin-kpi-card__trend--up">+12.5%</span>
+          </div>
+          <div class="admin-kpi-card__value">$84,254</div>
+          <div class="admin-kpi-card__sub">vs. $74,892 last month</div>
+        </div>
+
+        <div class="admin-kpi-card">
+          <div class="admin-kpi-card__header">
+            <span class="admin-kpi-card__label">Active Customers</span>
+            <span class="admin-kpi-card__trend admin-kpi-card__trend--up">+8</span>
+          </div>
+          <div class="admin-kpi-card__value">247</div>
+          <div class="admin-kpi-card__sub">12 new this month</div>
+        </div>
+
+        <div class="admin-kpi-card">
+          <div class="admin-kpi-card__header">
+            <span class="admin-kpi-card__label">Transactions Processed</span>
+            <span class="admin-kpi-card__trend admin-kpi-card__trend--up">+23%</span>
+          </div>
+          <div class="admin-kpi-card__value">2.4M</div>
+          <div class="admin-kpi-card__sub">This month</div>
+        </div>
+
+        <div class="admin-kpi-card">
+          <div class="admin-kpi-card__header">
+            <span class="admin-kpi-card__label">Open Cases</span>
+            <span class="admin-kpi-card__trend admin-kpi-card__trend--down">-5</span>
+          </div>
+          <div class="admin-kpi-card__value">23</div>
+          <div class="admin-kpi-card__sub">8 approaching SLA</div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="admin-charts-row">
+        <div class="admin-chart-card">
+          <div class="admin-chart-card__header">
+            <h3>Revenue Over Time</h3>
+            <div class="admin-chart-card__legend">
+              <span class="admin-legend-item"><span class="admin-legend-dot" style="background: var(--gold);"></span> Revenue</span>
+              <span class="admin-legend-item"><span class="admin-legend-dot" style="background: var(--teal);"></span> Credits Used</span>
+            </div>
+          </div>
+          <div class="admin-chart-placeholder">
+            <div class="admin-chart-bars">
+              <div class="admin-chart-bar" style="height: 45%;"><span>$38K</span></div>
+              <div class="admin-chart-bar" style="height: 62%;"><span>$52K</span></div>
+              <div class="admin-chart-bar" style="height: 55%;"><span>$46K</span></div>
+              <div class="admin-chart-bar" style="height: 78%;"><span>$65K</span></div>
+              <div class="admin-chart-bar" style="height: 70%;"><span>$59K</span></div>
+              <div class="admin-chart-bar" style="height: 85%;"><span>$71K</span></div>
+              <div class="admin-chart-bar admin-chart-bar--current" style="height: 100%;"><span>$84K</span></div>
+            </div>
+            <div class="admin-chart-labels">
+              <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-chart-card">
+          <div class="admin-chart-card__header">
+            <h3>Transactions by Type</h3>
+          </div>
+          <div class="admin-chart-placeholder">
+            <div class="admin-donut-chart">
+              <div class="admin-donut-segment" style="--start: 0%; --end: 45%; --color: var(--navy);"></div>
+              <div class="admin-donut-segment" style="--start: 45%; --end: 72%; --color: var(--gold);"></div>
+              <div class="admin-donut-segment" style="--start: 72%; --end: 88%; --color: var(--teal);"></div>
+              <div class="admin-donut-segment" style="--start: 88%; --end: 100%; --color: var(--text-muted);"></div>
+              <div class="admin-donut-center">
+                <div class="admin-donut-center__value">2.4M</div>
+                <div class="admin-donut-center__label">Total</div>
+              </div>
+            </div>
+            <div class="admin-donut-legend">
+              <div class="admin-legend-row"><span class="admin-legend-dot" style="background: var(--navy);"></span> Rule-only (45%)</div>
+              <div class="admin-legend-row"><span class="admin-legend-dot" style="background: var(--gold);"></span> Behavioral (27%)</div>
+              <div class="admin-legend-row"><span class="admin-legend-dot" style="background: var(--teal);"></span> Full ML (16%)</div>
+              <div class="admin-legend-row"><span class="admin-legend-dot" style="background: var(--text-muted);"></span> Blocked (12%)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity & Top Customers -->
+      <div class="admin-tables-row">
+        <div class="admin-table-card">
+          <div class="admin-table-card__header">
+            <h3>Recent Transactions</h3>
+            <a href="#" class="admin-table-card__link">View All</a>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TX-88213</code></td>
+                <td>Acme Fintech</td>
+                <td>$18,400</td>
+                <td><span class="admin-status admin-status--flagged">Flagged</span></td>
+                <td>2 min ago</td>
+              </tr>
+              <tr>
+                <td><code>TX-88212</code></td>
+                <td>Global Payments</td>
+                <td>$2,150</td>
+                <td><span class="admin-status admin-status--approved">Approved</span></td>
+                <td>5 min ago</td>
+              </tr>
+              <tr>
+                <td><code>TX-88211</code></td>
+                <td>NeoBank Inc</td>
+                <td>$45,000</td>
+                <td><span class="admin-status admin-status--blocked">Blocked</span></td>
+                <td>8 min ago</td>
+              </tr>
+              <tr>
+                <td><code>TX-88210</code></td>
+                <td>Crypto Exchange</td>
+                <td>$12,800</td>
+                <td><span class="admin-status admin-status--review">In Review</span></td>
+                <td>12 min ago</td>
+              </tr>
+              <tr>
+                <td><code>TX-88209</code></td>
+                <td>Remittance Co</td>
+                <td>$890</td>
+                <td><span class="admin-status admin-status--approved">Approved</span></td>
+                <td>15 min ago</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="admin-table-card">
+          <div class="admin-table-card__header">
+            <h3>Top Customers by Revenue</h3>
+            <a href="#" class="admin-table-card__link">View All</a>
+          </div>
+          <div class="admin-customer-list">
+            <div class="admin-customer-item">
+              <div class="admin-customer-item__rank">1</div>
+              <div class="admin-customer-item__info">
+                <div class="admin-customer-item__name">Acme Fintech</div>
+                <div class="admin-customer-item__plan">Pro Plan</div>
+              </div>
+              <div class="admin-customer-item__revenue">$12,450/mo</div>
+              <div class="admin-customer-item__bar" style="width: 85%;"></div>
+            </div>
+            <div class="admin-customer-item">
+              <div class="admin-customer-item__rank">2</div>
+              <div class="admin-customer-item__info">
+                <div class="admin-customer-item__name">Global Payments</div>
+                <div class="admin-customer-item__plan">Enterprise</div>
+              </div>
+              <div class="admin-customer-item__revenue">$9,800/mo</div>
+              <div class="admin-customer-item__bar" style="width: 67%;"></div>
+            </div>
+            <div class="admin-customer-item">
+              <div class="admin-customer-item__rank">3</div>
+              <div class="admin-customer-item__info">
+                <div class="admin-customer-item__name">NeoBank Inc</div>
+                <div class="admin-customer-item__plan">Growth Plan</div>
+              </div>
+              <div class="admin-customer-item__revenue">$7,200/mo</div>
+              <div class="admin-customer-item__bar" style="width: 49%;"></div>
+            </div>
+            <div class="admin-customer-item">
+              <div class="admin-customer-item__rank">4</div>
+              <div class="admin-customer-item__info">
+                <div class="admin-customer-item__name">Crypto Exchange</div>
+                <div class="admin-customer-item__plan">Pro Plan</div>
+              </div>
+              <div class="admin-customer-item__revenue">$5,600/mo</div>
+              <div class="admin-customer-item__bar" style="width: 38%;"></div>
+            </div>
+            <div class="admin-customer-item">
+              <div class="admin-customer-item__rank">5</div>
+              <div class="admin-customer-item__info">
+                <div class="admin-customer-item__name">Remittance Co</div>
+                <div class="admin-customer-item__plan">Starter Plan</div>
+              </div>
+              <div class="admin-customer-item__revenue">$3,100/mo</div>
+              <div class="admin-customer-item__bar" style="width: 21%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Health & Alerts -->
+      <div class="admin-system-row">
+        <div class="admin-system-card">
+          <h3>System Health</h3>
+          <div class="admin-health-grid">
+            <div class="admin-health-item">
+              <div class="admin-health-item__status admin-health-item__status--healthy"></div>
+              <div>
+                <div class="admin-health-item__name">API Server</div>
+                <div class="admin-health-item__value">99.9% uptime</div>
+              </div>
+            </div>
+            <div class="admin-health-item">
+              <div class="admin-health-item__status admin-health-item__status--healthy"></div>
+              <div>
+                <div class="admin-health-item__name">Model Server (vLLM)</div>
+                <div class="admin-health-item__value">1.2s avg latency</div>
+              </div>
+            </div>
+            <div class="admin-health-item">
+              <div class="admin-health-item__status admin-health-item__status--healthy"></div>
+              <div>
+                <div class="admin-health-item__name">PostgreSQL</div>
+                <div class="admin-health-item__value">342 connections</div>
+              </div>
+            </div>
+            <div class="admin-health-item">
+              <div class="admin-health-item__status admin-health-item__status--warning"></div>
+              <div>
+                <div class="admin-health-item__name">Redis Broker</div>
+                <div class="admin-health-item__value">78% memory</div>
+              </div>
+            </div>
+            <div class="admin-health-item">
+              <div class="admin-health-item__status admin-health-item__status--healthy"></div>
+              <div>
+                <div class="admin-health-item__name">Celery Workers</div>
+                <div class="admin-health-item__value">12/12 active</div>
+              </div>
+            </div>
+            <div class="admin-health-item">
+              <div class="admin-health-item__status admin-health-item__status--healthy"></div>
+              <div>
+                <div class="admin-health-item__name">Circuit Breakers</div>
+                <div class="admin-health-item__value">All closed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-alerts-card">
+          <h3>Active Alerts</h3>
+          <div class="admin-alerts-list">
+            <div class="admin-alert-item admin-alert-item--warning">
+              <div class="admin-alert-item__icon">!</div>
+              <div class="admin-alert-item__content">
+                <div class="admin-alert-item__title">Redis memory at 78%</div>
+                <div class="admin-alert-item__desc">Consider scaling or clearing expired keys</div>
+              </div>
+              <div class="admin-alert-item__time">15 min ago</div>
+            </div>
+            <div class="admin-alert-item admin-alert-item--info">
+              <div class="admin-alert-item__icon">i</div>
+              <div class="admin-alert-item__content">
+                <div class="admin-alert-item__title">8 cases approaching SLA</div>
+                <div class="admin-alert-item__desc">Escalation in &lt; 1 hour</div>
+              </div>
+              <div class="admin-alert-item__time">32 min ago</div>
+            </div>
+            <div class="admin-alert-item admin-alert-item--info">
+              <div class="admin-alert-item__icon">i</div>
+              <div class="admin-alert-item__content">
+                <div class="admin-alert-item__title">Model drift detected</div>
+                <div class="admin-alert-item__desc">Disagreement rate up 3% this week</div>
+              </div>
+              <div class="admin-alert-item__time">2 hours ago</div>
+            </div>
+            <div class="admin-alert-item admin-alert-item--success">
+              <div class="admin-alert-item__icon">&#10003;</div>
+              <div class="admin-alert-item__content">
+                <div class="admin-alert-item__title">Backup completed</div>
+                <div class="admin-alert-item__desc">Daily backup successful</div>
+              </div>
+              <div class="admin-alert-item__time">4 hours ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

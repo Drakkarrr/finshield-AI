@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Keys — FinShield Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/platform.css">
+</head>
+<body class="plat-body">
+
+  <!-- Sidebar -->
+  <aside class="plat-sidebar">
+    <div class="plat-sidebar__header">
+      <div class="plat-sidebar__logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <span class="plat-sidebar__brand">FinShield</span>
+      <span class="plat-sidebar__badge">Growth</span>
+    </div>
+    <nav class="plat-sidebar__nav">
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Overview</div>
+        <a href="dashboard.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="transactions.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Transactions<span class="plat-nav-item__badge plat-nav-item__badge--info">2.4K</span></a>
+        <a href="cases.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Cases<span class="plat-nav-item__badge">7</span></a>
+      </div>
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Compliance</div>
+        <a href="rules.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Rules Engine</a>
+        <a href="filings.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>SAR/STR Filings</a>
+        <a href="reports.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Reports</a>
+      </div>
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Developer</div>
+        <a href="api-keys.html" class="plat-nav-item plat-nav-item--active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>API Keys</a>
+        <a href="#" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>API Docs</a>
+      </div>
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Account</div>
+        <a href="settings.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg>Settings</a>
+        <a href="../index.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Back to Website</a>
+      </div>
+    </nav>
+    <div class="plat-sidebar__footer">
+      <div class="plat-sidebar__user"><div class="plat-sidebar__avatar">JD</div><div><div class="plat-sidebar__user-name">John Doe</div><div class="plat-sidebar__user-plan">Growth Plan</div></div></div>
+    </div>
+  </aside>
+
+  <main class="plat-main">
+    <header class="plat-topbar">
+      <div class="plat-topbar__search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="Search..."></div>
+      <div class="plat-topbar__actions">
+        <div class="plat-topbar__credits"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><strong>42,180</strong> credits</div>
+      </div>
+    </header>
+
+    <div class="plat-content">
+      <div class="plat-page-header plat-animate-in">
+        <div>
+          <h1 class="plat-page-header__title">API Keys</h1>
+          <p class="plat-page-header__subtitle">Manage your API keys to integrate FinShield into your applications.</p>
+        </div>
+        <div class="plat-page-header__actions">
+          <button class="plat-btn plat-btn--primary" id="createKeyBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg>Create API Key</button>
+        </div>
+      </div>
+
+      <!-- Quick Start -->
+      <div class="plat-card plat-animate-in" style="margin-bottom: 2rem;">
+        <div class="plat-card__header">
+          <span class="plat-card__title">Quick Start</span>
+        </div>
+        <p style="font-size: 0.875rem; color: var(--plat-muted); margin-bottom: 1rem;">Use your API key to screen transactions via our REST API:</p>
+        <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--plat-accent-l); overflow-x: auto; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="color: var(--plat-muted); margin-bottom: 0.5rem;"># Screen a transaction</div>
+          <div>curl -X POST https://api.finshield.ai/v1/transactions \</div>
+          <div>&nbsp;&nbsp;-H <span style="color: var(--plat-gold-l);">"Authorization: Bearer fs_live_••••••••"</span> \</div>
+          <div>&nbsp;&nbsp;-H <span style="color: var(--plat-gold-l);">"Content-Type: application/json"</span> \</div>
+          <div>&nbsp;&nbsp;-d <span style="color: var(--plat-gold-l);">'{"amount": 12450, "currency": "USD", "type": "wire"}'</span></div>
+        </div>
+      </div>
+
+      <!-- API Keys List -->
+      <div class="plat-card plat-animate-in">
+        <div class="plat-card__header">
+          <span class="plat-card__title">Your API Keys</span>
+        </div>
+        <table class="plat-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Key</th>
+              <th>Environment</th>
+              <th>Status</th>
+              <th>Last Used</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong style="color: #fff;">Production</strong></td>
+              <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--plat-accent-l);">fs_live_k8x9m2••••••••••••</td>
+              <td><span class="plat-status plat-status--approved"><span class="plat-status__dot"></span>Live</span></td>
+              <td><span class="plat-status plat-status--approved"><span class="plat-status__dot"></span>Active</span></td>
+              <td>2 min ago</td>
+              <td>Sep 15, 2026</td>
+              <td><button class="plat-btn plat-btn--glass" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><strong style="color: #fff;">Staging</strong></td>
+              <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--plat-gold-l);">fs_test_p3q7r1••••••••••••</td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>Test</span></td>
+              <td><span class="plat-status plat-status--approved"><span class="plat-status__dot"></span>Active</span></td>
+              <td>1 hour ago</td>
+              <td>Sep 10, 2026</td>
+              <td><button class="plat-btn plat-btn--glass" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><strong style="color: #fff;">CI/CD Pipeline</strong></td>
+              <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--plat-gold-l);">fs_test_m5n8w4••••••••••••</td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>Test</span></td>
+              <td><span class="plat-status plat-status--approved"><span class="plat-status__dot"></span>Active</span></td>
+              <td>3 days ago</td>
+              <td>Aug 28, 2026</td>
+              <td><button class="plat-btn plat-btn--glass" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Revoke</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Rate Limits -->
+      <div class="plat-card plat-animate-in" style="margin-top: 2rem;">
+        <div class="plat-card__header">
+          <span class="plat-card__title">Rate Limits & Quotas</span>
+          <a href="#" class="plat-card__action">Upgrade plan</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+          <div>
+            <div style="font-size: 0.8125rem; color: var(--plat-muted); margin-bottom: 0.5rem;">API Requests (today)</div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
+                <div style="width: 34%; height: 100%; background: linear-gradient(90deg, var(--plat-accent), var(--plat-accent-l)); border-radius: 4px;"></div>
+              </div>
+              <span style="font-size: 0.8125rem; color: var(--plat-text); font-weight: 600;">34K / 100K</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 0.8125rem; color: var(--plat-muted); margin-bottom: 0.5rem;">Credits (this month)</div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
+                <div style="width: 15.6%; height: 100%; background: linear-gradient(90deg, var(--plat-gold), var(--plat-gold-l)); border-radius: 4px;"></div>
+              </div>
+              <span style="font-size: 0.8125rem; color: var(--plat-text); font-weight: 600;">7,820 / 50K</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 0.8125rem; color: var(--plat-muted); margin-bottom: 0.5rem;">Rate Limit</div>
+            <div style="font-size: 1.125rem; font-weight: 700; color: #fff;">500 req/min</div>
+            <div style="font-size: 0.75rem; color: var(--plat-muted);">Growth plan limit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

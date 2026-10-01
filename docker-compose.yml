@@ -1,0 +1,71 @@
+# FinShield AI — Full Stack Docker Compose
+# Usage: docker-compose up --build -d
+
+version: "3.9"
+
+services:
+  # ── Marketing Website (nginx) ──
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    container_name: finshield-website
+    ports:
+      - "8090:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - finshield-net
+
+  # ── FastAPI Backend ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: finshield-backend
+    ports:
+      - "8091:8091"
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=sqlite:///./finshield.db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-use-openssl-rand-hex-32}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8090
+      - DEFAULT_SIGNUP_CREDITS=50000
+      - DEBUG=false
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - finshield-net
+
+  # ── Platform Frontend (Next.js) ──
+  platform:
+    build:
+      context: ./platform-app
+      dockerfile: Dockerfile
+    container_name: finshield-platform
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:8091
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - finshield-net
+
+volumes:
+  backend-data:
+    driver: local
+
+networks:
+  finshield-net:
+    driver: bridge

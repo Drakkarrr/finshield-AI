@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinShield AI — Transaction Compliance Engine | Local-First, Full-Lifecycle</title>
+  <meta name="description" content="Screen transactions against compliance rules, ML classification, and behavioral monitoring. Route flagged items through case management and SAR/STR filing. All inference on your infrastructure.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+  <!-- ===== Top Bar ===== -->
+  <div class="topbar">
+    <div class="container topbar__inner">
+      <div class="topbar__locations">
+        <span>New York, USA</span>
+        <span>Dubai, UAE</span>
+        <span>London, UK</span>
+        <span>Singapore</span>
+        <span>Toronto, Canada</span>
+      </div>
+      <div class="topbar__actions">
+        <a href="pages/contact.html" class="topbar__link">Get In Touch</a>
+        <a href="http://localhost:3000/signup" class="topbar__link topbar__link--cta">Start Free</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="nav" id="nav">
+    <div class="container nav__inner">
+      <a href="/" class="nav__logo">
+        <div class="nav__logo-mark"></div>
+        <span class="nav__logo-text">FinShield</span>
+      </a>
+
+      <div class="nav__links">
+        <div class="nav__dropdown">
+          <button class="nav__link nav__link--has-dropdown">
+            Platform
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="nav__dropdown-menu">
+            <a href="#features" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Compliance Engine</div>
+              <div class="nav__dropdown-item-desc">Full transaction screening pipeline</div>
+            </a>
+            <a href="#pipeline" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">How It Works</div>
+              <div class="nav__dropdown-item-desc">7-stage processing flow</div>
+            </a>
+            <a href="#security" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Security & Compliance</div>
+              <div class="nav__dropdown-item-desc">GDPR, SOC 2, encryption</div>
+            </a>
+            <a href="pages/pricing.html" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Pricing</div>
+              <div class="nav__dropdown-item-desc">Transparent credits model</div>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav__dropdown">
+          <button class="nav__link nav__link--has-dropdown">
+            Solutions
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="nav__dropdown-menu">
+            <a href="#industries" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Fintechs & Neobanks</div>
+              <div class="nav__dropdown-item-desc">Scale compliance with growth</div>
+            </a>
+            <a href="#industries" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Regional Banks</div>
+              <div class="nav__dropdown-item-desc">Replace legacy systems</div>
+            </a>
+            <a href="#industries" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Payment Processors</div>
+              <div class="nav__dropdown-item-desc">High-throughput screening</div>
+            </a>
+            <a href="#industries" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Crypto Exchanges</div>
+              <div class="nav__dropdown-item-desc">On-chain + off-chain monitoring</div>
+            </a>
+            <a href="#industries" class="nav__dropdown-item">
+              <div class="nav__dropdown-item-title">Enterprise Banks</div>
+              <div class="nav__dropdown-item-desc">Multi-entity, on-premise</div>
+            </a>
+          </div>
+        </div>
+
+        <a href="pages/portfolio.html" class="nav__link">Portfolio</a>
+        <a href="pages/resources.html" class="nav__link">Resources</a>
+        <a href="pages/about.html" class="nav__link">About</a>
+      </div>
+
+      <div class="nav__cta">
+        <a href="http://localhost:3000/login" class="nav__link">Sign In</a>
+        <a href="http://localhost:3000/signup" class="btn btn--primary btn--magnetic">Start Free Trial</a>
+      </div>
+
+      <button class="nav__mobile-toggle" id="mobileToggle" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <button class="mobile-menu__close" id="mobileClose" aria-label="Close menu">&times;</button>
+    <div class="mobile-menu__links">
+      <a href="#features" class="mobile-menu__link">Platform</a>
+      <a href="#pipeline" class="mobile-menu__link">How It Works</a>
+      <a href="#industries" class="mobile-menu__link">Industries</a>
+      <a href="pages/pricing.html" class="mobile-menu__link">Pricing</a>
+      <a href="pages/portfolio.html" class="mobile-menu__link">Portfolio</a>
+      <a href="pages/resources.html" class="mobile-menu__link">Resources</a>
+      <a href="pages/about.html" class="mobile-menu__link">About</a>
+      <a href="#security" class="mobile-menu__link">Security</a>
+      <a href="#faq" class="mobile-menu__link">FAQ</a>
+    </div>
+    <div class="mobile-menu__cta">
+      <a href="http://localhost:3000/login" class="btn btn--secondary" style="width:100%;justify-content:center;">Sign In</a>
+      <a href="http://localhost:3000/signup" class="btn btn--primary" style="width:100%;justify-content:center;">Start Free Trial</a>
+    </div>
+  </div>
+  <div class="mobile-menu__overlay" id="mobileOverlay"></div>
+
+
+  <!-- ===== Hero ===== -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero__grid">
+        <div class="hero__content">
+          <div class="hero__badge">
+            <span class="hero__badge-dot"></span>
+            Now screening 200+ transactions/sec
+          </div>
+
+          <h1 class="hero__title">
+            Engineering the Next Generation of<br>
+            <em>Transaction Compliance Systems</em>
+          </h1>
+
+          <p class="hero__description">
+            FinShield engineers secure, scalable compliance systems by combining hard-rule enforcement, behavioral fraud detection, and AI-powered classification in a local-first architecture — helping financial institutions move from detection to regulatory filing in one platform.
+          </p>
+
+          <div class="hero__actions">
+            <a href="#demo" class="btn btn--primary btn--large">
+              Consult Our Compliance Team
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a href="#pipeline" class="btn btn--secondary btn--large">See How It Works</a>
+          </div>
+
+          <div class="hero__partners">
+            <span class="hero__partners-label">Official Technology Partners</span>
+            <div class="hero__partners-logos">
+              <span class="partner-logo">PostgreSQL</span>
+              <span class="partner-logo">LangChain</span>
+              <span class="partner-logo">vLLM</span>
+              <span class="partner-logo">Kubernetes</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero__visual">
+          <div class="hero__diagram">
+            <div class="hero__diagram-header">
+              <span class="hero__diagram-title">TX-88213 &middot; $18,400 withdrawal</span>
+              <span class="hero__diagram-status">processing</span>
+            </div>
+
+            <div class="pipeline-flow">
+              <div class="pipeline-stage pipeline-stage--pass">
+                <div class="pipeline-stage__icon">01</div>
+                <span class="pipeline-stage__name">Idempotency check</span>
+                <span class="pipeline-stage__value">pass</span>
+              </div>
+              <div class="pipeline-connector"></div>
+
+              <div class="pipeline-stage pipeline-stage--pass">
+                <div class="pipeline-stage__icon">02</div>
+                <span class="pipeline-stage__name">Input sanitization</span>
+                <span class="pipeline-stage__value">clean</span>
+              </div>
+              <div class="pipeline-connector"></div>
+
+              <div class="pipeline-stage pipeline-stage--pass">
+                <div class="pipeline-stage__icon">03</div>
+                <span class="pipeline-stage__name">Hard rule engine</span>
+                <span class="pipeline-stage__value">0 rules matched</span>
+              </div>
+              <div class="pipeline-connector"></div>
+
+              <div class="pipeline-stage pipeline-stage--alert">
+                <div class="pipeline-stage__icon">04</div>
+                <span class="pipeline-stage__name">Behavioral monitor</span>
+                <span class="pipeline-stage__value">anomaly: 0.87</span>
+              </div>
+              <div class="pipeline-connector"></div>
+
+              <div class="pipeline-stage pipeline-stage--active">
+                <div class="pipeline-stage__icon">05</div>
+                <span class="pipeline-stage__name">RAG retrieval + classifier</span>
+                <span class="pipeline-stage__value">flag, conf: 0.61</span>
+              </div>
+              <div class="pipeline-connector"></div>
+
+              <div class="pipeline-stage pipeline-stage--active">
+                <div class="pipeline-stage__icon">06</div>
+                <span class="pipeline-stage__name">Gating logic</span>
+                <span class="pipeline-stage__value">&rarr; CASE-2024-00847</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Trust Bar ===== -->
+  <section class="trust-bar">
+    <div class="container">
+      <p class="trust-bar__label label">Trusted by teams screening transactions at scale</p>
+      <div class="trust-bar__logos">
+        <span class="trust-bar__logo">Stripe</span>
+        <span class="trust-bar__logo">Wise</span>
+        <span class="trust-bar__logo">Revolut</span>
+        <span class="trust-bar__logo">Square</span>
+        <span class="trust-bar__logo">Coinbase</span>
+        <span class="trust-bar__logo">PayPal</span>
+        <span class="trust-bar__logo">Adyen</span>
+        <span class="trust-bar__logo">Plaid</span>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Services Section ===== -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label">Technology Services Built Around Your Compliance Goals</span>
+        <h2>Full-Lifecycle Compliance Engineering</h2>
+        <p>From transaction ingestion to regulatory filing — one platform engineered for the complete compliance operation, not just detection.</p>
+      </div>
+
+      <div class="services-grid">
+        <div class="service-card fade-in">
+          <div class="service-card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>Hard Rule Engine</h3>
+          <p>Deterministic compliance rules — sanctions blocks, country restrictions, amount thresholds — authored from the admin UI. No code changes, no redeploy. Executes before any ML path.</p>
+          <a href="#" class="service-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="service-card fade-in">
+          <div class="service-card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <h3>Behavioral Monitoring</h3>
+          <p>Per-account anomaly detection on 100% of transactions. Catches "this user never withdraws this much" without invoking the model stack. Sub-100ms per check.</p>
+          <a href="#" class="service-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="service-card fade-in">
+          <div class="service-card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+          </div>
+          <h3>Agentic RAG + LoRA Classifier</h3>
+          <p>Multi-hop retrieval across policy, sanctions, and precedent indexes. DSPy-compiled classifier with Pydantic-validated output. Every retrieval step audit-logged.</p>
+          <a href="#" class="service-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="service-card fade-in">
+          <div class="service-card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <h3>Case Management</h3>
+          <p>Flagged transactions become investigation cases with lifecycle states, assignment, SLA timers, escalation policies, and working notes. Not a flat queue — a workflow.</p>
+          <a href="#" class="service-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="service-card fade-in">
+          <div class="service-card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+          </div>
+          <h3>SAR/STR Filing</h3>
+          <p>Generate regulatory filing drafts from case data. Narrative assistance, deadline tracking, safe harbor logging. Configurable per jurisdiction.</p>
+          <a href="#" class="service-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="service-card fade-in">
+          <div class="service-card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Circuit Breaker Resilience</h3>
+          <p>When the model server is unavailable, transactions route to human review — never silently auto-approve. Per-dependency health monitoring with degraded mode routing.</p>
+          <a href="#" class="service-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      </div>
+
+      <div class="section__cta">
+        <a href="#" class="btn btn--secondary">View All Capabilities <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Portfolio Section ===== -->
+  <section class="section section--alt" id="portfolio">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label">Innovation, Engineered by FinShield</span>
+        <h2>Compliance Systems in Production</h2>
+        <p>Real deployments across fintechs, banks, and payment processors — from detection to regulatory filing.</p>
+      </div>
+
+      <div class="portfolio-grid">
+        <div class="portfolio-card fade-in">
+          <div class="portfolio-card__header">
+            <span class="portfolio-card__client">Series B Fintech</span>
+            <span class="portfolio-card__category">AML Compliance</span>
+          </div>
+          <h3>Reduced false positives by 60% with behavioral monitoring</h3>
+          <p>Replaced rules-only system with ML-powered screening. Behavioral monitor catches account-specific anomalies that static rules miss.</p>
+          <div class="portfolio-card__metrics">
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">60%</div>
+              <div class="portfolio-metric__label">Fewer false positives</div>
+            </div>
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">3.2s</div>
+              <div class="portfolio-metric__label">Avg. decision time</div>
+            </div>
+          </div>
+          <a href="#" class="portfolio-card__link">View Success Story <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="portfolio-card fade-in">
+          <div class="portfolio-card__header">
+            <span class="portfolio-card__client">Regional Bank ($8B Assets)</span>
+            <span class="portfolio-card__category">BSA/AML Modernization</span>
+          </div>
+          <h3>Modernized legacy compliance system with full audit trail</h3>
+          <p>Replaced 15-year-old rules engine with ML-powered platform. Examiner specifically noted audit trail quality in last quarterly review.</p>
+          <div class="portfolio-card__metrics">
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">94%</div>
+              <div class="portfolio-metric__label">Audit completeness</div>
+            </div>
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">40%</div>
+              <div class="portfolio-metric__label">Faster investigations</div>
+            </div>
+          </div>
+          <a href="#" class="portfolio-card__link">View Success Story <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="portfolio-card fade-in">
+          <div class="portfolio-card__header">
+            <span class="portfolio-card__client">Crypto Exchange</span>
+            <span class="portfolio-card__category">Transaction Monitoring</span>
+          </div>
+          <h3>On-chain + off-chain screening with travel rule compliance</h3>
+          <p>Unified screening for fiat and crypto transactions. Sanctions matching, behavioral anomaly detection for wash trading, jurisdiction-specific filing.</p>
+          <div class="portfolio-card__metrics">
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">50K+</div>
+              <div class="portfolio-metric__label">Tx/day screened</div>
+            </div>
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">&lt;2s</div>
+              <div class="portfolio-metric__label">p95 latency</div>
+            </div>
+          </div>
+          <a href="#" class="portfolio-card__link">View Success Story <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="portfolio-card fade-in">
+          <div class="portfolio-card__header">
+            <span class="portfolio-card__client">Payment Processor</span>
+            <span class="portfolio-card__category">Real-Time Screening</span>
+          </div>
+          <h3>High-throughput screening integrated into payment rails</h3>
+          <p>Idempotent submission, webhook events, ISO 20022 adapters. Real-time decisions for synchronous gating or async monitoring.</p>
+          <div class="portfolio-card__metrics">
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">200+</div>
+              <div class="portfolio-metric__label">Tx/sec throughput</div>
+            </div>
+            <div class="portfolio-metric">
+              <div class="portfolio-metric__value">99.9%</div>
+              <div class="portfolio-metric__label">Uptime SLA</div>
+            </div>
+          </div>
+          <a href="#" class="portfolio-card__link">View Success Story <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      </div>
+
+      <div class="section__cta">
+        <a href="pages/portfolio.html" class="btn btn--secondary">View All Case Studies <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Stats Section ===== -->
+  <section class="stats">
+    <div class="container">
+      <div class="stats__grid">
+        <div class="stat fade-in">
+          <div class="stat__value"><em>10+</em></div>
+          <div class="stat__label">Years of compliance engineering expertise</div>
+        </div>
+        <div class="stat fade-in">
+          <div class="stat__value"><em>200+</em></div>
+          <div class="stat__label">Transactions per second per GPU node</div>
+        </div>
+        <div class="stat fade-in">
+          <div class="stat__value"><em>10x</em></div>
+          <div class="stat__label">Cheaper than legacy compliance platforms</div>
+        </div>
+        <div class="stat fade-in">
+          <div class="stat__value"><em>0</em></div>
+          <div class="stat__label">Transaction data sent to third-party APIs</div>
+        </div>
+        <div class="stat fade-in">
+          <div class="stat__value"><em>100%</em></div>
+          <div class="stat__label">Decisions backed by immutable audit trail</div>
+        </div>
+        <div class="stat fade-in">
+          <div class="stat__value"><em>60%</em></div>
+          <div class="stat__label">Fewer false positives vs. rules-only systems</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Pipeline Section ===== -->
+  <section class="section" id="pipeline">
+    <div class="container">
+      <div class="pipeline-section__grid">
+        <div class="pipeline-visual">
+          <div class="pipeline-visual__grid">
+            <div class="pipeline-step">
+              <div class="pipeline-step__number">01</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">Ingestion &amp; Idempotency</div>
+                <div class="pipeline-step__desc">Duplicate detection, payload validation</div>
+              </div>
+              <div class="pipeline-step__latency">&lt;10ms</div>
+            </div>
+            <div class="pipeline-divider"></div>
+
+            <div class="pipeline-step">
+              <div class="pipeline-step__number">02</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">Sanitization</div>
+                <div class="pipeline-step__desc">Prompt injection screening, PII classification</div>
+              </div>
+              <div class="pipeline-step__latency">&lt;20ms</div>
+            </div>
+            <div class="pipeline-divider"></div>
+
+            <div class="pipeline-step pipeline-step--highlight">
+              <div class="pipeline-step__number">03</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">Hard Rule Engine</div>
+                <div class="pipeline-step__desc">Sanctions, country blocks, amount thresholds</div>
+              </div>
+              <div class="pipeline-step__latency">&lt;5ms</div>
+            </div>
+            <div class="pipeline-divider"></div>
+
+            <div class="pipeline-step">
+              <div class="pipeline-step__number">04</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">Behavioral Monitor</div>
+                <div class="pipeline-step__desc">Per-account anomaly scoring, cold-start handling</div>
+              </div>
+              <div class="pipeline-step__latency">&lt;100ms</div>
+            </div>
+            <div class="pipeline-divider"></div>
+
+            <div class="pipeline-step pipeline-step--highlight">
+              <div class="pipeline-step__number">05</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">RAG + Classifier + Risk Scorer</div>
+                <div class="pipeline-step__desc">Policy retrieval, LoRA inference, independent scoring</div>
+              </div>
+              <div class="pipeline-step__latency">1–2s</div>
+            </div>
+            <div class="pipeline-divider"></div>
+
+            <div class="pipeline-step">
+              <div class="pipeline-step__number">06</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">Gating &amp; Case Routing</div>
+                <div class="pipeline-step__desc">Signal reconciliation, case creation, SLA assignment</div>
+              </div>
+              <div class="pipeline-step__latency">&lt;50ms</div>
+            </div>
+            <div class="pipeline-divider"></div>
+
+            <div class="pipeline-step">
+              <div class="pipeline-step__number">07</div>
+              <div class="pipeline-step__content">
+                <div class="pipeline-step__name">Audit &amp; Dispatch</div>
+                <div class="pipeline-step__desc">Immutable log, webhook events, dashboard push</div>
+              </div>
+              <div class="pipeline-step__latency">&lt;30ms</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipeline-content">
+          <span class="label">How It Works</span>
+          <h2>Seven Stages. Every Transaction. Fully Auditable.</h2>
+          <p class="lead">Cheap checks gate expensive ones. The behavioral monitor runs on 100% of transactions in under 100ms. Only anomalies hit the ML stack. Hard rules short-circuit before any model runs.</p>
+
+          <div class="pipeline-checks">
+            <div class="pipeline-check">
+              <div class="pipeline-check__icon">&#10003;</div>
+              <span><strong>Three independent scoring paths</strong> — hard rules, ML classifier, and behavioral monitor never share a failure mode</span>
+            </div>
+            <div class="pipeline-check">
+              <div class="pipeline-check__icon">&#10003;</div>
+              <span><strong>Fail closed, not open</strong> — any component failure routes to human review, never silent auto-approval</span>
+            </div>
+            <div class="pipeline-check">
+              <div class="pipeline-check__icon">&#10003;</div>
+              <span><strong>Every step audit-logged</strong> — inputs, retrieved context, model version, gating decision, case outcome</span>
+            </div>
+            <div class="pipeline-check">
+              <div class="pipeline-check__icon">&#10003;</div>
+              <span><strong>Config-first</strong> — thresholds, rules, model versions are runtime config, not code. No redeploy to tune.</span>
+            </div>
+          </div>
+
+          <a href="#demo" class="btn btn--dark">
+            Walk Through the Pipeline
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Industries Section ===== -->
+  <section class="section section--alt" id="industries">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label">Solving Complex Compliance Challenges Across Every Major Sector</span>
+        <h2>Industries We Serve</h2>
+        <p>From fintech startups to multi-entity banks. FinShield adapts to your regulatory regime, transaction volume, and compliance maturity.</p>
+      </div>
+
+      <div class="industries-grid">
+        <div class="industry-card fade-in">
+          <div class="industry-card__icon">&#9670;</div>
+          <h3>Fintechs & Neobanks</h3>
+          <p>Scaling transaction volume means scaling compliance. FinShield grows with you — from 1,000 to 1,000,000 transactions/month without replatforming.</p>
+          <a href="#" class="industry-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="industry-card fade-in">
+          <div class="industry-card__icon">&#9671;</div>
+          <h3>Regional & Community Banks</h3>
+          <p>Replace legacy rule-based systems with ML-powered screening. Reduce false positives, accelerate investigation, meet examiner expectations.</p>
+          <a href="#" class="industry-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="industry-card fade-in">
+          <div class="industry-card__icon">&#9674;</div>
+          <h3>Payment Processors</h3>
+          <p>High-throughput screening integrated into payment rails. Idempotent submission, webhook events, ISO 20022 adapters.</p>
+          <a href="#" class="industry-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="industry-card fade-in">
+          <div class="industry-card__icon">&#9673;</div>
+          <h3>Crypto Exchanges & Custodians</h3>
+          <p>On-chain and off-chain transaction screening. Sanctions matching, behavioral anomaly detection for wash trading, travel rule compliance.</p>
+          <a href="#" class="industry-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="industry-card fade-in">
+          <div class="industry-card__icon">&#9672;</div>
+          <h3>Enterprise & Multi-Entity Banks</h3>
+          <p>Multi-tenant isolation with separate schemas per business unit. On-premise deployment for data residency. Model risk management.</p>
+          <a href="#" class="industry-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+
+        <div class="industry-card fade-in">
+          <div class="industry-card__icon">&#9675;</div>
+          <h3>Money Transmitters & Remittance</h3>
+          <p>Cross-border transaction screening with sanctions list matching, geographic risk scoring, corridor-specific compliance rules.</p>
+          <a href="#" class="industry-card__link">Know More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      </div>
+
+      <div class="section__cta">
+        <a href="#" class="btn btn--secondary">Check All Industries <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Security Section ===== -->
+  <section class="section security-section" id="security">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label label--light">Building With Compliance and Risk in Mind</span>
+        <h2>Architecture Built for Regulatory Scrutiny</h2>
+        <p>At FinShield, we integrate compliance into every layer of our engineering process, ensuring your institution can navigate complex regulations while maintaining both security and high performance.</p>
+      </div>
+
+      <div class="security-categories">
+        <div class="security-category fade-in">
+          <h4 class="security-category__title">1. Data Privacy & Protection</h4>
+          <div class="security-category__badges">
+            <span class="security-badge">GDPR</span>
+            <span class="security-badge">CCPA</span>
+            <span class="security-badge">PII Classification</span>
+            <span class="security-badge">Right to Erasure</span>
+          </div>
+        </div>
+
+        <div class="security-category fade-in">
+          <h4 class="security-category__title">2. Security & Risk Management</h4>
+          <div class="security-category__badges">
+            <span class="security-badge">ISO/IEC 27001</span>
+            <span class="security-badge">SOC 2 Type II</span>
+            <span class="security-badge">PCI DSS</span>
+            <span class="security-badge">NIST</span>
+          </div>
+        </div>
+
+        <div class="security-category fade-in">
+          <h4 class="security-category__title">3. AI & Technology-Specific Regulations</h4>
+          <div class="security-category__badges">
+            <span class="security-badge">EU AI Act</span>
+            <span class="security-badge">Model Risk Management</span>
+            <span class="security-badge">Algorithmic Accountability</span>
+          </div>
+        </div>
+
+        <div class="security-category fade-in">
+          <h4 class="security-category__title">4. Industry-Specific Standards</h4>
+          <div class="security-category__badges">
+            <span class="security-badge">BSA/AML</span>
+            <span class="security-badge">FinCEN SAR/STR</span>
+            <span class="security-badge">OFAC Sanctions</span>
+            <span class="security-badge">Travel Rule</span>
+          </div>
+        </div>
+
+        <div class="security-category fade-in">
+          <h4 class="security-category__title">5. Global & Regulatory Frameworks</h4>
+          <div class="security-category__badges">
+            <span class="security-badge">FATF Recommendations</span>
+            <span class="security-badge">Basel III</span>
+            <span class="security-badge">MiFID II</span>
+          </div>
+        </div>
+
+        <div class="security-category fade-in">
+          <h4 class="security-category__title">6. Compliance for Cloud & SaaS</h4>
+          <div class="security-category__badges">
+            <span class="security-badge">CSA Cloud Controls Matrix</span>
+            <span class="security-badge">FedRAMP</span>
+            <span class="security-badge">Data Residency</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Awards Section ===== -->
+  <section class="section">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label">Proven Expertise. Globally Accredited.</span>
+        <h2>Recognition & Compliance Certifications</h2>
+      </div>
+
+      <div class="awards-grid">
+        <div class="award-card fade-in">
+          <div class="award-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="7"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>
+          </div>
+          <h4>SOC 2 Type II Ready</h4>
+          <p>Architecture designed to satisfy SOC 2 Trust Service Criteria. Certification in progress.</p>
+        </div>
+
+        <div class="award-card fade-in">
+          <div class="award-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <h4>ISO 27001 Aligned</h4>
+          <p>Information security management system aligned with ISO 27001 controls.</p>
+        </div>
+
+        <div class="award-card fade-in">
+          <div class="award-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <h4>GDPR Compliant</h4>
+          <p>Data privacy module with DSAR handling, erasure workflow, PII masking.</p>
+        </div>
+
+        <div class="award-card fade-in">
+          <div class="award-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+          </div>
+          <h4>BSA/AML Compliant</h4>
+          <p>SAR/STR filing module with deadline tracking and safe harbor logging.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Testimonials ===== -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label">Words From Our Compliance Partners</span>
+        <h2>Trusted by Teams Who Screen Transactions for a Living</h2>
+      </div>
+
+      <div class="testimonials-grid">
+        <div class="testimonial-card fade-in">
+          <div class="testimonial-card__quote">
+            We cut our false positive rate from 94% to 38% in the first quarter. The behavioral monitor caught patterns our rules-only system missed entirely — like accounts that suddenly changed transaction geography.
+          </div>
+          <div class="testimonial-card__author">
+            <div class="testimonial-card__avatar">MR</div>
+            <div>
+              <div class="testimonial-card__name">Maria Rodriguez</div>
+              <div class="testimonial-card__role">Head of Compliance, Series B Fintech</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card fade-in">
+          <div class="testimonial-card__quote">
+            The case management workflow changed how our team operates. Investigators work cases, not queues. SLA timers mean nothing falls through the cracks. Our examiner last quarter specifically noted the audit trail quality.
+          </div>
+          <div class="testimonial-card__author">
+            <div class="testimonial-card__avatar">JK</div>
+            <div>
+              <div class="testimonial-card__name">James Kowalski</div>
+              <div class="testimonial-card__role">BSA Officer, Regional Bank ($8B Assets)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card fade-in">
+          <div class="testimonial-card__quote">
+            We evaluated three enterprise platforms. All required six-figure annual contracts and months of implementation. FinShield was running in our staging environment in two days. The API is the cleanest I've seen in compliance tech.
+          </div>
+          <div class="testimonial-card__author">
+            <div class="testimonial-card__avatar">SP</div>
+            <div>
+              <div class="testimonial-card__name">Sarah Park</div>
+              <div class="testimonial-card__role">CTO, Crypto Exchange</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section__cta">
+        <a href="#" class="btn btn--secondary">View All Client Testimonials <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== CTA Section ===== -->
+  <section class="cta-section" id="demo">
+    <div class="container">
+      <div class="cta__inner">
+        <span class="label label--light">Get Started</span>
+        <h2>Ready to Engineer Your Next Compliance System?</h2>
+        <p>Collaborate with a team that understands both the technology and the regulatory landscape. Share your requirements, and our compliance engineers will come back with technical insights, timelines, and next steps.</p>
+
+        <div class="cta__form">
+          <div class="cta__form-grid">
+            <input type="text" placeholder="Name" class="cta__input">
+            <input type="email" placeholder="Email *" class="cta__input" required>
+            <input type="tel" placeholder="Contact Number *" class="cta__input" required>
+            <input type="text" placeholder="Company Name" class="cta__input">
+          </div>
+          <textarea placeholder="Describe your compliance challenges (help us come back better prepared)" class="cta__textarea" rows="4"></textarea>
+          <div class="cta__form-actions">
+            <label class="cta__checkbox-label">
+              <input type="checkbox" class="cta__checkbox">
+              <span>Request NDA before sharing detailed requirements</span>
+            </label>
+            <button class="btn btn--primary btn--large">Submit</button>
+          </div>
+          <p class="cta__form-note">Fast 2-minute response, fully NDA-protected.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== FAQ Section ===== -->
+  <section class="section" id="faq">
+    <div class="container">
+      <div class="section__header section__header--center">
+        <span class="label">Frequently Asked Questions</span>
+        <h2>Didn't Find What You Were Looking For?</h2>
+        <p>We've got more answers waiting for you. If your question didn't make the list, don't hesitate to reach out.</p>
+      </div>
+
+      <div class="faq-list">
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            What types of compliance engineering services does FinShield offer?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>FinShield offers a comprehensive suite of compliance engineering services designed to help financial institutions detect, investigate, and report suspicious transactions, spanning the complete lifecycle from ingestion to regulatory filing. Our core capabilities include: Hard Rule Engine (deterministic compliance rules), Behavioral Monitoring (per-account anomaly detection), Agentic RAG + LoRA Classifier (ML-powered screening), Case Management (investigation workflow), SAR/STR Filing (regulatory reporting), and Circuit Breaker Resilience (graceful degradation).</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            How is FinShield different from rules-only compliance systems?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>Rules-only systems produce 90%+ false positive rates because they can't distinguish between unusual and suspicious. FinShield combines hard rules (for deterministic blocks like sanctions matches) with ML classification and behavioral monitoring. The behavioral monitor catches account-specific anomalies ("this user never withdraws this much") that static rules miss. The result: fewer false positives, faster investigations, and decisions you can explain to a regulator.</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            What does "local-first" mean? Does any data leave our infrastructure?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>No transaction data, embeddings, or model inputs leave your infrastructure. The ML stack (LoRA classifier, RAG retrieval, behavioral scorer) runs entirely on hardware you control — whether that's your data center, a VPC, or our managed cloud deployment. We don't use third-party LLM APIs. This is a hard architectural constraint, not a policy.</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            How long does implementation take?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>Most teams have FinShield running in staging within 2–5 days. The API is REST-based with a Python SDK — integration is typically a few hundred lines of code. Production deployment with custom rules, policy documents loaded into the RAG index, and team onboarding takes 2–4 weeks depending on complexity. Enterprise deployments with on-premise infrastructure and SSO integration typically take 4–8 weeks.</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            What happens if the model goes down? Do transactions auto-approve?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>Never. FinShield fails closed, not open. If the model server is unavailable, transactions route directly to human review with a degraded-mode flag. Each downstream dependency (model server, pgvector, Redis) has an independent circuit breaker. The dashboard shows real-time system health so your team knows exactly which paths are affected. Auto-approval due to component failure is architecturally impossible.</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            How do credits work? What counts as a credit?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>Credits are consumed per transaction based on the processing path. Rule-only transactions (no ML) cost 0.2 credits. Transactions that trigger behavioral monitoring cost 0.5 credits. Full pipeline transactions (ML classification + RAG retrieval + behavioral) cost 1.0 credit. Most transactions (80%+) are low-risk and cost 0.2–0.5 credits. Your blended cost per transaction is typically $0.001–$0.003 depending on your risk profile.</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            Can we self-host? Do you offer on-premise deployment?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>Yes. FinShield ships as Docker Compose for development and a Helm chart for Kubernetes production deployment. Enterprise customers can deploy on-premise in their own data center or private cloud. We also offer managed cloud deployment in your VPC (AWS, GCP, Azure) where we operate the infrastructure but data never leaves your cloud boundary.</p>
+          </div>
+        </div>
+
+        <div class="faq-item" data-open="false">
+          <button class="faq-item__question">
+            What is the average cost and timeline for implementing FinShield?
+            <span class="faq-item__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="faq-item__answer">
+            <p>Cost varies by volume and deployment model: Starter tier starts at $29/month for 15,000 transactions, Growth at $99/month for 60,000 transactions, Pro at $299/month for 250,000 transactions. Enterprise pricing is custom. Implementation timeline: 2–5 days for staging, 2–4 weeks for production, 4–8 weeks for enterprise on-premise. We set clear budgets and milestones before deployment begins.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="footer__locations">
+      <div class="container">
+        <div class="footer__locations-grid">
+          <div class="footer__location">
+            <div class="footer__location-name">New York</div>
+            <div class="footer__location-address">350 Fifth Avenue, Suite 4500<br>NY 10001, USA</div>
+            <div class="footer__location-nav">
+              <button class="footer__location-arrow">&larr;</button>
+              <span class="footer__location-counter">1/2</span>
+              <button class="footer__location-arrow">&rarr;</button>
+            </div>
+          </div>
+          <div class="footer__location">
+            <div class="footer__location-name">Dubai</div>
+            <div class="footer__location-address">Meydan Grand Stand, 6th floor<br>Meydan Road, Nad Al Sheba</div>
+          </div>
+          <div class="footer__location">
+            <div class="footer__location-name">London</div>
+            <div class="footer__location-address">3rd Floor, 86–90 Paul Street<br>EC2A 4NE London, UK</div>
+          </div>
+          <div class="footer__location">
+            <div class="footer__location-name">Singapore</div>
+            <div class="footer__location-address">1 Raffles Place, Tower 2<br>#20-61 Singapore 048616</div>
+            <div class="footer__location-nav">
+              <button class="footer__location-arrow">&larr;</button>
+              <span class="footer__location-counter">1/2</span>
+              <button class="footer__location-arrow">&rarr;</button>
+            </div>
+          </div>
+          <div class="footer__location">
+            <div class="footer__location-name">Toronto</div>
+            <div class="footer__location-address">Suite 3010, Bankers Hall West<br>888 - 3rd Street SW, Calgary Alberta</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer__main">
+      <div class="container">
+        <div class="footer__grid">
+          <div class="footer__column">
+            <h4 class="footer__heading">Our Company</h4>
+            <div class="footer__links">
+              <a href="pages/about.html" class="footer__link">About</a>
+              <a href="#" class="footer__link">Core Team</a>
+              <a href="#" class="footer__link">Careers</a>
+              <a href="#" class="footer__link">CSR</a>
+              <a href="#" class="footer__link">How We Work</a>
+              <a href="#" class="footer__link">Awards</a>
+              <a href="#faq" class="footer__link">FAQ</a>
+              <a href="#security" class="footer__link">Compliances</a>
+            </div>
+          </div>
+
+          <div class="footer__column">
+            <h4 class="footer__heading">Services</h4>
+            <div class="footer__links">
+              <a href="#features" class="footer__link">Compliance Engine</a>
+              <a href="#pipeline" class="footer__link">Behavioral Monitoring</a>
+              <a href="#features" class="footer__link">Case Management</a>
+              <a href="#features" class="footer__link">SAR/STR Filing</a>
+              <a href="#security" class="footer__link">Security & Encryption</a>
+              <a href="pages/pricing.html" class="footer__link">Pricing</a>
+              <a href="#" class="footer__link">View More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+          </div>
+
+          <div class="footer__column">
+            <h4 class="footer__heading">Portfolio</h4>
+            <div class="footer__links">
+              <a href="#" class="footer__link">Series B Fintech</a>
+              <a href="#" class="footer__link">Regional Bank</a>
+              <a href="#" class="footer__link">Crypto Exchange</a>
+              <a href="#" class="footer__link">Payment Processor</a>
+              <a href="#" class="footer__link">Money Transmitter</a>
+              <a href="pages/portfolio.html" class="footer__link">View More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+          </div>
+
+          <div class="footer__column">
+            <h4 class="footer__heading">Technologies</h4>
+            <div class="footer__links">
+              <a href="#" class="footer__link">Machine Learning</a>
+              <a href="#" class="footer__link">RAG Retrieval</a>
+              <a href="#" class="footer__link">Behavioral Analytics</a>
+              <a href="#" class="footer__link">PostgreSQL + pgvector</a>
+              <a href="#" class="footer__link">Kubernetes</a>
+              <a href="#" class="footer__link">Cybersecurity</a>
+              <a href="#" class="footer__link">View More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+          </div>
+
+          <div class="footer__column">
+            <h4 class="footer__heading">Industries</h4>
+            <div class="footer__links">
+              <a href="#industries" class="footer__link">Fintech</a>
+              <a href="#industries" class="footer__link">Banking</a>
+              <a href="#industries" class="footer__link">Payments</a>
+              <a href="#industries" class="footer__link">Crypto</a>
+              <a href="#industries" class="footer__link">Remittance</a>
+              <a href="#industries" class="footer__link">Enterprise</a>
+              <a href="#" class="footer__link">View More <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+          </div>
+
+          <div class="footer__column">
+            <h4 class="footer__heading">Resources</h4>
+            <div class="footer__links">
+              <a href="pages/resources.html" class="footer__link">Blogs</a>
+              <a href="#" class="footer__link">Press Releases</a>
+              <a href="#" class="footer__link">Guides</a>
+              <a href="#" class="footer__link">Client Testimonials</a>
+              <a href="#demo" class="btn btn--primary" style="margin-top: 1rem; width: 100%; justify-content: center;">Get In Touch</a>
+            </div>
+
+            <div class="footer__social">
+              <a href="#" class="footer__social-link" aria-label="Instagram">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37zM17.5 6.5h.01"/></svg>
+              </a>
+              <a href="#" class="footer__social-link" aria-label="LinkedIn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2zM4 6a2 2 0 100-4 2 2 0 000 4z"/></svg>
+              </a>
+              <a href="#" class="footer__social-link" aria-label="Twitter">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l11.733 16h4.267l-11.733-16zM4 20l6.768-6.768M20 4l-6.768 6.768"/></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer__business-units">
+      <div class="container">
+        <h4 class="footer__business-units-title">Business Units Under FinShield Group</h4>
+        <div class="footer__business-units-grid">
+          <div class="footer__business-unit">
+            <div class="footer__business-unit-name">FinShield AI</div>
+            <a href="#" class="footer__business-unit-link">Know more about FinShield AI <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          </div>
+          <div class="footer__business-unit">
+            <div class="footer__business-unit-name">FinShield Digital</div>
+            <a href="#" class="footer__business-unit-link">Know more about FinShield Digital <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          </div>
+          <div class="footer__business-unit">
+            <div class="footer__business-unit-name">FinShield Foundation</div>
+            <a href="#" class="footer__business-unit-link">Know more about FinShield Foundation <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <div class="container">
+        <div class="footer__bottom-inner">
+          <span>&copy; 2026 FinShield AI. All rights reserved.</span>
+          <div class="footer__bottom-links">
+            <a href="#" class="footer__bottom-link">Privacy Policy</a>
+            <a href="#" class="footer__bottom-link">Terms of Service</a>
+            <a href="#" class="footer__bottom-link">Cookie Policy</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+
+  <script src="js/main.js"></script>
+</body>
+</html>

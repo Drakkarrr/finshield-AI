@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cases — FinShield Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/platform.css">
+</head>
+<body class="plat-body">
+
+  <!-- Sidebar -->
+  <aside class="plat-sidebar">
+    <div class="plat-sidebar__header">
+      <div class="plat-sidebar__logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <span class="plat-sidebar__brand">FinShield</span>
+      <span class="plat-sidebar__badge">Growth</span>
+    </div>
+    <nav class="plat-sidebar__nav">
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Overview</div>
+        <a href="dashboard.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="transactions.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Transactions<span class="plat-nav-item__badge plat-nav-item__badge--info">2.4K</span></a>
+        <a href="cases.html" class="plat-nav-item plat-nav-item--active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Cases<span class="plat-nav-item__badge">7</span></a>
+      </div>
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Compliance</div>
+        <a href="rules.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Rules Engine</a>
+        <a href="filings.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>SAR/STR Filings</a>
+        <a href="reports.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Reports</a>
+      </div>
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Developer</div>
+        <a href="api-keys.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>API Keys</a>
+      </div>
+      <div class="plat-nav-section">
+        <div class="plat-nav-section__title">Account</div>
+        <a href="settings.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg>Settings</a>
+        <a href="../index.html" class="plat-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Back to Website</a>
+      </div>
+    </nav>
+    <div class="plat-sidebar__footer">
+      <div class="plat-sidebar__user"><div class="plat-sidebar__avatar">JD</div><div><div class="plat-sidebar__user-name">John Doe</div><div class="plat-sidebar__user-plan">Growth Plan</div></div></div>
+    </div>
+  </aside>
+
+  <main class="plat-main">
+    <header class="plat-topbar">
+      <div class="plat-topbar__search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="Search cases by ID, customer, or reason..."></div>
+      <div class="plat-topbar__actions">
+        <div class="plat-topbar__credits"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><strong>42,180</strong> credits</div>
+        <button class="plat-topbar__icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><span class="plat-topbar__notif-badge">3</span></button>
+      </div>
+    </header>
+
+    <div class="plat-content">
+      <div class="plat-page-header plat-animate-in">
+        <div>
+          <h1 class="plat-page-header__title">Case Management</h1>
+          <p class="plat-page-header__subtitle">Review flagged transactions, investigate alerts, and manage compliance cases.</p>
+        </div>
+        <div class="plat-page-header__actions">
+          <button class="plat-btn plat-btn--primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg>Create Case</button>
+        </div>
+      </div>
+
+      <!-- Case Stats -->
+      <div class="plat-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 2rem;">
+        <div class="plat-kpi plat-kpi--danger plat-animate-in">
+          <div class="plat-kpi__value">3</div>
+          <div class="plat-kpi__label">Escalated</div>
+        </div>
+        <div class="plat-kpi plat-kpi--gold plat-animate-in">
+          <div class="plat-kpi__value">4</div>
+          <div class="plat-kpi__label">Under Review</div>
+        </div>
+        <div class="plat-kpi plat-kpi--info plat-animate-in">
+          <div class="plat-kpi__value">12</div>
+          <div class="plat-kpi__label">Open</div>
+        </div>
+        <div class="plat-kpi plat-kpi--teal plat-animate-in">
+          <div class="plat-kpi__value">156</div>
+          <div class="plat-kpi__label">Resolved (30d)</div>
+        </div>
+      </div>
+
+      <!-- Cases Table -->
+      <div class="plat-card plat-animate-in">
+        <div class="plat-card__header">
+          <span class="plat-card__title">Active Cases</span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="plat-btn plat-btn--glass" style="padding: 0.375rem 0.75rem; font-size: 0.8125rem;">All</button>
+            <button class="plat-btn plat-btn--glass" style="padding: 0.375rem 0.75rem; font-size: 0.8125rem;">Open</button>
+            <button class="plat-btn plat-btn--glass" style="padding: 0.375rem 0.75rem; font-size: 0.8125rem;">Escalated</button>
+          </div>
+        </div>
+        <table class="plat-table">
+          <thead>
+            <tr>
+              <th>Case ID</th>
+              <th>Subject</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Assigned To</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="plat-table__id">CASE-1247</td>
+              <td>Suspicious wire pattern — CoinVault Inc</td>
+              <td>AML Alert</td>
+              <td><span class="plat-status plat-status--blocked"><span class="plat-status__dot"></span>Critical</span></td>
+              <td><span class="plat-status plat-status--flagged"><span class="plat-status__dot"></span>Escalated</span></td>
+              <td>Sarah R.</td>
+              <td>2 hours ago</td>
+            </tr>
+            <tr>
+              <td class="plat-table__id">CASE-1246</td>
+              <td>OFAC match — GlobalRemit international transfer</td>
+              <td>Sanctions</td>
+              <td><span class="plat-status plat-status--blocked"><span class="plat-status__dot"></span>Critical</span></td>
+              <td><span class="plat-status plat-status--flagged"><span class="plat-status__dot"></span>Escalated</span></td>
+              <td>James W.</td>
+              <td>5 hours ago</td>
+            </tr>
+            <tr>
+              <td class="plat-table__id">CASE-1245</td>
+              <td>Structuring pattern detected — NeoPay Corp</td>
+              <td>Behavioral</td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>High</span></td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>Under Review</span></td>
+              <td>Amira P.</td>
+              <td>8 hours ago</td>
+            </tr>
+            <tr>
+              <td class="plat-table__id">CASE-1244</td>
+              <td>PEP identified — Heritage Bank account holder</td>
+              <td>PEP Match</td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>High</span></td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>Under Review</span></td>
+              <td>Sarah R.</td>
+              <td>1 day ago</td>
+            </tr>
+            <tr>
+              <td class="plat-table__id">CASE-1243</td>
+              <td>Velocity check exceeded — SwiftPay Ltd</td>
+              <td>Behavioral</td>
+              <td><span class="plat-status plat-status--flagged"><span class="plat-status__dot"></span>Medium</span></td>
+              <td><span class="plat-status plat-status--approved"><span class="plat-status__dot"></span>Resolved</span></td>
+              <td>Marcus K.</td>
+              <td>1 day ago</td>
+            </tr>
+            <tr>
+              <td class="plat-table__id">CASE-1242</td>
+              <td>Unusual destination country — PayFast</td>
+              <td>Geography</td>
+              <td><span class="plat-status plat-status--flagged"><span class="plat-status__dot"></span>Medium</span></td>
+              <td><span class="plat-status plat-status--review"><span class="plat-status__dot"></span>Under Review</span></td>
+              <td>Amira P.</td>
+              <td>2 days ago</td>
+            </tr>
+            <tr>
+              <td class="plat-table__id">CASE-1241</td>
+              <td>Threshold exceeded — CoinVault Inc batch transfers</td>
+              <td>Threshold</td>
+              <td><span class="plat-status plat-status--flagged"><span class="plat-status__dot"></span>Medium</span></td>
+              <td><span class="plat-status plat-status--flagged"><span class="plat-status__dot"></span>Escalated</span></td>
+              <td>James W.</td>
+              <td>3 days ago</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
