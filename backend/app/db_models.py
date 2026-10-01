@@ -110,16 +110,31 @@ class Case(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     transaction_id = Column(String, ForeignKey("transactions.id"), nullable=False)
-    status = Column(String, default="open")
-    priority = Column(String, default="medium")
+    status = Column(String, default="open")  # open, under_review, escalated, resolved, closed
+    priority = Column(String, default="medium")  # low, medium, high, critical
+    severity = Column(String, default="medium")  # low, medium, high, critical (for SLA)
     reason = Column(Text, nullable=False)
     assigned_to = Column(String, nullable=True)
+    
+    # SLA tracking
+    sla_deadline = Column(DateTime, nullable=True)  # Auto-calculated from severity
+    escalated_at = Column(DateTime, nullable=True)
+    escalated_by = Column(String, nullable=True)
+    escalation_reason = Column(Text, nullable=True)
+    
+    # Resolution
+    resolution = Column(String, nullable=True)  # confirmed_suspicious, false_positive, filed_sar, closed_no_action
+    resolution_summary = Column(Text, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     user = relationship("User", back_populates="cases")
     transaction = relationship("Transaction")
+    filings = relationship("Filing", back_populates="case", cascade="all, delete-orphan")
+    notes = relationship("CaseNote", back_populates="case", cascade="all, delete-orphan")
 
 
 class AuditLog(Base):
@@ -166,7 +181,7 @@ class NotificationPreference(Base):
 
 
 class RuleConfig(Base):
-    """User-customizable rule configuration."""
+    """User-customizable rule configuration with priority and versioning."""
     __tablename__ = "rule_configs"
 
     id = Column(String, primary_key=True, default=generate_uuid)
@@ -174,6 +189,19 @@ class RuleConfig(Base):
     rule_id = Column(String, nullable=False)  # e.g. RULE-001
     enabled = Column(Boolean, default=True)
     custom_parameters = Column(JSON, nullable=True)  # User overrides
+    
+    # Priority and versioning
+    priority = Column(Integer, default=100)  # Lower number = higher priority
+    version = Column(Integer, default=1)
+    effective_from = Column(DateTime, nullable=True)
+    effective_to = Column(DateTime, nullable=True)
+    
+    # Hit tracking
+    hit_count = Column(Integer, default=0)
+    last_hit_at = Column(DateTime, nullable=True)
+    false_positive_count = Column(Integer, default=0)
+    
+    # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -190,4 +218,134 @@ class CaseComment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     case = relationship("Case")
+    user = relationship("User")
+
+
+class CaseNote(Base):
+    """Ephemeral investigator notes (not part of immutable audit log)."""
+    __tablename__ = "case_notes"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    case_id = Column(String, ForeignKey("cases.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    note = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    case = relationship("Case", back_populates="notes")
+    user = relationship("User")
+
+
+class Filing(Base):
+    """SAR/STR regulatory filings for confirmed suspicious cases."""
+    __tablename__ = "filings"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    case_id = Column(String, ForeignKey("cases.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    
+    # Filing type and status
+    filing_type = Column(String, nullable=False)  # SAR (Suspicious Activity Report), STR (Suspicious Transaction Report)
+    status = Column(String, default="draft")  # draft, under_review, submitted, confirmed, rejected
+    
+    # Deadline tracking
+    deadline = Column(DateTime, nullable=True)  # 30 days from detection (FinCEN SAR)
+    
+    # Filing content
+    narrative = Column(Text, nullable=True)  # Free-text description of suspicious activity
+    structured_data = Column(JSON, nullable=True)  # Auto-populated from case (tx details, parties, amounts)
+    
+    # Submission tracking
+    reference_number = Column(String, nullable=True)  # Regulator-assigned reference
+    submitted_at = Column(DateTime, nullable=True)
+    submitted_by = Column(String, nullable=True)  # User ID who submitted
+    confirmed_at = Column(DateTime, nullable=True)
+    confirmed_by = Column(String, nullable=True)
+    
+    # Audit
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    case = relationship("Case", back_populates="filings")
+    user = relationship("User")
+
+
+class CircuitBreaker(Base):
+    """Circuit breaker state per downstream dependency."""
+    __tablename__ = "circuit_breakers"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    dependency = Column(String, nullable=False, unique=True)  # model_server, pgvector, redis, notification_service
+    state = Column(String, default="closed")  # closed, open, half_open
+    failure_count = Column(Integer, default=0)
+    success_count = Column(Integer, default=0)
+    last_failure_at = Column(DateTime, nullable=True)
+    last_state_change_at = Column(DateTime, nullable=True)
+    
+    # Configuration
+    failure_threshold = Column(Integer, default=5)  # Failures before opening
+    cooldown_seconds = Column(Integer, default=60)  # Seconds to wait before half-open
+    half_open_max_calls = Column(Integer, default=3)  # Max probe calls in half-open
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WebhookEvent(Base):
+    """Webhook event delivery tracking."""
+    __tablename__ = "webhook_events"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    event_type = Column(String, nullable=False)  # transaction.flagged, case.created, etc.
+    payload = Column(JSON, nullable=False)
+    
+    # Delivery tracking
+    status = Column(String, default="pending")  # pending, delivered, failed, dead_letter
+    attempts = Column(Integer, default=0)
+    last_attempt_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    next_retry_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    delivered_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+
+
+class AccountBaseline(Base):
+    """Rolling per-account behavioral baseline for fraud detection."""
+    __tablename__ = "account_baselines"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    account_id = Column(String, nullable=False)  # External account identifier
+    
+    # Rolling statistics (90-day window by default)
+    avg_amount = Column(Float, default=0.0)
+    avg_frequency_per_day = Column(Float, default=0.0)
+    max_amount = Column(Float, default=0.0)
+    min_amount = Column(Float, default=0.0)
+    std_dev_amount = Column(Float, default=0.0)
+    
+    # Typical patterns
+    typical_countries = Column(JSON, nullable=True)  # List of frequent destination countries
+    typical_payees = Column(JSON, nullable=True)  # List of frequent receiver names
+    typical_tx_types = Column(JSON, nullable=True)  # List of frequent transaction types
+    
+    # Account age tracking
+    first_transaction_at = Column(DateTime, nullable=True)
+    last_transaction_at = Column(DateTime, nullable=True)
+    history_days = Column(Integer, default=0)
+    total_transactions = Column(Integer, default=0)
+    
+    # Cold-start flag
+    is_cold_start = Column(Boolean, default=True)  # True if < 30 days of history
+    
+    # Baseline freshness
+    last_computed_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     user = relationship("User")

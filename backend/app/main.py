@@ -24,7 +24,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.database import get_db, init_db
-from app.db_models import User, ApiKey, Transaction, Case, AuditLog, Notification, NotificationPreference, RuleConfig, CaseComment
+from app.db_models import User, ApiKey, Transaction, Case, AuditLog, Notification, NotificationPreference, RuleConfig, CaseComment, CaseNote, Filing, AccountBaseline, CircuitBreaker, WebhookEvent
 from app.auth import (
     hash_password, verify_password, create_access_token,
     get_current_user, generate_api_key,
@@ -1393,6 +1393,155 @@ async def list_rules(
     return definitions
 
 
+# Rule Simulation
+class RuleSimulateRequest(BaseModel):
+    rule_id: str
+    days: int = 30  # Simulate against last N days of transactions
+
+
+@app.post("/api/v1/rules/simulate", tags=["Rules"])
+async def simulate_rule(
+    req: RuleSimulateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Simulate a rule against historical transaction data."""
+    # Get rule definition
+    definitions = engine.rule_definitions()
+    rule_def = next((r for r in definitions if r["rule_id"] == req.rule_id), None)
+    if not rule_def:
+        raise HTTPException(404, "Rule not found")
+    
+    # Get transactions from last N days
+    cutoff = datetime.utcnow() - timedelta(days=req.days)
+    transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.created_at >= cutoff
+    ).all()
+    
+    # Simulate rule against each transaction
+    triggered_count = 0
+    would_block = 0
+    would_flag = 0
+    
+    for tx in transactions:
+        # Run rule evaluation
+        tx_data = {
+            "amount": tx.amount,
+            "currency": tx.currency,
+            "transaction_type": tx.transaction_type,
+            "sender_name": tx.sender_name,
+            "receiver_name": tx.receiver_name,
+            "destination_country": tx.destination_country,
+            "description": tx.description,
+        }
+        
+        result = engine.evaluate_rule(rule_def, tx_data)
+        if result["triggered"]:
+            triggered_count += 1
+            if rule_def["action"] == "block":
+                would_block += 1
+            elif rule_def["action"] == "flag":
+                would_flag += 1
+    
+    return {
+        "rule_id": req.rule_id,
+        "rule_name": rule_def["name"],
+        "days_simulated": req.days,
+        "transactions_tested": len(transactions),
+        "triggered_count": triggered_count,
+        "would_block": would_block,
+        "would_flag": would_flag,
+        "trigger_rate": round(triggered_count / max(1, len(transactions)) * 100, 2),
+    }
+
+
+# Rule Hit Reporting
+@app.get("/api/v1/rules/{rule_id}/stats", tags=["Rules"])
+async def get_rule_stats(
+    rule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get hit statistics for a specific rule."""
+    config = db.query(RuleConfig).filter(
+        RuleConfig.rule_id == rule_id,
+        RuleConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        # Return default stats if no config exists
+        return {
+            "rule_id": rule_id,
+            "hit_count": 0,
+            "false_positive_count": 0,
+            "last_hit_at": None,
+            "false_positive_rate": 0.0,
+        }
+    
+    fp_rate = 0.0
+    if config.hit_count > 0:
+        fp_rate = round(config.false_positive_count / config.hit_count * 100, 2)
+    
+    return {
+        "rule_id": rule_id,
+        "hit_count": config.hit_count,
+        "false_positive_count": config.false_positive_count,
+        "last_hit_at": config.last_hit_at.isoformat() if config.last_hit_at else None,
+        "false_positive_rate": fp_rate,
+    }
+
+
+@app.post("/api/v1/rules/{rule_id}/record-hit", tags=["Rules"])
+async def record_rule_hit(
+    rule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record a rule hit (called by compliance engine)."""
+    config = db.query(RuleConfig).filter(
+        RuleConfig.rule_id == rule_id,
+        RuleConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        # Create config if it doesn't exist
+        config = RuleConfig(
+            user_id=current_user.id,
+            rule_id=rule_id,
+            hit_count=1,
+            last_hit_at=datetime.utcnow(),
+        )
+        db.add(config)
+    else:
+        config.hit_count += 1
+        config.last_hit_at = datetime.utcnow()
+    
+    db.commit()
+    return {"recorded": True, "hit_count": config.hit_count}
+
+
+@app.post("/api/v1/rules/{rule_id}/record-false-positive", tags=["Rules"])
+async def record_false_positive(
+    rule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record a false positive for a rule."""
+    config = db.query(RuleConfig).filter(
+        RuleConfig.rule_id == rule_id,
+        RuleConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        raise HTTPException(404, "Rule config not found")
+    
+    config.false_positive_count += 1
+    db.commit()
+    
+    return {"recorded": True, "false_positive_count": config.false_positive_count}
+
+
 # ============================================================
 # CASE MANAGEMENT
 # ============================================================
@@ -1401,6 +1550,8 @@ class CaseUpdateRequest(BaseModel):
     status: Optional[str] = None
     assigned_to: Optional[str] = None
     priority: Optional[str] = None
+    resolution: Optional[str] = None  # confirmed_suspicious, false_positive, filed_sar, closed_no_action
+    resolution_summary: Optional[str] = None
 
 
 class CaseCommentRequest(BaseModel):
@@ -1428,6 +1579,11 @@ async def update_case(
         case.assigned_to = req.assigned_to
     if req.priority is not None:
         case.priority = req.priority
+    if req.resolution is not None:
+        case.resolution = req.resolution
+        case.resolved_at = datetime.utcnow()
+    if req.resolution_summary is not None:
+        case.resolution_summary = req.resolution_summary
 
     db.commit()
     db.refresh(case)
@@ -1483,6 +1639,187 @@ async def add_case_comment(
     return {"id": comment.id, "body": comment.body, "user_id": comment.user_id, "created_at": comment.created_at.isoformat()}
 
 
+# Investigator Notes (ephemeral, not audit-logged)
+class CaseNoteRequest(BaseModel):
+    note: str
+
+
+@app.get("/api/v1/cases/{case_id}/notes", tags=["Cases"])
+async def list_case_notes(
+    case_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List investigator notes on a case (ephemeral, not audit-logged)."""
+    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    notes = db.query(CaseNote).filter(CaseNote.case_id == case_id).order_by(CaseNote.created_at.asc()).all()
+    return [
+        {
+            "id": n.id,
+            "note": n.note,
+            "user_id": n.user_id,
+            "created_at": n.created_at.isoformat(),
+            "updated_at": n.updated_at.isoformat(),
+        }
+        for n in notes
+    ]
+
+
+@app.post("/api/v1/cases/{case_id}/notes", tags=["Cases"])
+async def add_case_note(
+    case_id: str,
+    req: CaseNoteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Add an investigator note to a case (ephemeral, not audit-logged)."""
+    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    if not req.note.strip():
+        raise HTTPException(status_code=400, detail="Note cannot be empty")
+
+    note = CaseNote(case_id=case_id, user_id=current_user.id, note=req.note)
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return {
+        "id": note.id,
+        "note": note.note,
+        "user_id": note.user_id,
+        "created_at": note.created_at.isoformat(),
+    }
+
+
+# SLA Escalation
+@app.post("/api/v1/cases/check-sla", tags=["Cases"])
+async def check_sla_escalation(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check all open cases for SLA breaches and auto-escalate if needed."""
+    now = datetime.utcnow()
+    
+    # Find cases approaching SLA (within 15 minutes of deadline)
+    approaching_sla = db.query(Case).filter(
+        Case.user_id == current_user.id,
+        Case.status.in_(["open", "under_review"]),
+        Case.sla_deadline.isnot(None),
+        Case.sla_deadline <= now + timedelta(minutes=15),
+        Case.sla_deadline > now,
+        Case.escalated_at.is_(None),  # Not already escalated
+    ).all()
+    
+    # Find cases that have breached SLA
+    breached_sla = db.query(Case).filter(
+        Case.user_id == current_user.id,
+        Case.status.in_(["open", "under_review"]),
+        Case.sla_deadline.isnot(None),
+        Case.sla_deadline <= now,
+        Case.escalated_at.is_(None),
+    ).all()
+    
+    escalated_count = 0
+    
+    # Escalate breached cases
+    for case in breached_sla:
+        case.status = "escalated"
+        case.escalated_at = now
+        case.escalated_by = "system"
+        case.escalation_reason = f"SLA breached. Deadline was {case.sla_deadline.isoformat()}"
+        escalated_count += 1
+    
+    # Warn on approaching cases (could send notification here)
+    for case in approaching_sla:
+        # In production, this would send a notification
+        pass
+    
+    db.commit()
+    
+    return {
+        "escalated": escalated_count,
+        "approaching": len(approaching_sla),
+        "breached": len(breached_sla),
+    }
+
+
+# Case Aggregation
+@app.post("/api/v1/cases/aggregate", tags=["Cases"])
+async def aggregate_case(
+    transaction_id: str,
+    reason: str,
+    priority: str = "medium",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a case or attach to existing open case for the same transaction account."""
+    # Get transaction to find account
+    tx = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+    
+    # Check for existing open case for this transaction's sender
+    # In a real system, you'd match on account_id, but we're using sender_name as a proxy
+    existing_case = db.query(Case).filter(
+        Case.user_id == current_user.id,
+        Case.status.in_(["open", "under_review", "created"]),
+        Case.transaction_id.in_(
+            db.query(Transaction.id).filter(
+                Transaction.sender_name == tx.sender_name,
+                Transaction.user_id == current_user.id
+            )
+        )
+    ).first()
+    
+    if existing_case:
+        # Attach to existing case (just add a comment noting the new transaction)
+        comment = CaseComment(
+            case_id=existing_case.id,
+            user_id=current_user.id,
+            body=f"[Auto-aggregated] Related transaction: {tx.id} - {reason}"
+        )
+        db.add(comment)
+        db.commit()
+        
+        return {
+            "aggregated": True,
+            "case_id": existing_case.id,
+            "message": f"Transaction attached to existing case {existing_case.id}",
+        }
+    else:
+        # Create new case
+        case_id = f"CASE-{uuid.uuid4().hex[:8].upper()}"
+        new_case = Case(
+            id=case_id,
+            user_id=current_user.id,
+            transaction_id=tx.id,
+            status="created",
+            priority=priority,
+            severity=priority,  # Map priority to severity for SLA
+            reason=reason,
+        )
+        
+        # Calculate SLA deadline based on severity
+        sla_hours = {"low": 72, "medium": 24, "high": 4, "critical": 1}
+        hours = sla_hours.get(priority, 24)
+        new_case.sla_deadline = datetime.utcnow() + timedelta(hours=hours)
+        
+        db.add(new_case)
+        db.commit()
+        db.refresh(new_case)
+        
+        return {
+            "aggregated": False,
+            "case_id": new_case.id,
+            "message": "New case created",
+        }
+
+
 @app.delete("/api/v1/cases/{case_id}", tags=["Cases"])
 async def delete_case(
     case_id: str,
@@ -1499,6 +1836,840 @@ async def delete_case(
     db.delete(case)
     db.commit()
     return {"deleted": case_id}
+
+
+# ============================================================
+# SAR/STR FILING ROUTES
+# ============================================================
+
+class FilingCreate(BaseModel):
+    case_id: str
+    filing_type: str  # SAR or STR
+    narrative: Optional[str] = None
+
+
+class FilingUpdate(BaseModel):
+    narrative: Optional[str] = None
+    status: Optional[str] = None  # draft, under_review, submitted, confirmed, rejected
+    reference_number: Optional[str] = None
+
+
+class FilingResponse(BaseModel):
+    id: str
+    case_id: str
+    filing_type: str
+    status: str
+    deadline: Optional[str]
+    narrative: Optional[str]
+    structured_data: Optional[dict]
+    reference_number: Optional[str]
+    submitted_at: Optional[str]
+    submitted_by: Optional[str]
+    confirmed_at: Optional[str]
+    confirmed_by: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+@app.post("/api/v1/filings", response_model=FilingResponse, status_code=201, tags=["Filings"])
+async def create_filing(
+    filing: FilingCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a new SAR/STR filing draft for a case."""
+    # Verify case exists and belongs to user
+    case = db.query(Case).filter(Case.id == filing.case_id, Case.user_id == current_user.id).first()
+    if not case:
+        raise HTTPException(404, "Case not found")
+    
+    # Verify case is resolved as suspicious
+    if case.resolution not in ["confirmed_suspicious", "filed_sar"]:
+        raise HTTPException(400, "Case must be resolved as suspicious before filing")
+    
+    # Calculate deadline (30 days from now for FinCEN SAR)
+    deadline = datetime.utcnow() + timedelta(days=30)
+    
+    # Auto-populate structured data from case
+    transaction = db.query(Transaction).filter(Transaction.id == case.transaction_id).first()
+    structured_data = {
+        "transaction_id": transaction.id,
+        "amount": transaction.amount,
+        "currency": transaction.currency,
+        "sender_name": transaction.sender_name,
+        "receiver_name": transaction.receiver_name,
+        "destination_country": transaction.destination_country,
+        "transaction_date": transaction.created_at.isoformat(),
+        "case_id": case.id,
+        "case_reason": case.reason,
+    }
+    
+    db_filing = Filing(
+        case_id=filing.case_id,
+        user_id=current_user.id,
+        filing_type=filing.filing_type,
+        status="draft",
+        deadline=deadline,
+        narrative=filing.narrative or "",
+        structured_data=structured_data,
+    )
+    db.add(db_filing)
+    db.commit()
+    db.refresh(db_filing)
+    
+    # Audit log
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="filing_created",
+        resource_type="filing",
+        resource_id=db_filing.id,
+        details={"filing_type": filing.filing_type, "case_id": filing.case_id},
+    ))
+    db.commit()
+    
+    return FilingResponse(
+        id=db_filing.id,
+        case_id=db_filing.case_id,
+        filing_type=db_filing.filing_type,
+        status=db_filing.status,
+        deadline=db_filing.deadline.isoformat() if db_filing.deadline else None,
+        narrative=db_filing.narrative,
+        structured_data=db_filing.structured_data,
+        reference_number=db_filing.reference_number,
+        submitted_at=db_filing.submitted_at.isoformat() if db_filing.submitted_at else None,
+        submitted_by=db_filing.submitted_by,
+        confirmed_at=db_filing.confirmed_at.isoformat() if db_filing.confirmed_at else None,
+        confirmed_by=db_filing.confirmed_by,
+        created_at=db_filing.created_at.isoformat(),
+        updated_at=db_filing.updated_at.isoformat(),
+    )
+
+
+@app.get("/api/v1/filings", response_model=list[FilingResponse], tags=["Filings"])
+async def list_filings(
+    status: Optional[str] = None,
+    filing_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all filings for the current user."""
+    query = db.query(Filing).filter(Filing.user_id == current_user.id)
+    
+    if status:
+        query = query.filter(Filing.status == status)
+    if filing_type:
+        query = query.filter(Filing.filing_type == filing_type)
+    
+    filings = query.order_by(Filing.created_at.desc()).all()
+    
+    return [
+        FilingResponse(
+            id=f.id,
+            case_id=f.case_id,
+            filing_type=f.filing_type,
+            status=f.status,
+            deadline=f.deadline.isoformat() if f.deadline else None,
+            narrative=f.narrative,
+            structured_data=f.structured_data,
+            reference_number=f.reference_number,
+            submitted_at=f.submitted_at.isoformat() if f.submitted_at else None,
+            submitted_by=f.submitted_by,
+            confirmed_at=f.confirmed_at.isoformat() if f.confirmed_at else None,
+            confirmed_by=f.confirmed_by,
+            created_at=f.created_at.isoformat(),
+            updated_at=f.updated_at.isoformat(),
+        )
+        for f in filings
+    ]
+
+
+@app.get("/api/v1/filings/{filing_id}", response_model=FilingResponse, tags=["Filings"])
+async def get_filing(
+    filing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get a specific filing by ID."""
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
+    if not filing:
+        raise HTTPException(404, "Filing not found")
+    
+    return FilingResponse(
+        id=filing.id,
+        case_id=filing.case_id,
+        filing_type=filing.filing_type,
+        status=filing.status,
+        deadline=filing.deadline.isoformat() if filing.deadline else None,
+        narrative=filing.narrative,
+        structured_data=filing.structured_data,
+        reference_number=filing.reference_number,
+        submitted_at=filing.submitted_at.isoformat() if filing.submitted_at else None,
+        submitted_by=filing.submitted_by,
+        confirmed_at=filing.confirmed_at.isoformat() if filing.confirmed_at else None,
+        confirmed_by=filing.confirmed_by,
+        created_at=filing.created_at.isoformat(),
+        updated_at=filing.updated_at.isoformat(),
+    )
+
+
+@app.patch("/api/v1/filings/{filing_id}", response_model=FilingResponse, tags=["Filings"])
+async def update_filing(
+    filing_id: str,
+    update: FilingUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update a filing (narrative, status, reference number)."""
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
+    if not filing:
+        raise HTTPException(404, "Filing not found")
+    
+    # Update fields
+    if update.narrative is not None:
+        filing.narrative = update.narrative
+    
+    if update.status is not None:
+        old_status = filing.status
+        filing.status = update.status
+        
+        # Track submission
+        if update.status == "submitted" and old_status != "submitted":
+            filing.submitted_at = datetime.utcnow()
+            filing.submitted_by = current_user.id
+        
+        # Track confirmation
+        if update.status == "confirmed" and old_status != "confirmed":
+            filing.confirmed_at = datetime.utcnow()
+            filing.confirmed_by = current_user.id
+    
+    if update.reference_number is not None:
+        filing.reference_number = update.reference_number
+    
+    filing.updated_at = datetime.utcnow()
+    
+    # Audit log
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="filing_updated",
+        resource_type="filing",
+        resource_id=filing.id,
+        details={"changes": update.dict(exclude_unset=True)},
+    ))
+    
+    db.commit()
+    db.refresh(filing)
+    
+    return FilingResponse(
+        id=filing.id,
+        case_id=filing.case_id,
+        filing_type=filing.filing_type,
+        status=filing.status,
+        deadline=filing.deadline.isoformat() if filing.deadline else None,
+        narrative=filing.narrative,
+        structured_data=filing.structured_data,
+        reference_number=filing.reference_number,
+        submitted_at=filing.submitted_at.isoformat() if filing.submitted_at else None,
+        submitted_by=filing.submitted_by,
+        confirmed_at=filing.confirmed_at.isoformat() if filing.confirmed_at else None,
+        confirmed_by=filing.confirmed_by,
+        created_at=filing.created_at.isoformat(),
+        updated_at=filing.updated_at.isoformat(),
+    )
+
+
+@app.delete("/api/v1/filings/{filing_id}", tags=["Filings"])
+async def delete_filing(
+    filing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a draft filing."""
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
+    if not filing:
+        raise HTTPException(404, "Filing not found")
+    
+    if filing.status != "draft":
+        raise HTTPException(400, "Only draft filings can be deleted")
+    
+    db.delete(filing)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="filing_deleted",
+        resource_type="filing",
+        resource_id=filing_id,
+    ))
+    db.commit()
+    
+    return {"deleted": filing_id}
+
+
+# ============================================================
+# BEHAVIORAL MONITORING
+# ============================================================
+
+class BehavioralScoreRequest(BaseModel):
+    account_id: str
+    amount: float
+    transaction_type: str
+    destination_country: Optional[str] = None
+    receiver_name: Optional[str] = None
+
+
+@app.post("/api/v1/behavioral/score", tags=["Behavioral"])
+async def score_transaction_behavior(
+    req: BehavioralScoreRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Score a transaction against account's behavioral baseline."""
+    import math
+    
+    # Get or create baseline
+    baseline = db.query(AccountBaseline).filter(
+        AccountBaseline.user_id == current_user.id,
+        AccountBaseline.account_id == req.account_id
+    ).first()
+    
+    if not baseline:
+        # Cold-start: no baseline yet
+        return {
+            "account_id": req.account_id,
+            "anomaly_score": 0.7,  # Higher score for cold-start (more suspicious)
+            "is_cold_start": True,
+            "triggered": True,  # Cold-start triggers stricter threshold
+            "reason": "No behavioral baseline - cold-start policy applied",
+            "baseline": None,
+        }
+    
+    # Calculate z-score for amount
+    if baseline.std_dev_amount > 0:
+        z_score = abs(req.amount - baseline.avg_amount) / baseline.std_dev_amount
+    else:
+        z_score = 0.0 if req.amount == baseline.avg_amount else 3.0
+    
+    # Convert z-score to anomaly score (0-1 scale)
+    # z-score of 0 = anomaly 0, z-score of 3+ = anomaly 1
+    anomaly_score = min(1.0, z_score / 3.0)
+    
+    # Check for unusual country
+    if req.destination_country and baseline.typical_countries:
+        if req.destination_country not in baseline.typical_countries:
+            anomaly_score = min(1.0, anomaly_score + 0.2)
+    
+    # Check for unusual payee
+    if req.receiver_name and baseline.typical_payees:
+        if req.receiver_name not in baseline.typical_payees:
+            anomaly_score = min(1.0, anomaly_score + 0.15)
+    
+    # Cold-start adjustment (if < 30 days history, use stricter threshold)
+    is_cold_start = baseline.is_cold_start or baseline.history_days < 30
+    trigger_threshold = 0.5 if is_cold_start else 0.65
+    
+    triggered = anomaly_score >= trigger_threshold
+    
+    return {
+        "account_id": req.account_id,
+        "anomaly_score": round(anomaly_score, 3),
+        "is_cold_start": is_cold_start,
+        "triggered": triggered,
+        "trigger_threshold": trigger_threshold,
+        "reason": f"Anomaly score {anomaly_score:.3f} {'>=' if triggered else '<'} {trigger_threshold}",
+        "baseline": {
+            "avg_amount": baseline.avg_amount,
+            "std_dev_amount": baseline.std_dev_amount,
+            "history_days": baseline.history_days,
+            "total_transactions": baseline.total_transactions,
+        },
+    }
+
+
+@app.post("/api/v1/behavioral/update-baseline", tags=["Behavioral"])
+async def update_account_baseline(
+    account_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Recompute behavioral baseline for an account from transaction history."""
+    # Get all transactions for this account (using sender_name as proxy for account_id)
+    transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.sender_name == account_id,  # Using sender_name as account_id proxy
+    ).order_by(Transaction.created_at.asc()).all()
+    
+    if not transactions:
+        raise HTTPException(404, "No transactions found for this account")
+    
+    # Get or create baseline
+    baseline = db.query(AccountBaseline).filter(
+        AccountBaseline.user_id == current_user.id,
+        AccountBaseline.account_id == account_id
+    ).first()
+    
+    if not baseline:
+        baseline = AccountBaseline(
+            user_id=current_user.id,
+            account_id=account_id,
+        )
+        db.add(baseline)
+    
+    # Compute statistics
+    amounts = [tx.amount for tx in transactions]
+    avg_amount = sum(amounts) / len(amounts)
+    
+    # Standard deviation
+    if len(amounts) > 1:
+        variance = sum((x - avg_amount) ** 2 for x in amounts) / (len(amounts) - 1)
+        std_dev = math.sqrt(variance)
+    else:
+        std_dev = 0.0
+    
+    # Typical patterns
+    countries = [tx.destination_country for tx in transactions if tx.destination_country]
+    country_counts = {}
+    for c in countries:
+        country_counts[c] = country_counts.get(c, 0) + 1
+    typical_countries = [c for c, count in country_counts.items() if count >= len(transactions) * 0.1]
+    
+    payees = [tx.receiver_name for tx in transactions if tx.receiver_name]
+    payee_counts = {}
+    for p in payees:
+        payee_counts[p] = payee_counts.get(p, 0) + 1
+    typical_payees = [p for p, count in payee_counts.items() if count >= len(transactions) * 0.1]
+    
+    tx_types = [tx.transaction_type for tx in transactions if tx.transaction_type]
+    type_counts = {}
+    for t in tx_types:
+        type_counts[t] = type_counts.get(t, 0) + 1
+    typical_tx_types = [t for t, count in type_counts.items() if count >= len(transactions) * 0.1]
+    
+    # Update baseline
+    baseline.avg_amount = avg_amount
+    baseline.std_dev_amount = std_dev
+    baseline.max_amount = max(amounts)
+    baseline.min_amount = min(amounts)
+    baseline.total_transactions = len(transactions)
+    baseline.first_transaction_at = transactions[0].created_at
+    baseline.last_transaction_at = transactions[-1].created_at
+    baseline.history_days = (transactions[-1].created_at - transactions[0].created_at).days
+    baseline.typical_countries = typical_countries
+    baseline.typical_payees = typical_payees
+    baseline.typical_tx_types = typical_tx_types
+    baseline.is_cold_start = baseline.history_days < 30
+    baseline.last_computed_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(baseline)
+    
+    return {
+        "account_id": account_id,
+        "baseline_updated": True,
+        "statistics": {
+            "total_transactions": baseline.total_transactions,
+            "history_days": baseline.history_days,
+            "avg_amount": round(baseline.avg_amount, 2),
+            "std_dev_amount": round(baseline.std_dev_amount, 2),
+            "is_cold_start": baseline.is_cold_start,
+        },
+    }
+
+
+@app.get("/api/v1/behavioral/baseline/{account_id}", tags=["Behavioral"])
+async def get_account_baseline(
+    account_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get behavioral baseline for an account."""
+    baseline = db.query(AccountBaseline).filter(
+        AccountBaseline.user_id == current_user.id,
+        AccountBaseline.account_id == account_id
+    ).first()
+    
+    if not baseline:
+        return {
+            "account_id": account_id,
+            "exists": False,
+            "baseline": None,
+        }
+    
+    return {
+        "account_id": account_id,
+        "exists": True,
+        "baseline": {
+            "avg_amount": baseline.avg_amount,
+            "std_dev_amount": baseline.std_dev_amount,
+            "max_amount": baseline.max_amount,
+            "min_amount": baseline.min_amount,
+            "total_transactions": baseline.total_transactions,
+            "history_days": baseline.history_days,
+            "is_cold_start": baseline.is_cold_start,
+            "typical_countries": baseline.typical_countries,
+            "typical_payees": baseline.typical_payees,
+            "typical_tx_types": baseline.typical_tx_types,
+            "last_computed_at": baseline.last_computed_at.isoformat(),
+        },
+    }
+
+
+# ============================================================
+# CIRCUIT BREAKER & DEGRADED MODE
+# ============================================================
+
+def get_or_create_breaker(db: Session, dependency: str) -> CircuitBreaker:
+    """Get or create circuit breaker for a dependency."""
+    breaker = db.query(CircuitBreaker).filter(CircuitBreaker.dependency == dependency).first()
+    if not breaker:
+        breaker = CircuitBreaker(dependency=dependency)
+        db.add(breaker)
+        db.commit()
+        db.refresh(breaker)
+    return breaker
+
+
+@app.get("/api/v1/health/circuit-breakers", tags=["System"])
+async def get_circuit_breaker_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get circuit breaker status for all dependencies."""
+    breakers = db.query(CircuitBreaker).all()
+    
+    # Ensure all critical dependencies have breakers
+    critical_deps = ["model_server", "pgvector", "redis", "notification_service"]
+    for dep in critical_deps:
+        if not any(b.dependency == dep for b in breakers):
+            breaker = get_or_create_breaker(db, dep)
+            breakers.append(breaker)
+    
+    return {
+        "breakers": [
+            {
+                "dependency": b.dependency,
+                "state": b.state,
+                "failure_count": b.failure_count,
+                "success_count": b.success_count,
+                "last_failure_at": b.last_failure_at.isoformat() if b.last_failure_at else None,
+                "last_state_change_at": b.last_state_change_at.isoformat() if b.last_state_change_at else None,
+                "failure_threshold": b.failure_threshold,
+                "cooldown_seconds": b.cooldown_seconds,
+            }
+            for b in breakers
+        ],
+        "overall_health": get_overall_health(breakers),
+    }
+
+
+def get_overall_health(breakers: list) -> str:
+    """Determine overall system health from circuit breakers."""
+    if not breakers:
+        return "green"
+    
+    states = [b.state for b in breakers]
+    
+    if any(s == "open" for s in states):
+        return "red"  # Critical degradation
+    elif any(s == "half_open" for s in states):
+        return "yellow"  # Degraded mode
+    else:
+        return "green"  # All healthy
+
+
+@app.post("/api/v1/health/circuit-breakers/{dependency}/record-failure", tags=["System"])
+async def record_circuit_breaker_failure(
+    dependency: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record a failure for a circuit breaker."""
+    breaker = get_or_create_breaker(db, dependency)
+    
+    now = datetime.utcnow()
+    breaker.failure_count += 1
+    breaker.last_failure_at = now
+    
+    # Check if we should open the circuit
+    if breaker.state == "closed" and breaker.failure_count >= breaker.failure_threshold:
+        breaker.state = "open"
+        breaker.last_state_change_at = now
+        # Audit log
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="circuit_breaker_opened",
+            resource_type="circuit_breaker",
+            resource_id=breaker.id,
+            details={"dependency": dependency, "failure_count": breaker.failure_count},
+        ))
+    elif breaker.state == "half_open":
+        # Failure in half-open -> reopen
+        breaker.state = "open"
+        breaker.last_state_change_at = now
+        breaker.failure_count = 1  # Reset counter
+    
+    db.commit()
+    
+    return {
+        "dependency": dependency,
+        "state": breaker.state,
+        "failure_count": breaker.failure_count,
+    }
+
+
+@app.post("/api/v1/health/circuit-breakers/{dependency}/record-success", tags=["System"])
+async def record_circuit_breaker_success(
+    dependency: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record a success for a circuit breaker."""
+    breaker = get_or_create_breaker(db, dependency)
+    
+    now = datetime.utcnow()
+    breaker.success_count += 1
+    
+    # Check if we should close the circuit
+    if breaker.state == "half_open":
+        breaker.success_count += 1
+        if breaker.success_count >= breaker.half_open_max_calls:
+            breaker.state = "closed"
+            breaker.failure_count = 0
+            breaker.success_count = 0
+            breaker.last_state_change_at = now
+            # Audit log
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="circuit_breaker_closed",
+                resource_type="circuit_breaker",
+                resource_id=breaker.id,
+                details={"dependency": dependency},
+            ))
+    elif breaker.state == "closed":
+        # Reset failure count on success
+        breaker.failure_count = max(0, breaker.failure_count - 1)
+    
+    db.commit()
+    
+    return {
+        "dependency": dependency,
+        "state": breaker.state,
+        "success_count": breaker.success_count,
+    }
+
+
+@app.post("/api/v1/health/circuit-breakers/{dependency}/check-half-open", tags=["System"])
+async def check_half_open_transition(
+    dependency: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check if an open circuit breaker should transition to half-open."""
+    breaker = get_or_create_breaker(db, dependency)
+    
+    if breaker.state != "open":
+        return {"dependency": dependency, "state": breaker.state, "transitioned": False}
+    
+    now = datetime.utcnow()
+    if breaker.last_state_change_at:
+        elapsed = (now - breaker.last_state_change_at).total_seconds()
+        if elapsed >= breaker.cooldown_seconds:
+            breaker.state = "half_open"
+            breaker.success_count = 0
+            breaker.last_state_change_at = now
+            db.commit()
+            
+            # Audit log
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="circuit_breaker_half_open",
+                resource_type="circuit_breaker",
+                resource_id=breaker.id,
+                details={"dependency": dependency, "cooldown_elapsed": elapsed},
+            ))
+            db.commit()
+            
+            return {"dependency": dependency, "state": "half_open", "transitioned": True}
+    
+    return {"dependency": dependency, "state": breaker.state, "transitioned": False}
+
+
+@app.get("/api/v1/health/overall", tags=["System"])
+async def get_overall_health_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get overall system health status for dashboard."""
+    breakers = db.query(CircuitBreaker).all()
+    
+    # Ensure all critical dependencies have breakers
+    critical_deps = ["model_server", "pgvector", "redis", "notification_service"]
+    for dep in critical_deps:
+        if not any(b.dependency == dep for b in breakers):
+            breaker = get_or_create_breaker(db, dep)
+            breakers.append(breaker)
+    
+    health = get_overall_health(breakers)
+    
+    health_messages = {
+        "green": "All systems operational",
+        "yellow": "Degraded mode active - some dependencies unavailable",
+        "red": "Critical degradation - transactions routing to human review",
+    }
+    
+    return {
+        "health": health,
+        "message": health_messages.get(health, "Unknown"),
+        "breakers_summary": {
+            "closed": sum(1 for b in breakers if b.state == "closed"),
+            "half_open": sum(1 for b in breakers if b.state == "half_open"),
+            "open": sum(1 for b in breakers if b.state == "open"),
+        },
+    }
+
+
+# ============================================================
+# WEBHOOK EVENTS
+# ============================================================
+
+class WebhookRequest(BaseModel):
+    event_type: str
+    payload: dict
+
+
+@app.post("/api/v1/webhooks/dispatch", tags=["Webhooks"])
+async def dispatch_webhook_event(
+    req: WebhookRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Dispatch a webhook event (queued for delivery)."""
+    event = WebhookEvent(
+        user_id=current_user.id,
+        event_type=req.event_type,
+        payload=req.payload,
+        status="pending",
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    
+    # In production, this would trigger async delivery via Celery
+    # For now, we just queue it
+    
+    return {
+        "event_id": event.id,
+        "event_type": event.event_type,
+        "status": event.status,
+        "message": "Event queued for delivery",
+    }
+
+
+@app.get("/api/v1/webhooks", tags=["Webhooks"])
+async def list_webhook_events(
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List webhook events for the current user."""
+    query = db.query(WebhookEvent).filter(WebhookEvent.user_id == current_user.id)
+    
+    if status:
+        query = query.filter(WebhookEvent.status == status)
+    
+    events = query.order_by(WebhookEvent.created_at.desc()).limit(100).all()
+    
+    return [
+        {
+            "id": e.id,
+            "event_type": e.event_type,
+            "status": e.status,
+            "attempts": e.attempts,
+            "last_attempt_at": e.last_attempt_at.isoformat() if e.last_attempt_at else None,
+            "last_error": e.last_error,
+            "created_at": e.created_at.isoformat(),
+            "delivered_at": e.delivered_at.isoformat() if e.delivered_at else None,
+        }
+        for e in events
+    ]
+
+
+@app.post("/api/v1/webhooks/{event_id}/retry", tags=["Webhooks"])
+async def retry_webhook_event(
+    event_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retry a failed webhook event."""
+    event = db.query(WebhookEvent).filter(
+        WebhookEvent.id == event_id,
+        WebhookEvent.user_id == current_user.id
+    ).first()
+    
+    if not event:
+        raise HTTPException(404, "Event not found")
+    
+    if event.status not in ["failed", "dead_letter"]:
+        raise HTTPException(400, "Only failed events can be retried")
+    
+    event.status = "pending"
+    event.attempts = 0
+    event.last_error = None
+    event.next_retry_at = None
+    db.commit()
+    
+    return {"event_id": event_id, "status": "pending", "message": "Event queued for retry"}
+
+
+# ============================================================
+# DATA PRIVACY (GDPR)
+# ============================================================
+
+class DSARRequest(BaseModel):
+    subject_email: str
+    request_type: str  # access, erasure
+
+
+@app.post("/api/v1/privacy/dsar", tags=["Privacy"])
+async def create_dsar_request(
+    req: DSARRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a Data Subject Access Request."""
+    # In production, this would initiate a DSAR workflow
+    # For now, we just log it
+    
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="dsar_request_created",
+        resource_type="dsar",
+        details={"subject_email": req.subject_email, "request_type": req.request_type},
+    ))
+    db.commit()
+    
+    return {
+        "request_type": req.request_type,
+        "subject_email": req.subject_email,
+        "status": "received",
+        "message": "DSAR request received. Will be processed within 30 days.",
+    }
+
+
+@app.get("/api/v1/privacy/pii-classification", tags=["Privacy"])
+async def get_pii_classification(
+    current_user: User = Depends(get_current_user),
+):
+    """Get PII field classification."""
+    return {
+        "pii_fields": [
+            "email", "first_name", "last_name", "company",
+            "sender_name", "receiver_name",
+        ],
+        "regulated_data": [
+            "transactions", "audit_logs", "cases", "filings",
+        ],
+        "system_data": [
+            "id", "created_at", "updated_at", "status",
+        ],
+    }
 
 
 # ============================================================

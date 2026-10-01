@@ -239,6 +239,44 @@ class ComplianceEngine:
         latency = (time.monotonic() - start) * 1000
         return results, latency
 
+    def evaluate_rule(self, rule_def: dict, tx_data: dict) -> dict:
+        """Evaluate a single rule against transaction data (for simulation)."""
+        rule_id = rule_def["rule_id"]
+        
+        # RULE-001: Sanctions
+        if rule_id == "RULE-001":
+            sender_sanctioned = tx_data.get("sender_name", "").lower() in SANCTIONED_ENTITIES
+            return {"triggered": sender_sanctioned}
+        
+        # RULE-002: PEP
+        if rule_id == "RULE-002":
+            pep_match = (
+                tx_data.get("sender_name", "").lower() in PEP_ENTITIES or
+                tx_data.get("receiver_name", "").lower() in PEP_ENTITIES
+            )
+            return {"triggered": pep_match}
+        
+        # RULE-003: Threshold
+        if rule_id == "RULE-003":
+            params = rule_def.get("parameters", {})
+            wire_thr = float(params.get("wire", THRESHOLD_WIRE))
+            intl_thr = float(params.get("international", THRESHOLD_INTERNATIONAL))
+            tx_type = tx_data.get("transaction_type", "")
+            threshold = wire_thr if tx_type == "wire" else intl_thr
+            amount = tx_data.get("amount", 0)
+            return {"triggered": amount >= threshold}
+        
+        # RULE-004: Geography
+        if rule_id == "RULE-004":
+            params = rule_def.get("parameters", {})
+            countries = params.get("countries", sorted(HIGH_RISK_COUNTRIES))
+            country_set = set(countries) if isinstance(countries, (list, tuple, set)) else HIGH_RISK_COUNTRIES
+            dest_country = tx_data.get("destination_country")
+            high_risk = dest_country in country_set if dest_country else False
+            return {"triggered": high_risk}
+        
+        return {"triggered": False}
+
     # --- Stage 4: Behavioral Analysis ---
     def _behavioral_score(self, tx: TransactionRequest) -> float:
         """Simulate behavioral scoring (0-1, higher = more suspicious)."""
