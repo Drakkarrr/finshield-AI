@@ -116,6 +116,7 @@ class ScreeningResult(BaseModel):
     total_latency_ms: float
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     pipeline_stages: list[str]
+    rag_context: Optional[dict] = None
 
 
 class TransactionResponse(BaseModel):

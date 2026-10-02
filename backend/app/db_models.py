@@ -97,6 +97,7 @@ class Transaction(Base):
     ml_confidence = Column(Float, nullable=True)
     total_latency_ms = Column(Float, nullable=True)
     pipeline_stages = Column(JSON, nullable=True)
+    rag_context = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

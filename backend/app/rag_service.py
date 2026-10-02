@@ -379,21 +379,34 @@ class RAGRetrievalService:
         ]
         query = " ".join([p for p in query_parts if p])
         
+        # Screen each party independently (combining names dilutes each match),
+        # then merge unique sanctions hits keeping the highest score per entry.
+        sanctions_matches: Dict[str, Dict] = {}
+        for party in (transaction_context.get("sender_name", ""), transaction_context.get("receiver_name", "")):
+            if not party:
+                continue
+            for m in self.search_sanctions_matches(party, top_k=5, threshold=0.7):
+                prev = sanctions_matches.get(m["id"])
+                if prev is None or m["similarity_score"] > prev["similarity_score"]:
+                    m["matched_party"] = party
+                    sanctions_matches[m["id"]] = m
+        merged_sanctions = sorted(
+            sanctions_matches.values(),
+            key=lambda x: x["similarity_score"],
+            reverse=True,
+        )
+
         results = {
             "policies": self.search_similar_documents(
                 query,
                 category="policy",
                 top_k=3
             ),
-            "sanctions_matches": self.search_sanctions_matches(
-                f"{transaction_context.get('sender_name', '')} {transaction_context.get('receiver_name', '')}",
-                top_k=5,
-                threshold=0.75
-            ),
+            "sanctions_matches": merged_sanctions,
             "similar_precedents": self.search_similar_precedents(
                 query,
                 top_k=3
             )
         }
-        
+
         return results

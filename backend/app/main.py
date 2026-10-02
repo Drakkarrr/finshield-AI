@@ -468,6 +468,7 @@ async def screen_transaction(
             ml_confidence=existing_tx.ml_confidence,
             total_latency_ms=existing_tx.total_latency_ms or 0.0,
             pipeline_stages=existing_tx.pipeline_stages or [],
+            rag_context=existing_tx.rag_context,
             timestamp=existing_tx.created_at,
         ))
 
@@ -479,6 +480,29 @@ async def screen_transaction(
 
     # Run compliance engine (respects user rule configs)
     result = engine.screen(tx, rule_configs=user_rule_configs)
+
+    # RAG enrichment: retrieve relevant compliance context (policies, sanctions, precedents).
+    # Non-blocking — if RAG is unavailable, screening still completes normally.
+    rag_service = getattr(app.state, "rag_service", None)
+    if rag_service is not None:
+        try:
+            rag_context = rag_service.multi_hop_retrieval({
+                "sender_name": tx.sender_name,
+                "receiver_name": tx.receiver_name,
+                "transaction_type": tx.transaction_type.value,
+                "destination_country": tx.destination_country,
+            })
+            result.rag_context = rag_context
+            # Surface the retrieval stage in the pipeline for explainability
+            if "rag_retrieval" not in result.pipeline_stages:
+                result.pipeline_stages = result.pipeline_stages + ["rag_retrieval"]
+            # A strong sanctions match reinforces escalation (never silently auto-approves)
+            if rag_context.get("sanctions_matches") and result.status.value == "approved":
+                result.status = ScreeningStatus.flagged
+                if result.risk_score < 0.5:
+                    result.risk_score = 0.5
+        except Exception as e:
+            logger.warning(f"RAG enrichment failed (screening continues): {e}")
 
     # Update user credits
     current_user.used_credits += result.credits_consumed
@@ -503,6 +527,7 @@ async def screen_transaction(
         ml_confidence=result.ml_confidence,
         total_latency_ms=result.total_latency_ms,
         pipeline_stages=result.pipeline_stages,
+        rag_context=result.rag_context,
     )
     db.add(db_tx)
     db.commit()
@@ -609,6 +634,7 @@ async def get_transaction(
         "ml_confidence": tx.ml_confidence,
         "total_latency_ms": tx.total_latency_ms,
         "pipeline_stages": tx.pipeline_stages or [],
+        "rag_context": tx.rag_context,
         "created_at": tx.created_at.isoformat(),
     }
 
