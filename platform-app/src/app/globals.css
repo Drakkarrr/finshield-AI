@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg:         #F8F7F4;
+  --bg-alt:     #F0EDE8;
+  --surface:    #FFFFFF;
+  --border:     #E2DFD8;
+  --border-lt:  #EDEBE6;
+  --text:       #1A1A2E;
+  --text-sec:   #4A5568;
+  --text-muted: #6B7280;
+  --accent:     #C8870E;
+  --accent-lt:  #E5A628;
+  --teal:       #1A9E8F;
+  --navy:       #0A1628;
+  --shadow-sm:  0 1px 3px rgba(10, 22, 40, 0.04), 0 1px 2px rgba(10, 22, 40, 0.06);
+  --shadow-md:  0 4px 12px rgba(10, 22, 40, 0.08);
+  --shadow-lg:  0 8px 24px rgba(10, 22, 40, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Card component */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-hover:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+.glass-strong {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+}
+
+/* Status badges */
+.status-badge {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+}
+.status-approved { @apply bg-green-50 text-emerald-700 border border-emerald-200; }
+.status-flagged  { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+.status-blocked  { @apply bg-red-50 text-red-700 border border-red-200; }
+.status-review   { @apply bg-blue-50 text-blue-700 border border-blue-200; }
+
+.status-dot {
+  @apply w-1.5 h-1.5 rounded-full bg-current;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease both;
+}
+
+.animate-delay-1 { animation-delay: 0.05s; }
+.animate-delay-2 { animation-delay: 0.1s; }
+.animate-delay-3 { animation-delay: 0.15s; }
+.animate-delay-4 { animation-delay: 0.2s; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+
+/* Input focus ring */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(200, 135, 14, 0.1);
+}
+
+/* Mono font for IDs */
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Table styles */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Link defaults */
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-lt); }
