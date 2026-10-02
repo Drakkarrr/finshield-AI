@@ -10,3 +10,6 @@ bcrypt==4.2.0
 python-multipart==0.0.12
 python-dotenv==1.0.1
 slowapi==0.1.9
+psycopg2-binary==2.9.9
+pgvector==0.3.0
+numpy==1.26.4

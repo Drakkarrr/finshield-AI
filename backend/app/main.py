@@ -35,6 +35,12 @@ from app.models import (
     HealthResponse, TransactionRequest, TransactionResponse,
     ScreeningResult, ScreeningStatus, CreditTier, RuleResult,
 )
+try:  # RAG requires pgvector/numpy; optional so the core app runs without them
+    from app.rag_service import RAGRetrievalService
+    _RAG_AVAILABLE = True
+except Exception:  # pragma: no cover - optional dependency missing
+    RAGRetrievalService = None  # type: ignore
+    _RAG_AVAILABLE = False
 from datetime import timedelta
 
 # --- Logging ---
@@ -128,6 +134,21 @@ start_time = time.monotonic()
 async def startup():
     init_db()
     logger.info("Database initialized")
+    
+    # Initialize RAG service if a PostgreSQL RAG database is configured
+    rag_database_url = os.getenv("RAG_DATABASE_URL", "")
+    if rag_database_url.startswith("postgresql") and _RAG_AVAILABLE:
+        try:
+            rag_service = RAGRetrievalService(rag_database_url)
+            app.state.rag_service = rag_service
+            logger.info("RAG Retrieval Service initialized")
+        except Exception as e:
+            logger.warning(f"RAG service initialization failed: {e}")
+            app.state.rag_service = None
+    else:
+        logger.info("RAG service skipped (no RAG_DATABASE_URL or deps unavailable)")
+        app.state.rag_service = None
+    
     logger.info(f"FinShield AI v2.4.0 started on port {os.getenv('APP_PORT', '8091')}")
 
 
@@ -563,7 +584,7 @@ async def get_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get full transaction detail including rule results (for explainability)."""
+    """Get full transaction detail including rule results and ML scores (for explainability)."""
     tx = db.query(Transaction).filter(
         Transaction.id == tx_id, Transaction.user_id == current_user.id
     ).first()
@@ -583,6 +604,11 @@ async def get_transaction(
         "credits_consumed": tx.credits_consumed,
         "idempotency_key": tx.idempotency_key,
         "rule_results": tx.rule_results or [],
+        "behavioral_score": tx.behavioral_score,
+        "ml_classification": tx.ml_classification,
+        "ml_confidence": tx.ml_confidence,
+        "total_latency_ms": tx.total_latency_ms,
+        "pipeline_stages": tx.pipeline_stages or [],
         "created_at": tx.created_at.isoformat(),
     }
 
@@ -2670,6 +2696,105 @@ async def get_pii_classification(
             "id", "created_at", "updated_at", "status",
         ],
     }
+
+
+# ============================================================
+# RAG RETRIEVAL ROUTES
+# ============================================================
+
+class RAGSearchRequest(BaseModel):
+    query: str
+    category: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    top_k: int = 5
+
+class RAGSanctionsSearchRequest(BaseModel):
+    query: str
+    top_k: int = 10
+    threshold: float = 0.8
+
+class RAGPrecedentSearchRequest(BaseModel):
+    query: str
+    decision_filter: Optional[str] = None
+    top_k: int = 5
+
+class RAGMultiHopRequest(BaseModel):
+    sender_name: str
+    receiver_name: str
+    transaction_type: Optional[str] = None
+    destination_country: Optional[str] = None
+
+@app.post("/api/v1/rag/search-documents", tags=["RAG"])
+async def search_compliance_documents(
+    req: RAGSearchRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Search for similar compliance documents."""
+    rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
+    if not rag_service:
+        raise HTTPException(status_code=503, detail="RAG service not available")
+    
+    results = rag_service.search_similar_documents(
+        query=req.query,
+        category=req.category,
+        jurisdiction=req.jurisdiction,
+        top_k=req.top_k
+    )
+    return {"results": results, "count": len(results)}
+
+@app.post("/api/v1/rag/search-sanctions", tags=["RAG"])
+async def search_sanctions(
+    req: RAGSanctionsSearchRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Search for potential sanctions matches."""
+    rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
+    if not rag_service:
+        raise HTTPException(status_code=503, detail="RAG service not available")
+    
+    results = rag_service.search_sanctions_matches(
+        query=req.query,
+        top_k=req.top_k,
+        threshold=req.threshold
+    )
+    return {"results": results, "count": len(results), "threshold": req.threshold}
+
+@app.post("/api/v1/rag/search-precedents", tags=["RAG"])
+async def search_precedents(
+    req: RAGPrecedentSearchRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Search for similar historical decisions."""
+    rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
+    if not rag_service:
+        raise HTTPException(status_code=503, detail="RAG service not available")
+    
+    results = rag_service.search_similar_precedents(
+        query=req.query,
+        decision_filter=req.decision_filter,
+        top_k=req.top_k
+    )
+    return {"results": results, "count": len(results)}
+
+@app.post("/api/v1/rag/multi-hop-retrieval", tags=["RAG"])
+async def multi_hop_retrieval(
+    req: RAGMultiHopRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Perform multi-hop retrieval for transaction context."""
+    rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
+    if not rag_service:
+        raise HTTPException(status_code=503, detail="RAG service not available")
+    
+    transaction_context = {
+        "sender_name": req.sender_name,
+        "receiver_name": req.receiver_name,
+        "transaction_type": req.transaction_type,
+        "destination_country": req.destination_country,
+    }
+    
+    results = rag_service.multi_hop_retrieval(transaction_context)
+    return results
 
 
 # ============================================================
