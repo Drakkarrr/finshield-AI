@@ -18,6 +18,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api import (
     admin,
+    audit,
     auth,
     behavioral,
     billing,
@@ -147,5 +148,5 @@ app.add_exception_handler(Exception, global_exception_handler)
 app.middleware("http")(request_logging_middleware)
 
 # Registration order is route-matching order; it follows the original main.py section order.
-for _module in (auth, keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral, breakers, webhooks, privacy, rag, settings, lists, models, admin, health):
+for _module in (auth, keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral, breakers, webhooks, privacy, rag, settings, lists, models, admin, audit, health):
     app.include_router(_module.router)

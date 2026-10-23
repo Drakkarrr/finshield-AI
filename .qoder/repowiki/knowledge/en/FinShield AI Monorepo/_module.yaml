@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: FinShield AI Monorepo — Local-First Compliance Platform
+title: FinShield AI Monorepo
 scope:
     - README.md
     - DEPLOYMENT.md

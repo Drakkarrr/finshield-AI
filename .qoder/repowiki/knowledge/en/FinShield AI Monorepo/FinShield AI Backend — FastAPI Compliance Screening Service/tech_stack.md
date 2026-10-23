@@ -1,0 +1,1 @@
+FastAPI + Starlette, SQLAlchemy ORM with pgvector extension for cosine similarity, Alembic for schema migrations, slowapi for rate limiting, Pydantic v2 models, bcrypt + PyJWT (HS256) for auth, numpy for deterministic hashing embeddings, optional sentence-transformers for semantic embeddings, pytest + ruff + mypy for testing/linting/type-checking.

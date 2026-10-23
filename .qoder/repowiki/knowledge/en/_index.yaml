@@ -3,11 +3,11 @@ schema_version: 1
 locale: en-US
 branch: main
 nodes_managed: true
-exported_at: "2026-10-23T15:03:27Z"
+exported_at: "2026-10-23T15:34:10Z"
 modules:
     "":
-        dir_name: FinShield AI Monorepo — Local-First Compliance Platform
-        title: FinShield AI Monorepo — Local-First Compliance Platform
+        dir_name: FinShield AI Monorepo
+        title: FinShield AI Monorepo
         scope:
             - README.md
             - DEPLOYMENT.md
@@ -23,8 +23,8 @@ modules:
         depends_on: []
         related_to: []
     backend:
-        dir_name: FinShield AI Backend — Transaction Compliance API
-        title: FinShield AI Backend — Transaction Compliance API
+        dir_name: FinShield AI Backend — FastAPI Compliance Screening Service
+        title: FinShield AI Backend — FastAPI Compliance Screening Service
         scope:
             - backend/
         source_files: []
