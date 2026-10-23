@@ -46,35 +46,35 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (CheckConstraint("role IN ('analyst', 'investigator', 'supervisor', 'admin')", name="ck_users_role"),)
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    first_name = Column(String, nullable=False)
-    last_name = Column(String, nullable=False)
-    company = Column(String, nullable=True)
-    plan = Column(String, default="starter")
-    total_credits = Column(Integer, default=1000)
-    used_credits = Column(Float, default=0.0)
-    is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    first_name: Mapped[str] = mapped_column(String, nullable=False)
+    last_name: Mapped[str] = mapped_column(String, nullable=False)
+    company: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    plan: Mapped[Optional[str]] = mapped_column(String, default="starter")
+    total_credits: Mapped[Optional[int]] = mapped_column(Integer, default=1000)
+    used_credits: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+    is_verified: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     # analyst < investigator < supervisor < admin (app.permissions). The tenant's first user is admin.
     role: Mapped[str] = mapped_column(String, default="analyst", server_default="analyst")
     # Trial
-    is_trial = Column(Boolean, default=True)
-    trial_expires_at = Column(DateTime, nullable=True)
+    is_trial: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+    trial_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # Billing cycle tracking
-    billing_cycle_start = Column(DateTime, nullable=True)
-    billing_cycle_end = Column(DateTime, nullable=True)
-    pending_plan_change = Column(String, nullable=True)  # Downgrade queued for end-of-cycle
+    billing_cycle_start: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    billing_cycle_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    pending_plan_change: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Downgrade queued for end-of-cycle
     # Preferences
-    timezone = Column(String, nullable=True)  # e.g. "America/New_York"
+    timezone: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g. "America/New_York"
     # Saved payment method (for Qoder-like flow)
-    saved_card_last4 = Column(String, nullable=True)
-    saved_card_expiry = Column(String, nullable=True)
-    saved_card_holder = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    saved_card_last4: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    saved_card_expiry: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    saved_card_holder: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
@@ -86,15 +86,15 @@ class User(Base):
 class ApiKey(Base):
     __tablename__ = "api_keys"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    name = Column(String, nullable=False)
-    key_hash = Column(String, unique=True, nullable=False)
-    key_prefix = Column(String, nullable=False)  # First 8 chars for display
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_used_at = Column(DateTime, nullable=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    key_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String, nullable=False)  # First 8 chars for display
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="api_keys")
@@ -103,40 +103,40 @@ class ApiKey(Base):
 class Transaction(Base):
     __tablename__ = "transactions"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    idempotency_key = Column(String, unique=True, index=True, nullable=False)
-    amount = Column(Float, nullable=False)
-    currency = Column(String, default="USD")
-    transaction_type = Column(String, nullable=False)
-    sender_name = Column(String, nullable=False)
-    receiver_name = Column(String, nullable=False)
-    destination_country = Column(String, nullable=True)
-    description = Column(Text, nullable=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[Optional[str]] = mapped_column(String, default="USD")
+    transaction_type: Mapped[str] = mapped_column(String, nullable=False)
+    sender_name: Mapped[str] = mapped_column(String, nullable=False)
+    receiver_name: Mapped[str] = mapped_column(String, nullable=False)
+    destination_country: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Screening results
-    status = Column(String, default="pending")
-    risk_score = Column(Float, default=0.0)
-    credit_tier = Column(String, nullable=True)
-    credits_consumed = Column(Float, default=0.0)
-    rule_results = Column(JSON, nullable=True)
-    behavioral_score = Column(Float, nullable=True)
-    ml_classification = Column(String, nullable=True)
-    ml_confidence = Column(Float, nullable=True)
-    total_latency_ms = Column(Float, nullable=True)
-    pipeline_stages = Column(JSON, nullable=True)
-    rag_context = Column(JSON, nullable=True)
+    status: Mapped[Optional[str]] = mapped_column(String, default="pending")
+    risk_score: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    credit_tier: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    credits_consumed: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    rule_results: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    behavioral_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ml_classification: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ml_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pipeline_stages: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    rag_context: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     # Structured, reproducible decision (S2.1/S2.2/S2.5)
-    account_id = Column(String, nullable=True, index=True)  # baseline key: account_id > sender_id > sender_name
-    reasons = Column(JSON, nullable=True)
-    decision = Column(JSON, nullable=True)  # the full ScreeningResult as returned
-    model_version = Column(String, nullable=True)
-    degraded = Column(Boolean, default=False)
-    shadow_result = Column(JSON, nullable=True)
+    account_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)  # baseline key: account_id > sender_id > sender_name
+    reasons: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    decision: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # the full ScreeningResult as returned
+    model_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    degraded: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    shadow_result: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
     user = relationship("User", back_populates="transactions")
@@ -510,6 +510,26 @@ class ModelVersion(Base):
     @property
     def label(self) -> str:
         return f"{self.name}@{self.version}"
+
+
+class PrivacyRequest(Base):
+    """A data-subject request (S3.3). The subject identifier and the outcome are personal data,
+    so both are stored Fernet-encrypted (app.crypto); subject_ref_hash allows lookup."""
+    __tablename__ = "privacy_requests"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
+    subject_type: Mapped[str] = mapped_column(String)  # customer | user
+    subject_ref_enc: Mapped[str] = mapped_column(Text)
+    subject_ref_hash: Mapped[str] = mapped_column(String, index=True)
+    request_type: Mapped[str] = mapped_column(String)  # access | erasure
+    status: Mapped[str] = mapped_column(String, default="received")  # received | completed | rejected
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    due_at: Mapped[datetime] = mapped_column(DateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    handled_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    outcome_enc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    legal_basis_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 # --- RAG corpora (pgvector). 384-dim matches both the hashing embedder and all-MiniLM-L6-v2. ---
 EMBEDDING_DIM = 384

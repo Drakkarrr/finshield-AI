@@ -47,7 +47,7 @@ jobs:
         env:
           APP_ENV: test
         # Coverage floor = measured value rounded down; raise it as slices land, never lower it.
-        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=78
+        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=84
 
   # ── Backend on Postgres: Alembic round trip + full suite (catches dialect drift) ──
   backend-postgres:

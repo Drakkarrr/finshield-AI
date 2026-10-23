@@ -395,6 +395,10 @@
    "DSARRequest": {
     "properties": {
      "request_type": {
+      "enum": [
+       "access",
+       "erasure"
+      ],
       "title": "Request Type",
       "type": "string"
      },
@@ -798,6 +802,50 @@
      "new_password"
     ],
     "title": "PasswordChangeRequest",
+    "type": "object"
+   },
+   "PrivacyRequestCreate": {
+    "properties": {
+     "legal_basis_notes": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Basis Notes"
+     },
+     "request_type": {
+      "enum": [
+       "access",
+       "erasure"
+      ],
+      "title": "Request Type",
+      "type": "string"
+     },
+     "subject_ref": {
+      "description": "Customer name or account id, or a user's email",
+      "minLength": 1,
+      "title": "Subject Ref",
+      "type": "string"
+     },
+     "subject_type": {
+      "default": "customer",
+      "enum": [
+       "customer",
+       "user"
+      ],
+      "title": "Subject Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "subject_ref",
+     "request_type"
+    ],
+    "title": "PrivacyRequestCreate",
     "type": "object"
    },
    "ProfileUpdateRequest": {
@@ -4231,7 +4279,7 @@
   },
   "/api/v1/privacy/dsar": {
    "post": {
-    "description": "Create a Data Subject Access Request.",
+    "description": "Log a request about a platform user identified by email (see /privacy/requests for customers).",
     "operationId": "create_dsar_request_api_v1_privacy_dsar_post",
     "requestBody": {
      "content": {
@@ -4276,7 +4324,7 @@
   },
   "/api/v1/privacy/pii-classification": {
    "get": {
-    "description": "Get PII field classification.",
+    "description": "Personal-data fields, masked roles and retention, from runtime config.",
     "operationId": "get_pii_classification_api_v1_privacy_pii_classification_get",
     "responses": {
      "200": {
@@ -4294,6 +4342,165 @@
      }
     ],
     "summary": "Get Pii Classification",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/requests": {
+   "get": {
+    "description": "The tenant's requests, oldest due first; `overdue` flags missed deadlines.",
+    "operationId": "list_privacy_requests_api_v1_privacy_requests_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Privacy Requests",
+    "tags": [
+     "Privacy"
+    ]
+   },
+   "post": {
+    "description": "Log a data-subject request; due date from privacy.dsar_due_days.",
+    "operationId": "create_privacy_request_api_v1_privacy_requests_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PrivacyRequestCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create Privacy Request",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/requests/{request_id}": {
+   "get": {
+    "operationId": "get_privacy_request_api_v1_privacy_requests__request_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Privacy Request",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/requests/{request_id}/execute": {
+   "post": {
+    "description": "Run the request: an access export, or an erasure that retains what regulation requires.",
+    "operationId": "execute_privacy_request_api_v1_privacy_requests__request_id__execute_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Execute Privacy Request",
     "tags": [
      "Privacy"
     ]

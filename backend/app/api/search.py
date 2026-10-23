@@ -12,6 +12,7 @@ from app.db_models import (
     Transaction,
     User,
 )
+from app.domain import privacy
 
 router = APIRouter()
 
@@ -31,6 +32,7 @@ def global_search(
         return {"query": q, "transactions": [], "cases": [], "api_keys": []}
 
     pattern = f"%{q.strip()}%"
+    name = privacy.mask_name if privacy.masks_for(db, current_user.role) else (lambda v: v)
 
     # Search transactions (parties, id, country, type, status)
     txs = (
@@ -80,7 +82,8 @@ def global_search(
     return {
         "query": q,
         "transactions": [
-            {"id": t.id, "amount": t.amount, "currency": t.currency, "sender": t.sender_name, "receiver": t.receiver_name, "status": t.status, "created_at": t.created_at.isoformat()}
+            {"id": t.id, "amount": t.amount, "currency": t.currency, "sender": name(t.sender_name),
+             "receiver": name(t.receiver_name), "status": t.status, "created_at": t.created_at.isoformat()}
             for t in txs
         ],
         "cases": [

@@ -19,6 +19,7 @@ from app.db_models import (
     Transaction,
     User,
 )
+from app.domain import privacy
 from app.models import (
     CreditTier,
     RuleResult,
@@ -189,14 +190,16 @@ def list_transactions(
         .limit(limit)
         .all()
     )
+    mask = privacy.masks_for(db, current_user.role)
+    name = privacy.mask_name if mask else (lambda v: v)
     return [
         {
             "id": t.id,
             "amount": t.amount,
             "currency": t.currency,
             "type": t.transaction_type,
-            "sender": t.sender_name,
-            "receiver": t.receiver_name,
+            "sender": name(t.sender_name),
+            "receiver": name(t.receiver_name),
             "status": t.status,
             "risk_score": t.risk_score,
             "credit_tier": t.credit_tier,
@@ -246,10 +249,11 @@ def export_transactions(
         "ID", "Amount", "Currency", "Type", "Sender", "Receiver",
         "Country", "Status", "Risk Score", "Credit Tier", "Credits Used", "Created At",
     ])
+    name = privacy.mask_name if privacy.masks_for(db, current_user.role) else (lambda v: v)
     for t in txs:
         writer.writerow([
             t.id, t.amount, t.currency, t.transaction_type,
-            t.sender_name, t.receiver_name, t.destination_country or "",
+            name(t.sender_name), name(t.receiver_name), t.destination_country or "",
             t.status, t.risk_score, t.credit_tier, t.credits_consumed,
             t.created_at.isoformat(),
         ])
@@ -273,7 +277,7 @@ def get_transaction(
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    return {
+    detail = {
         "id": tx.id,
         "amount": tx.amount,
         "currency": tx.currency,
@@ -301,6 +305,10 @@ def get_transaction(
         "decision": tx.decision,
         "created_at": tx.created_at.isoformat(),
     }
+    if not privacy.masks_for(db, current_user.role):
+        return detail
+    # Names also appear inside the stored decision, reasons and RAG context; mask them everywhere.
+    return privacy.mask_names_in(detail, [tx.sender_name, tx.receiver_name], [tx.account_id])
 
 
 @router.delete("/api/v1/transactions/{tx_id}", tags=["Compliance"])

@@ -46,6 +46,14 @@ def _credit_packs(v: Any) -> bool:
     return isinstance(v, dict) and bool(v) and all(k.isdigit() and _number(p) for k, p in v.items())
 
 
+def _pii_fields(v: Any) -> bool:
+    return isinstance(v, dict) and all(isinstance(k, str) and isinstance(f, list) for k, f in v.items())
+
+
+def _roles(v: Any) -> bool:
+    return isinstance(v, list) and all(r in ("analyst", "investigator", "supervisor", "admin") for r in v)
+
+
 def _plans(v: Any) -> bool:
     return isinstance(v, list) and bool(v) and all(isinstance(p, dict) and {"id", "name", "price_monthly", "included_credits"} <= set(p) for p in v)
 
@@ -99,6 +107,16 @@ SETTINGS: dict[str, tuple[Any, Callable[[Any], bool], str]] = {
     "billing.credit_packs": ({"10000": 9, "50000": 39, "200000": 129}, _credit_packs,
                              "One-off credit packs: credits -> price in USD"),
     "billing.plans": (PLANS_DEFAULT, _plans, "Subscription plans"),
+    "privacy.pii_fields": ({
+        "users": ["email", "first_name", "last_name", "company", "timezone"],
+        "transactions": ["sender_name", "receiver_name", "account_id", "description"],
+        "filings": ["narrative", "structured_data"],
+        "case_comments": ["body"],
+        "case_notes": ["note"],
+    }, _pii_fields, "Personal-data fields per table (DSAR scope, masking)"),
+    "privacy.mask_roles": (["analyst"], _roles, "Roles that see party names and account ids masked"),
+    "privacy.dsar_due_days": (30, _number, "Days to answer a data-subject request (GDPR Art. 12(3))"),
+    "privacy.retention_years": (5, _number, "AML record-keeping window; erasure retains newer records"),
 }
 
 FLAGS: dict[str, tuple[bool, str]] = {
