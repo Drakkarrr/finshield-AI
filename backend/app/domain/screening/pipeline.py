@@ -25,6 +25,7 @@ BEHAVIORAL_TIER_AMOUNT = 5000.0
 RULE_RISK_PER_HIT = 0.25
 VELOCITY_SATURATION = 10  # transactions in 24h at which the velocity feature saturates
 NEAR_MISS_FLOOR = 0.6  # name similarity below this carries no counterparty risk
+RAG_USABLE = ("ok", "lexical_fallback")
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,7 @@ class ScreeningContext:
     population: Optional[behavioral.Population] = None
     velocity_24h: int = 0
     rag_context: Optional[dict] = None
-    rag_status: str = "disabled"  # ok | disabled | unavailable
+    rag_status: str = "disabled"  # ok | lexical_fallback | disabled | unavailable
     shadow_model: Optional[RiskModel] = None
     failed_dependencies: tuple[str, ...] = ()  # open breakers / failed calls seen by the API layer
 
@@ -108,13 +109,25 @@ def screen(tx: TransactionRequest, ctx: ScreeningContext) -> ScreeningOutcome:
         reasons += beh.reasons
 
     rag_match = False
-    if ctx.rag_status == "ok" and ctx.rag_context is not None:
+    rag_used = ctx.rag_status in RAG_USABLE and ctx.rag_context is not None
+    if rag_used:
+        assert ctx.rag_context is not None
         stages.append("rag_retrieval")
+        lexical = ctx.rag_status == "lexical_fallback"
         for m in ctx.rag_context.get("sanctions_matches") or []:
             rag_match = True
             reasons.append(Reason(source="rag", feature="sanctions_similarity", value=m.get("matched_party"),
                                   contribution=0.0, entry_id=m.get("id"), name=m.get("name"),
-                                  similarity=m.get("similarity_score")))
+                                  similarity=m.get("similarity_score"), degraded=lexical))
+        for feature, key, label in (("policy_match", "policies", "title"), ("precedent_match", "similar_precedents",
+                                                                              "decision")):
+            top = (ctx.rag_context.get(key) or [None])[0]
+            if top:
+                reasons.append(Reason(source="rag", feature=feature, value=top.get(label), contribution=0.0,
+                                      doc_id=top.get("id"), similarity=top.get("score"), degraded=lexical))
+        if lexical:
+            reasons.append(Reason(source="rag", feature="embedder", value="lexical_fallback", degraded=True,
+                                  detail="semantic embedder unavailable; RAG evidence is lexical only"))
     else:
         reasons.append(Reason(source="rag", feature="retrieval", value=ctx.rag_status, degraded=True,
                               detail="RAG retrieval not used for this decision"))
@@ -161,7 +174,7 @@ def screen(tx: TransactionRequest, ctx: ScreeningContext) -> ScreeningOutcome:
         ml_confidence=model_result.score if model_result else None,
         total_latency_ms=round((time.monotonic() - start) * 1000, 2),
         pipeline_stages=stages,
-        rag_context=ctx.rag_context if ctx.rag_status == "ok" else None,
+        rag_context=ctx.rag_context if rag_used else None,
         reasons=reasons,
         model_version=model_result.model_version if model_result else ctx.model.version,
         degraded=bool(degraded),

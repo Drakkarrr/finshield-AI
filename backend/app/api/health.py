@@ -45,6 +45,8 @@ def _probe_dependencies(request: Request, db: Session) -> tuple[dict[str, str], 
             with rag_service.engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             services["rag_service"] = "healthy"
+            services["rag_embedder"] = (rag_service.embedder.name if rag_service.embedder.semantic
+                                        else "lexical_fallback")
         except Exception:
             logger.exception("Health probe failed: rag_service")
             services["rag_service"] = "unavailable"

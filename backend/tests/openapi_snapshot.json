@@ -865,6 +865,17 @@
    },
    "RAGMultiHopRequest": {
     "properties": {
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
      "destination_country": {
       "anyOf": [
        {

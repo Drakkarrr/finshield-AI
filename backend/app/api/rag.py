@@ -10,7 +10,7 @@ from app.auth import (
 from app.db_models import (
     User,
 )
-from app.rag_service import RAGRetrievalService
+from app.domain.rag.service import EmbeddingMismatch, RAGRetrievalService
 
 router = APIRouter()
 
@@ -18,6 +18,21 @@ router = APIRouter()
 # ============================================================
 # RAG RETRIEVAL ROUTES
 # ============================================================
+
+def _service(request: Request) -> RAGRetrievalService:
+    service = getattr(request.app.state, "rag_service", None)
+    if service is None:
+        raise HTTPException(status_code=503, detail="RAG is disabled on this deployment (RAG_DATABASE_URL not set)")
+    return service
+
+
+def _guard(fn):
+    """Run a retrieval call; a stored-model mismatch is an operator action, not a server error."""
+    try:
+        return fn()
+    except EmbeddingMismatch as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+
 
 class RAGSearchRequest(BaseModel):
     query: str
@@ -40,6 +55,7 @@ class RAGMultiHopRequest(BaseModel):
     receiver_name: str
     transaction_type: Optional[str] = None
     destination_country: Optional[str] = None
+    description: Optional[str] = None
 
 @router.post("/api/v1/rag/search-documents", tags=["RAG"])
 def search_compliance_documents(
@@ -48,16 +64,10 @@ def search_compliance_documents(
     current_user: User = Depends(get_current_user),
 ):
     """Search for similar compliance documents."""
-    rag_service: RAGRetrievalService = getattr(request.app.state, 'rag_service', None)
-    if not rag_service:
-        raise HTTPException(status_code=503, detail="RAG service not available")
+    rag_service = _service(request)
 
-    results = rag_service.search_similar_documents(
-        query=req.query,
-        category=req.category,
-        jurisdiction=req.jurisdiction,
-        top_k=req.top_k
-    )
+    results = _guard(lambda: rag_service.search_similar_documents(
+        query=req.query, category=req.category, jurisdiction=req.jurisdiction, top_k=req.top_k))
     return {"results": results, "count": len(results)}
 
 @router.post("/api/v1/rag/search-sanctions", tags=["RAG"])
@@ -67,15 +77,10 @@ def search_sanctions(
     current_user: User = Depends(get_current_user),
 ):
     """Search for potential sanctions matches."""
-    rag_service: RAGRetrievalService = getattr(request.app.state, 'rag_service', None)
-    if not rag_service:
-        raise HTTPException(status_code=503, detail="RAG service not available")
+    rag_service = _service(request)
 
-    results = rag_service.search_sanctions_matches(
-        query=req.query,
-        top_k=req.top_k,
-        threshold=req.threshold
-    )
+    results = _guard(lambda: rag_service.search_sanctions_matches(
+        query=req.query, top_k=req.top_k, threshold=req.threshold))
     return {"results": results, "count": len(results), "threshold": req.threshold}
 
 @router.post("/api/v1/rag/search-precedents", tags=["RAG"])
@@ -85,15 +90,10 @@ def search_precedents(
     current_user: User = Depends(get_current_user),
 ):
     """Search for similar historical decisions."""
-    rag_service: RAGRetrievalService = getattr(request.app.state, 'rag_service', None)
-    if not rag_service:
-        raise HTTPException(status_code=503, detail="RAG service not available")
+    rag_service = _service(request)
 
-    results = rag_service.search_similar_precedents(
-        query=req.query,
-        decision_filter=req.decision_filter,
-        top_k=req.top_k
-    )
+    results = _guard(lambda: rag_service.search_similar_precedents(
+        query=req.query, decision_filter=req.decision_filter, top_k=req.top_k))
     return {"results": results, "count": len(results)}
 
 @router.post("/api/v1/rag/multi-hop-retrieval", tags=["RAG"])
@@ -103,16 +103,15 @@ def multi_hop_retrieval(
     current_user: User = Depends(get_current_user),
 ):
     """Perform multi-hop retrieval for transaction context."""
-    rag_service: RAGRetrievalService = getattr(request.app.state, 'rag_service', None)
-    if not rag_service:
-        raise HTTPException(status_code=503, detail="RAG service not available")
+    rag_service = _service(request)
 
     transaction_context = {
         "sender_name": req.sender_name,
         "receiver_name": req.receiver_name,
         "transaction_type": req.transaction_type,
         "destination_country": req.destination_country,
+        "description": req.description,
     }
 
-    results = rag_service.multi_hop_retrieval(transaction_context)
+    results = _guard(lambda: rag_service.multi_hop_retrieval(transaction_context))
     return results

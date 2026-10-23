@@ -479,6 +479,7 @@ class ComplianceDocument(Base):
     effective_date = Column(DateTime, nullable=True)
     doc_metadata = Column("metadata", JSON, nullable=True)
     embedding = Column(Vector(EMBEDDING_DIM))
+    embedding_model = Column(String, nullable=True)  # embedder that produced `embedding` (S2.4)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -494,6 +495,7 @@ class SanctionsEntry(Base):
     aliases = Column(JSON, nullable=True)
     remarks = Column(Text, nullable=True)
     embedding = Column(Vector(EMBEDDING_DIM))
+    embedding_model = Column(String, nullable=True)  # embedder that produced `embedding` (S2.4)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -507,4 +509,5 @@ class PrecedentDecision(Base):
     reasoning = Column(Text, nullable=True)
     risk_factors = Column(JSON, nullable=True)
     embedding = Column(Vector(EMBEDDING_DIM))
+    embedding_model = Column(String, nullable=True)  # embedder that produced `embedding` (S2.4)
     created_at = Column(DateTime, default=datetime.utcnow)

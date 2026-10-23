@@ -1,28 +1,16 @@
-"""
-Seed data for RAG retrieval service.
-Adds sample compliance documents, sanctions entries, and precedent decisions.
+"""Seed corpus for RAG retrieval: policies, a sanctions corpus and precedent decisions.
+
+Idempotent: each corpus is seeded only when empty (rows are upserted by id regardless).
 """
 
 from datetime import datetime
 
-from app.rag_service import ComplianceDocument, RAGRetrievalService
+from app.domain.rag.service import RAGRetrievalService
 
 
-def seed_rag_data(database_url: str):
-    """Seed the RAG database with sample data (idempotent)."""
-    print("Initializing RAG seed data...")
-
-    service = RAGRetrievalService(database_url)
-
-    # Skip if already seeded
-    db = service._get_db()
-    try:
-        existing = db.query(ComplianceDocument).count()
-    finally:
-        db.close()
-    if existing > 0:
-        print(f"RAG already seeded ({existing} documents). Skipping.")
-        return
+def seed_rag_data(service: RAGRetrievalService) -> dict[str, int]:
+    """Seed every empty corpus. Returns rows added per table (0 = already seeded)."""
+    counts = service.counts()
 
     # Add compliance documents
     compliance_docs = [
@@ -73,9 +61,11 @@ def seed_rag_data(database_url: str):
         }
     ]
 
-    print("Adding compliance documents...")
-    for doc in compliance_docs:
-        service.add_compliance_document(**doc)
+    added = {"compliance_documents": 0, "sanctions_entries": 0, "precedent_decisions": 0}
+    if not counts["compliance_documents"]:
+        for doc in compliance_docs:
+            service.add_compliance_document(**doc)
+        added["compliance_documents"] = len(compliance_docs)
 
     # Add sanctions entries (sample OFAC SDN list)
     sanctions_entries = [
@@ -135,9 +125,10 @@ def seed_rag_data(database_url: str):
         }
     ]
 
-    print("Adding sanctions entries...")
-    for entry in sanctions_entries:
-        service.add_sanctions_entry(**entry)
+    if not counts["sanctions_entries"]:
+        for entry in sanctions_entries:
+            service.add_sanctions_entry(**entry)
+        added["sanctions_entries"] = len(sanctions_entries)
 
     # Add precedent decisions
     precedent_decisions = [
@@ -178,22 +169,21 @@ def seed_rag_data(database_url: str):
         }
     ]
 
-    print("Adding precedent decisions...")
-    for precedent in precedent_decisions:
-        service.add_precedent_decision(**precedent)
+    if not counts["precedent_decisions"]:
+        for precedent in precedent_decisions:
+            service.add_precedent_decision(**precedent)
+        added["precedent_decisions"] = len(precedent_decisions)
 
-    print("RAG seed data initialization complete!")
-    print(f"Added {len(compliance_docs)} compliance documents")
-    print(f"Added {len(sanctions_entries)} sanctions entries")
-    print(f"Added {len(precedent_decisions)} precedent decisions")
+    return added
 
 
 if __name__ == "__main__":
     import os
+    import sys
 
-    from dotenv import load_dotenv
+    from app.domain.rag.embedders import load_embedder
 
-    load_dotenv()
-
-    database_url = os.getenv("RAG_DATABASE_URL", "postgresql://finshield:finshield_secret@localhost:5432/finshield")
-    seed_rag_data(database_url)
+    url = os.getenv("RAG_DATABASE_URL")
+    if not url:
+        sys.exit("RAG_DATABASE_URL is not set")
+    print(seed_rag_data(RAGRetrievalService(url, load_embedder())))

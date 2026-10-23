@@ -1,0 +1,10 @@
+# Semantic RAG embeddings (ruling D4): local all-MiniLM-L6-v2 on CPU.
+# Installed in the backend image (not needed to run the unit/API test suite).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu
+sentence-transformers==6.2.0
+transformers==5.20.2
+tokenizers==0.23.3
+safetensors==0.8.0
+scikit-learn==1.9.1
+scipy==1.17.1

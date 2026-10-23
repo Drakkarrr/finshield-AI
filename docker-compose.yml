@@ -33,6 +33,10 @@ services:
       - RAG_DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-finshield}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - RAG_EMBEDDER=${RAG_EMBEDDER:-minilm}
+      # First-run list data (see backend/scripts/bootstrap.py). The demo fixtures are FICTIONAL.
+      - LISTS_AUTO_DOWNLOAD=${LISTS_AUTO_DOWNLOAD:-true}
+      - LISTS_DEMO_FIXTURES=${LISTS_DEMO_FIXTURES:-true}
       - DEBUG=${DEBUG:-false}
     volumes:
       - backend-data:/app/data

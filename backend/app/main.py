@@ -38,13 +38,9 @@ from app.api import (
     webhooks,
 )
 from app.core import limiter, logger
+from app.domain.rag.embedders import load_embedder
+from app.domain.rag.service import RAGRetrievalService
 
-try:  # RAG requires pgvector/numpy; optional so the core app runs without them
-    from app.rag_service import RAGRetrievalService
-    _RAG_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency missing
-    RAGRetrievalService = None  # type: ignore
-    _RAG_AVAILABLE = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -122,19 +118,17 @@ async def request_logging_middleware(request: Request, call_next):
 async def startup():  # run by lifespan()
     # Schema is managed by Alembic (`alembic upgrade head` runs in the container entrypoint).
 
-    # Initialize RAG service if a PostgreSQL RAG database is configured
+    # RAG is optional: without RAG_DATABASE_URL decisions report rag_status="disabled".
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")
-    if rag_database_url.startswith("postgresql") and _RAG_AVAILABLE:
+    app.state.rag_service = None
+    if rag_database_url.startswith("postgresql"):
         try:
-            rag_service = RAGRetrievalService(rag_database_url)
-            app.state.rag_service = rag_service
-            logger.info("RAG Retrieval Service initialized")
+            app.state.rag_service = RAGRetrievalService(rag_database_url, load_embedder())
+            logger.info("RAG retrieval enabled (embedder %s)", app.state.rag_service.embedder.name)
         except Exception as e:
-            logger.warning(f"RAG service initialization failed: {e}")
-            app.state.rag_service = None
+            logger.warning("RAG disabled: service failed to initialise (%s)", e)
     else:
-        logger.info("RAG service skipped (no RAG_DATABASE_URL or deps unavailable)")
-        app.state.rag_service = None
+        logger.warning("RAG disabled: RAG_DATABASE_URL is not a postgresql:// URL; decisions report rag_status=disabled")
 
     logger.info(f"FinShield AI v2.4.0 started on port {os.getenv('APP_PORT', '8091')}")
 

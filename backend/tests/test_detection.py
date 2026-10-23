@@ -13,6 +13,7 @@ from app.database import SessionLocal
 from app.db_models import ModelVersion, Transaction
 from app.domain import behavioral
 from app.domain.models_registry import V1_PARAMS, registry
+from app.domain.rag.embedders import HashEmbedder
 from app.domain.screening import ScreeningContext, gating, screen
 from app.main import app
 from app.models import RuleResult, RuleType, ScreeningStatus, TransactionRequest, TransactionType
@@ -249,10 +250,14 @@ async def test_shadow_scored_and_stored_but_never_decides_then_promotion_does(cl
 
 async def test_dead_rag_routes_to_review_opens_breaker_then_recovers(client):
     class DeadRag:
+        embedder = HashEmbedder()
+
         def multi_hop_retrieval(self, _):
             raise ConnectionError("rag postgres down")
 
     class LiveRag:
+        embedder = HashEmbedder()
+
         def multi_hop_retrieval(self, _):
             return {"policies": [], "sanctions_matches": [], "similar_precedents": []}
 
@@ -276,7 +281,7 @@ async def test_dead_rag_routes_to_review_opens_breaker_then_recovers(client):
         st = resilience._get("rag")
         st.changed_at -= timedelta(seconds=st.cooldown_seconds + 1)  # cooldown elapsed
         r = (await client.post("/api/v1/transactions", json={**clean, "idempotency_key": uuid.uuid4().hex})).json()["data"]
-        assert r["status"] == "approved" and not r["degraded"] and r["rag_status"] == "ok"
+        assert r["status"] == "approved" and not r["degraded"] and r["rag_status"] == "lexical_fallback"
         assert resilience.states()["rag"]["state"] == "closed"
     finally:
         app.state.rag_service = previous

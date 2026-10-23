@@ -82,7 +82,7 @@ def build_context(db: Session, user_id: str, tx: TransactionRequest, rag_service
                 "destination_country": tx.destination_country,
                 "description": tx.description,
             }))
-            rag_status = "ok"
+            rag_status = "ok" if rag_service.embedder.semantic else "lexical_fallback"
         except resilience.DependencyUnavailable as e:
             logger.warning("%s", e)
             rag_status = "unavailable"

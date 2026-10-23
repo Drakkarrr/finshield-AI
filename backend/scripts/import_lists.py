@@ -4,7 +4,7 @@ From backend/ (DATABASE_URL set):
   python -m scripts.import_lists ofac --download [--dry-run]          # official OFAC SDN export
   python -m scripts.import_lists ofac --sdn sdn.csv [--alt alt.csv] [--add add.csv] [--dry-run]
   python -m scripts.import_lists pep --csv peps.csv --source MY-PEP-VENDOR [--dry-run] [--fixture]
-  python -m scripts.import_lists fixtures [--if-empty]                # bundled FICTIONAL test data
+  python -m scripts.import_lists fixtures [--if-empty] [--pep-only]   # bundled FICTIONAL test data
 
 Each import replaces that source's entries atomically and records a list_imports row (source,
 version, count, time), which /api/v1/lists/status and /api/health report on.
@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--fixture", action="store_true", help="label as fixture (non-production) data")
     f = sub.add_parser("fixtures")
     f.add_argument("--if-empty", action="store_true", help="only when no list has ever been imported")
+    f.add_argument("--pep-only", action="store_true", help="only the PEP fixture (real OFAC data is loaded)")
     args = ap.parse_args(argv)
 
     if args.cmd == "ofac":
@@ -92,9 +93,10 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 db.close()
         read = lambda n: (FIXTURES / n).read_text(encoding="utf-8")  # noqa: E731
-        sdn, sdn_version = parse_ofac_sdn(read("sdn.csv"), read("alt.csv"), read("add.csv"), source="FIXTURE-OFAC")
+        if not args.pep_only:
+            sdn, sdn_version = parse_ofac_sdn(read("sdn.csv"), read("alt.csv"), read("add.csv"), source="FIXTURE-OFAC")
+            _store(sdn, "FIXTURE-OFAC", "sanctions", sdn_version, False, is_fixture=True)
         pep, pep_version = parse_pep_csv(read("pep.csv"), source="FIXTURE-PEP")
-        _store(sdn, "FIXTURE-OFAC", "sanctions", sdn_version, False, is_fixture=True)
         _store(pep, "FIXTURE-PEP", "pep", pep_version, False, is_fixture=True)
         print("WARNING: fixture entries are fictional test data, not real list data")
     return 0
