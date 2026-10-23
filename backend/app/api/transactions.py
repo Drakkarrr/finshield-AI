@@ -82,7 +82,7 @@ def screen_transaction(
     result = engine.screen(tx, rule_configs=user_rule_configs, config=screening_cfg, db=db, user_id=current_user.id)
 
     # RAG enrichment: retrieve relevant compliance context (policies, sanctions, precedents).
-    # Non-blocking — if RAG is unavailable, screening still completes normally.
+    # Non-blocking — if RAG is unavailable, screening still completes normally with honest degraded signal.
     rag_service = getattr(request.app.state, "rag_service", None)
     if rag_service is not None and config_service.get_flag(db, "screening.rag"):
         try:
@@ -92,6 +92,10 @@ def screen_transaction(
                 "transaction_type": tx.transaction_type.value,
                 "destination_country": tx.destination_country,
             })
+            # Add model version metadata for audit trail
+            from app.rag_service import EMBEDDING_MODEL_VERSION, EMBEDDING_MODEL_NAME
+            rag_context["model_version"] = EMBEDDING_MODEL_VERSION
+            rag_context["model_name"] = EMBEDDING_MODEL_NAME
             result.rag_context = rag_context
             # Surface the retrieval stage in the pipeline for explainability
             if "rag_retrieval" not in result.pipeline_stages:
@@ -103,6 +107,28 @@ def screen_transaction(
                     result.risk_score = 0.5
         except Exception as e:
             logger.warning(f"RAG enrichment failed (screening continues): {e}")
+            # Honest degraded signal - RAG was attempted but failed
+            result.rag_context = {
+                "degraded": True,
+                "reason": f"RAG retrieval failed: {type(e).__name__}",
+                "fallback": "rule_based_screening_only",
+            }
+            if "rag_retrieval_degraded" not in result.pipeline_stages:
+                result.pipeline_stages = result.pipeline_stages + ["rag_retrieval_degraded"]
+    else:
+        # Honest degraded signal - RAG not available or disabled
+        if rag_service is None:
+            result.rag_context = {
+                "degraded": True,
+                "reason": "RAG service not initialized (no RAG_DATABASE_URL or dependencies unavailable)",
+                "fallback": "rule_based_screening_only",
+            }
+        elif not config_service.get_flag(db, "screening.rag"):
+            result.rag_context = {
+                "degraded": True,
+                "reason": "RAG retrieval disabled via feature flag",
+                "fallback": "rule_based_screening_only",
+            }
 
     # Update user credits
     current_user.used_credits += result.credits_consumed
