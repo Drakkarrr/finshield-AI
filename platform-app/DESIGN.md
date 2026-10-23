@@ -28,7 +28,7 @@ All tokens live in `tailwind.config.js` (`theme.extend`) and are used as Tailwin
 |-------|-------|-------|
 | `ink` | `#1A1A2E` | Primary text |
 | `ink-secondary` | `#4A5568` | Secondary text |
-| `ink-muted` | `#6B7280` | Muted text (4.8:1 on white — the lightest colour allowed for information) |
+| `ink-muted` | `#5F6573` | Muted text (4.8:1 on white — the lightest colour allowed for information) |
 | `ink-light` | `#9CA3AF` | Placeholders and decoration only (2.5:1 — never for information) |
 
 #### Brand

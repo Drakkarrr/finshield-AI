@@ -13,7 +13,7 @@ module.exports = {
         surface:    { DEFAULT: '#FFFFFF', hover: '#F5F4F0', raised: '#FAFAF8' },
         border:     { DEFAULT: '#E2DFD8', light: '#EDEBE6', dark: '#D4D0C8' },
         // Text
-        ink:        { DEFAULT: '#1A1A2E', secondary: '#4A5568', muted: '#6B7280', light: '#9CA3AF' },
+        ink:        { DEFAULT: '#1A1A2E', secondary: '#4A5568', muted: '#5F6573', light: '#9CA3AF' },
         // Brand accents — matching website. `fg` is the accent as text on light surfaces (WCAG AA).
         accent:     { DEFAULT: '#C8870E', light: '#E5A628', dark: '#A06E0A', muted: '#D4930D', fg: '#875C08' },
         teal:       { DEFAULT: '#1A9E8F', light: '#22B8A6', dark: '#147A6E' },

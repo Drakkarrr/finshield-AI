@@ -84,7 +84,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 300s  # first boot downloads the OFAC list and embeds the RAG corpus
 
   # Background worker + beat (S4.1/S4.3): deliveries, sweeps, refreshes. No screening decisions.
   # Same image as the backend; its own entrypoint, so it never runs migrations concurrently.
