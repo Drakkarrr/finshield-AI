@@ -1,0 +1,1 @@
+Run locally via `docker build -t finshield-website . && docker run -p 80:80 finshield-website`; the site exposes port 80 and responds to GET /health with `healthy\n`. Development links point at `http://localhost:3000/login` and `http://localhost:3000/signup` (the Next.js platform app), so the full stack must be running for sign-in/sign-up flows to work.

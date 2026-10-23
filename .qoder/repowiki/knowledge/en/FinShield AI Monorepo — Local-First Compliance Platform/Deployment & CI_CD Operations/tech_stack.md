@@ -1,0 +1,1 @@
+Docker Compose v3.8 with pgvector/pg16 image; GitHub Actions (actions/checkout@v4, setup-python@v5, setup-node@v4); Python 3.11 + pytest + ruff + mypy; Node 20 + npm; pip-audit, npm audit, gitleaks for security scanning; target platforms are Railway (backend), Vercel (frontend), and Neon serverless Postgres.

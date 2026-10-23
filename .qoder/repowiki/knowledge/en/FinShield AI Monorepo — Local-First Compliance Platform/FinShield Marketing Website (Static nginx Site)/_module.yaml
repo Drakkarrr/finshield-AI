@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: website_marketing
+title: FinShield Marketing Website (Static nginx Site)
+scope:
+    - website/
+source_files: []
+depends_on: []
+related_to:
+    - path: deployment_ops

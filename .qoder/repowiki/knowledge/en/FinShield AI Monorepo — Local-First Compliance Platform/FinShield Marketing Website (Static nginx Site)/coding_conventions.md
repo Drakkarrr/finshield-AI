@@ -1,0 +1,5 @@
+- CSS class names follow BEM convention with double-underscore modifiers (e.g. `.nav__link--has-dropdown`, `.pipeline-stage--pass`, `.section--alt`, `.label--light`).
+- Interactive elements expose state through `data-open="true"|"false"` attributes on containers (FAQ items, mobile menu) rather than relying solely on DOM classes.
+- Animations are triggered by adding a `.visible` class via `IntersectionObserver`, with a feature-detection branch that falls back to immediately applying `.visible` when the API is unavailable.
+- Navigation anchors use smooth scrolling computed relative to the fixed nav height (`nav.offsetHeight + window.pageYOffset - 20`) instead of relying on CSS scroll-margin.
+- External links to the application UI are hard-coded absolute URLs to `http://localhost:3000/login` and `http://localhost:3000/signup` rather than being templated.

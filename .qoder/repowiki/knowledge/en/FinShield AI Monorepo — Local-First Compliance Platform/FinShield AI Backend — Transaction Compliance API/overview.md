@@ -1,0 +1,1 @@
+FastAPI-based transaction screening and compliance engine exposing REST endpoints for sanctions/PEP/threshold/geography rules, behavioral scoring, ML classification, and pgvector-backed RAG retrieval.

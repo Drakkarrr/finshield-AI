@@ -1,0 +1,1 @@
+FastAPI + Celery + Redis + PostgreSQL 16/pgvector for the backend; React 18 + Next.js App Router for the dashboard; Nginx for the static marketing site; Docker Compose for dev, Kubernetes/Helm for prod; GitHub Actions CI orchestrates builds across all three surfaces.

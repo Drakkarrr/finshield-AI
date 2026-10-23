@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: backend
+title: FinShield AI Backend — Transaction Compliance API
+scope:
+    - backend/
+source_files: []
+depends_on: []
+related_to:
+    - path: deployment_ops

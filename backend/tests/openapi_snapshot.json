@@ -1032,6 +1032,17 @@
       "title": "Latency Ms",
       "type": "number"
      },
+     "provenance": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provenance"
+     },
      "rule_id": {
       "title": "Rule Id",
       "type": "string"
@@ -3407,6 +3418,170 @@
     "summary": "Revoke Api Key",
     "tags": [
      "API Keys"
+    ]
+   }
+  },
+  "/api/v1/lists/peps": {
+   "get": {
+    "description": "List PEP entries (paginated).",
+    "operationId": "list_peps_api_v1_lists_peps_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Peps",
+    "tags": [
+     "Lists"
+    ]
+   }
+  },
+  "/api/v1/lists/sanctions": {
+   "get": {
+    "description": "List sanctions entries (paginated).",
+    "operationId": "list_sanctions_api_v1_lists_sanctions_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Sanctions",
+    "tags": [
+     "Lists"
+    ]
+   }
+  },
+  "/api/v1/lists/seed-sample": {
+   "post": {
+    "description": "Seed sample sanctions and PEP data for testing/demo purposes.",
+    "operationId": "seed_sample_lists_api_v1_lists_seed_sample_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Seed Sample Lists",
+    "tags": [
+     "Lists"
+    ]
+   }
+  },
+  "/api/v1/lists/stats": {
+   "get": {
+    "description": "Get statistics on sanctions and PEP lists.",
+    "operationId": "get_list_stats_api_v1_lists_stats_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get List Stats",
+    "tags": [
+     "Lists"
     ]
    }
   },

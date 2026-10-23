@@ -1,0 +1,1 @@
+Local dev: `docker-compose up --build` brings up postgres/backend/frontend on ports 5432/8091/3000. Production steps require external accounts (Neon, Railway, Vercel, PayMongo, Resend) and setting `DATABASE_URL`, `JWT_SECRET_KEY`, `NEXT_PUBLIC_API_URL`, and `CORS_ORIGINS` as documented in DEPLOYMENT.md Phase 6.

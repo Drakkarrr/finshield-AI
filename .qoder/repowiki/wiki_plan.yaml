@@ -1,0 +1,73 @@
+version: 1
+
+repowiki:
+  template: architecture
+
+  notes:
+    - text: >-
+        Use the three real deployables as the module map: backend/ (FastAPI screening API),
+        platform-app/ (Next.js 14 dashboard), website/ (static nginx marketing site plus a legacy
+        platform/*.html console). Do not describe the README "Project Structure" directories
+        (api/, config/, worker/, scoring/, cases/, filings/, rules/, models/, rag/, events/,
+        privacy/, security/, db/, dashboard/, audit/, observability/, sdk/, common/, docker/,
+        deploy/k8s/, tests/) as existing code — they are aspirational target state.
+    - text: >-
+        Label Celery/Redis, LangChain, DSPy, LoRA/PEFT/BitsAndBytes, vLLM, RAGAS, HashiCorp Vault,
+        OpenTelemetry, Prometheus, structlog and Kubernetes/Helm as roadmap only. The shipped stack
+        is exactly backend/requirements.txt: FastAPI 0.115, Uvicorn, Pydantic 2.9, SQLAlchemy 2.0,
+        psycopg2-binary + pgvector, python-jose + bcrypt, slowapi, numpy, pytest.
+    - text: >-
+        State the persistence model accurately. backend/app/database.py defaults to SQLite
+        (finshield.db, and test_finshield.db for tests) and uses PostgreSQL only when DATABASE_URL
+        is set; the pgvector retrieval path in backend/app/rag_service.py therefore requires
+        PostgreSQL to be running.
+    - text: >-
+        Describe detection as actually implemented: rule/gating logic in backend/app/compliance_engine.py,
+        pgvector RAG retrieval in backend/app/rag_service.py, corpus seeding in
+        backend/app/seed_rag_data.py, API-key/JWT auth in backend/app/auth.py, ORM entities in
+        backend/app/db_models.py and request/response schemas in backend/app/models.py, all mounted
+        from backend/app/main.py.
+    - text: >-
+        docker-compose.yml at the repo root defines exactly three services — postgres
+        (pgvector/pgvector:pg16), backend and frontend — where frontend builds platform-app/Dockerfile.
+        website/ is not part of the compose stack and is served by its own Dockerfile and nginx.conf.
+        There is no Redis, Celery or worker service.
+    - text: >-
+        platform-app/ (package version 2.4.0) is Next.js 14.2 App Router + React 18 + Tailwind 3
+        under src/, with route folders dashboard, transactions, cases, filings, rules, reports,
+        settings, api-keys, docs, login and signup; the shared shell is src/components
+        (PlatformLayout, Sidebar, Topbar), session state is src/contexts/AuthContext.tsx and all
+        backend calls go through src/lib/api.ts. Honour platform-app/AGENTS.md, which warns that the
+        installed Next.js has breaking changes relative to model training data.
+    - text: >-
+        Treat website/platform/*.html as the legacy console superseded by platform-app/, and document
+        it as legacy rather than as the current dashboard. website/pages/ plus index.html is the
+        static marketing site.
+    - text: >-
+        FinShield-AI-Wiki.md is the canonical design reference for pipeline flow and known gaps, but
+        verify each claim against backend/ source before restating it as implemented behaviour.
+
+  documents: []
+
+knowledgecard:
+  notes:
+    - text: >-
+        Split cards by deployable rather than by README section: backend screening API,
+        platform-app Next.js dashboard, website static marketing and legacy console, and
+        deployment/ops (docker-compose.yml, the three Dockerfiles, website/nginx.conf,
+        .github/workflows/ci.yml, DEPLOYMENT.md, DOCKER.md).
+    - text: >-
+        Within backend/, keep one card each for the FastAPI application and routing (app/main.py,
+        app/models.py), the compliance engine, the pgvector RAG service and its seeding, auth, and
+        persistence (app/database.py, app/db_models.py). Keep backend/tests and test_filing_e2e.py
+        as a separate testing card.
+    - text: >-
+        Within platform-app/, group cards by App Router route folder and add one card for the shared
+        shell (src/components, src/contexts/AuthContext.tsx, src/lib/api.ts, src/lib/format.ts).
+    - text: >-
+        Do not create cards for modules that have no directory in the repo: Celery workers, DSPy or
+        LoRA training, vLLM serving, Vault integration, Kubernetes/Helm charts, and privacy/DSAR
+        services.
+    - text: >-
+        Ignore node_modules, .next, __pycache__, .pytest_cache, tsconfig.tsbuildinfo and *.db files
+        when deriving module boundaries; they are build or runtime artifacts, not source modules.

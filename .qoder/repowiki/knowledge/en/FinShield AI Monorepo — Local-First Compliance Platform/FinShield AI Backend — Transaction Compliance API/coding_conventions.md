@@ -1,0 +1,6 @@
+- Each API domain lives in its own module under `app/api/` exposing a FastAPI `router` that is registered in `main.py` via `app.include_router`.
+- Pydantic models in `app/models.py` define all request/response schemas with descriptive `Field(...)` metadata, while `app/db_models.py` defines the corresponding SQLAlchemy ORM classes on a shared `Base`.
+- Optional heavy dependencies (RAGRetrievalService, sentence-transformers) are imported inside try/except blocks guarded by environment variables, allowing the core API to start without them.
+- Database sessions are obtained through the `get_db()` dependency generator that yields a session and guarantees `db.close()` in a finally block.
+- Global error handling centralizes HTTPException, RequestValidationError, RateLimitExceeded, and uncaught Exception into uniform JSON responses with structured `detail` fields.
+- Alembic-managed migrations live under `migrations/versions/` and are applied programmatically during tests via `alembic.command.upgrade` rather than `Base.metadata.create_all` for the Postgres test path.

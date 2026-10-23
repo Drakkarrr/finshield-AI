@@ -1,0 +1,1 @@
+Root of the FinShield AI monorepo wiring a FastAPI screening backend, Next.js dashboard, static marketing site, and Docker/CI deployment into one local-first transaction compliance platform.

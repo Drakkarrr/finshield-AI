@@ -1,0 +1,1 @@
+Local stack is started with `docker compose up -d --build` from the repo root; migrations run via `docker compose exec backend alembic upgrade head`; RAG seed data via `docker compose exec backend python -m app.seed_rag_data`; standalone backend runs under `backend/` with `uvicorn app.main:app --port 8091 --reload` after `alembic upgrade head`.

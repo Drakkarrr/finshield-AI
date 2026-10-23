@@ -1,0 +1,4 @@
+- Service dependencies in docker-compose use explicit `depends_on` with `condition: service_healthy` rather than simple service ordering.
+- CI jobs pin tool versions via environment variables (`PYTHON_VERSION: "3.11"`, `NODE_VERSION: "20"`) at the workflow root instead of hardcoding per step.
+- Per-service working directories are set via `defaults.run.working-directory` so checkout happens at repo root while commands run inside `backend/` or `platform-app/`.
+- Sensitive configuration (JWT secret, database URLs, API keys) is passed exclusively through environment variables in both compose and CI, never baked into images.

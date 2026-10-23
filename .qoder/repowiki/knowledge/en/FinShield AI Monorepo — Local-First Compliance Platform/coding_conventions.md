@@ -1,0 +1,3 @@
+- Backend API routes live under versioned `/api/v1/*` endpoints with Pydantic request/response models, and the live OpenAPI schema at `/api/docs` is the authoritative contract consumed by the Next.js dashboard.
+- All runtime configuration (gating thresholds, model versions, feature flags, hard rules, SLA timers) is externalized to environment variables rather than baked into code.
+- Each service exposes an `/api/health` endpoint used by both Docker health checks and the production go-live checklist.

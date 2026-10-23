@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: deployment_ops
+title: Deployment & CI/CD Operations
+scope:
+    - docker-compose.yml
+    - .github/workflows/ci.yml
+    - DEPLOYMENT.md
+    - DOCKER.md
+source_files: []
+depends_on: []
+related_to:
+    - path: backend
+    - path: website_marketing

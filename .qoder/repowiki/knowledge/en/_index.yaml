@@ -1,0 +1,58 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: main
+nodes_managed: true
+exported_at: "2026-10-23T15:03:27Z"
+modules:
+    "":
+        dir_name: FinShield AI Monorepo — Local-First Compliance Platform
+        title: FinShield AI Monorepo — Local-First Compliance Platform
+        scope:
+            - README.md
+            - DEPLOYMENT.md
+            - DOCKER.md
+            - FinShield-AI-Wiki.md
+            - .gitignore
+            - .dockerignore
+        source_files: []
+        children:
+            - backend
+            - deployment_ops
+            - website_marketing
+        depends_on: []
+        related_to: []
+    backend:
+        dir_name: FinShield AI Backend — Transaction Compliance API
+        title: FinShield AI Backend — Transaction Compliance API
+        scope:
+            - backend/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: deployment_ops
+    deployment_ops:
+        dir_name: Deployment & CI_CD Operations
+        title: Deployment & CI/CD Operations
+        scope:
+            - docker-compose.yml
+            - .github/workflows/ci.yml
+            - DEPLOYMENT.md
+            - DOCKER.md
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend
+            - path: website_marketing
+    website_marketing:
+        dir_name: FinShield Marketing Website (Static nginx Site)
+        title: FinShield Marketing Website (Static nginx Site)
+        scope:
+            - website/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: deployment_ops

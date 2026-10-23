@@ -1,0 +1,1 @@
+Plain HTML5 + vanilla CSS (BEM-style class names like `.nav__inner`, `.service-card__icon`) + vanilla JavaScript, served by nginx:alpine with gzip and immutable asset caching; fonts loaded from Google Fonts (Inter).

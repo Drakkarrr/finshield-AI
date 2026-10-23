@@ -1,0 +1,1 @@
+Plain HTML/CSS/JS marketing and landing site for FinShield, served by nginx with a single-page hero plus informational sub-pages and an admin shell.

@@ -1,0 +1,6 @@
+Four files define the operational surface of the repo:
+- `docker-compose.yml` (v3.8) defines three services — `postgres` (pgvector/pg16 with a healthcheck), `backend` (FastAPI on port 8091, depends on postgres being healthy), and `frontend` (Next.js on port 3000, depends on backend) — all on a shared `finshield-network` bridge network with two local volumes (`backend-data`, `postgres-data`).
+- `.github/workflows/ci.yml` runs four jobs: `backend-tests` (pytest under Python 3.11 in `backend/`), `frontend-build` (npm build + lint under Node 20 in `platform-app/`), `docker-build` (builds images from `backend/Dockerfile`, `platform-app/Dockerfile`, `website/Dockerfile` and validates compose via `docker compose config`, gated to pushes on `main`), and `security-scan` (runs `pip-audit`, `npm audit`, and `gitleaks` on PRs). An optional `e2e` job spins up the full stack and runs `tests/e2e`.
+- `DOCKER.md` documents the local Docker Compose workflow (ports 3000/8091, env vars, troubleshooting).
+- `DEPLOYMENT.md` is a phased production guide covering Neon Postgres, Railway (backend), Vercel (frontend), PayMongo payments, Resend email, Sentry monitoring, backups, Philippine legal/compliance checklist, and cost breakdown.
+Dependency direction is one-way: CI orchestrates tests → builds → scans; compose orchestrates frontend → backend → postgres.
