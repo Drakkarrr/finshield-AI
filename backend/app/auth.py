@@ -9,17 +9,21 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from jose import JWTError, jwt
 import bcrypt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.db_models import User, ApiKey
+from app.db_models import ApiKey, User
 
 # --- Configuration ---
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+APP_ENV = os.getenv("APP_ENV", "production")
+_jwt_secret = os.getenv("JWT_SECRET_KEY")
+if not _jwt_secret and APP_ENV != "test":
+    raise RuntimeError("JWT_SECRET_KEY must be set in non-test environments")
+SECRET_KEY = _jwt_secret or secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
