@@ -1,0 +1,134 @@
+// FinShield AI — migration slice sequencing (which change unblocks which)
+// Produced by architecture-visualization:evolution-planner + graphviz
+// Read top-to-bottom. Solid edge = hard dependency (do the tail first).
+// Dashed edge = soft/sequencing preference. Node colour = phase.
+digraph evolution {
+    rankdir=TB;
+    fontname="Helvetica";
+    node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#e8eef5"];
+    edge [fontname="Helvetica", fontsize=9, color="#444444"];
+    label="FinShield AI — evolution sequencing (2026-10-23)\nP0 truth & safety -> P1 data foundation -> P2 detection reality -> P3 governance -> P4 async & ops -> P5 frontend -> P6 market";
+    labelloc=t;
+    compound=true;
+
+    subgraph cluster_p0 {
+        label="P0 — Truth & safety (ship-blocking, no feature work)"; style=filled; color="#fdecea"; fontsize=12;
+        node [fillcolor="#f5b7b1"];
+        S0_1 [label="S0.1 Reconcile docs with code\nREADME.md:145-159, Wiki §21-§22"];
+        S0_2 [label="S0.2 Secrets hygiene\ngit rm --cached backend/.env, .env.example,\ncompose env_file, un-publish 5432"];
+        S0_3 [label="S0.3 Fix CI\ndocker build contexts ./backend -> .,\nblocking safety scan, coverage, ruff+mypy"];
+        S0_4 [label="S0.4 Real health probes\nmain.py:2830-2845 + Dockerfile HEALTHCHECK"];
+        S0_5 [label="S0.5 Two latent bugs\n/export shadowing (main.py:606 vs 666),\nNameError import math (main.py:2274)"];
+    }
+
+    subgraph cluster_p1 {
+        label="P1 — Data foundation"; style=filled; color="#fef5e7"; fontsize=12;
+        node [fillcolor="#f9d9a0"];
+        S1_1 [label="S1.1 Postgres as primary DB\ncompose:32 DATABASE_URL=sqlite"];
+        S1_2 [label="S1.2 Alembic migrations\nreplace create_all (database.py:36-38)"];
+        S1_3 [label="S1.3 Fix async/sync DB access\n68 async handlers, blocking SQLAlchemy"];
+        S1_4 [label="S1.4 Config service\nsettings + feature_flags tables,\nconstants out of compliance_engine.py:25-27"];
+        S1_5 [label="S1.5 Drop in-memory idempotency cache\ncompliance_engine.py:37 (DB layer at main.py:454 suffices)"];
+    }
+
+    subgraph cluster_p2 {
+        label="P2 — Make detection real (product core)"; style=filled; color="#eafaf1"; fontsize=12;
+        node [fillcolor="#a9dfbf"];
+        S2_1 [label="S2.1 Wire behavioral monitor into screen()\nmain.py:2170-2328 -> compliance_engine.py:281"];
+        S2_2 [label="S2.2 Deterministic scoring\nremove random.uniform\ncompliance_engine.py:293,300-304"];
+        S2_3 [label="S2.3 Real sanctions/PEP data\nDB-backed lists + OFAC import + fuzzy match\ncompliance_engine.py:22-24"];
+        S2_4 [label="S2.4 Enable RAG end-to-end\nreal embeddings + startup seeding\nrag_service.py:36-73, seed_rag_data.py"];
+        S2_5 [label="S2.5 Scoring model behind versioned interface\n(D1) + model_versions + shadow mode"];
+        S2_6 [label="S2.6 Circuit breakers wrap real calls\nmain.py:2381-2546 currently client-driven"];
+        S2_7 [label="S2.7 Eval harness\nprecision/recall + retrieval quality gate"];
+    }
+
+    subgraph cluster_p3 {
+        label="P3 — Governance & regulatory"; style=filled; color="#f4ecf7"; fontsize=12;
+        node [fillcolor="#d2b4de"];
+        S3_1 [label="S3.1 RBAC\nrole column + require_role on admin routes"];
+        S3_2 [label="S3.2 Immutable audit trail\nappend-only + hash chain + read/export API"];
+        S3_3 [label="S3.3 Privacy: DSAR entity, erasure, PII masking\nmain.py:2682-2724 is a log row + literal dict"];
+        S3_4 [label="S3.4 Multi-tenancy (D3)\ntenant_id + RLS, per-tenant config"];
+        S3_5 [label="S3.5 Encryption at rest + secret manager (D9)"];
+    }
+
+    subgraph cluster_p4 {
+        label="P4 — Async platform & operations"; style=filled; color="#ebf5fb"; fontsize=12;
+        node [fillcolor="#aed6f1"];
+        S4_1 [label="S4.1 Worker + broker (D2)\nCelery/Redis service in compose"];
+        S4_2 [label="S4.2 Webhook delivery, retries, DLQ\nmain.py:2589-2667 writes rows only"];
+        S4_3 [label="S4.3 Scheduled jobs\nSLA escalation sweep, baseline recompute,\nfiling deadline reminders"];
+        S4_4 [label="S4.4 Observability\nOTel traces, /metrics, JSON logs, Sentry"];
+        S4_5 [label="S4.5 Backup / restore / retention\nscripts + tested restore + retention policy"];
+    }
+
+    subgraph cluster_p5 {
+        label="P5 — Frontend product quality (design review)"; style=filled; color="#fdedec"; fontsize=12;
+        node [fillcolor="#f5cba7"];
+        S5_1 [label="S5.1 DESIGN.md + token completion\ntailwind.config.js:10-32 already semantic"];
+        S5_2 [label="S5.2 UI primitives (D5)\nButton/Input/Card/Table/Badge/Modal/EmptyState"];
+        S5_3 [label="S5.3 Accessibility baseline\nlabels, th scope, aria-label, focus-visible,\nmodal focus trap, non-colour-only status"];
+        S5_4 [label="S5.4 Data layer\nSWR/react-query, pagination, 401 interceptor,\ntoken storage decision (api.ts:358-370)"];
+        S5_5 [label="S5.5 Route protection + role-gated nav\nmiddleware.ts (absent today)"];
+        S5_6 [label="S5.6 Surface unused endpoints + OpenAPI docs\nrules/simulate, case notes, check-sla, aggregate,\nbehavioral, breakers; replace docs/page.tsx:6 array"];
+        S5_7 [label="S5.7 Live updates\nSSE/WebSocket, or remove 'real-time' claim"];
+        S5_8 [label="S5.8 Retire dead frontends (D7)\nwebsite/platform/*.html, login/signup stubs"];
+    }
+
+    subgraph cluster_p6 {
+        label="P6 — Market readiness"; style=filled; color="#e8f8f5"; fontsize=12;
+        node [fillcolor="#a3e4d7"];
+        S6_1 [label="S6.1 Payments (D8)\nStripe Checkout, drop plaintext card columns\ndb_models.py:46-48"];
+        S6_2 [label="S6.2 Deploy target + TLS + security headers\nnext.config.js has no headers(); nginx 80 only"];
+        S6_3 [label="S6.3 Container hardening\nnode:18 EOL -> 22 LTS, non-root, multi-stage,\nuse output:'standalone' server.js"];
+        S6_4 [label="S6.4 Python SDK for integrators"];
+        S6_5 [label="S6.5 Load & performance tests\nlocust/k6 throughput + p95 screening latency"];
+        S6_6 [label="S6.6 Regulatory evidence pack\nmodel cards, retention matrix, audit export,\ncontrol narrative"];
+        S6_7 [label="S6.7 Kubernetes / Helm\nonly if an enterprise deal requires it"];
+    }
+
+    // ---- hard dependencies ----
+    S0_2 -> S1_1 [label="no secrets in compose"];
+    S0_3 -> S1_2 [label="CI must be green to trust migrations"];
+    S1_1 -> S1_2 [label="migrate the real DB"];
+    S1_2 -> S3_4 [label="tenant columns need migrations"];
+    S1_2 -> S3_2 [label="audit constraints need migrations"];
+    S1_2 -> S6_1 [label="drop card columns safely"];
+    S1_2 -> S2_5 [label="model_versions table"];
+    S1_2 -> S2_3 [label="sanctions tables"];
+    S1_3 -> S4_1 [label="worker needs non-blocking IO story"];
+    S1_4 -> S2_2 [label="weights become config"];
+    S1_4 -> S3_4 [label="per-tenant config"];
+    S0_5 -> S2_1 [label="baseline recompute must not crash"];
+    S2_1 -> S2_2 [label="real signals before real scoring"];
+    S2_2 -> S2_5 [label="model replaces heuristic in same slot"];
+    S2_5 -> S2_7 [label="cannot evaluate what is random"];
+    S2_4 -> S2_7;
+    S2_6 -> S4_4 [label="breaker state feeds metrics"];
+    S3_1 -> S5_5 [label="UI gates on real roles"];
+    S3_1 -> S3_4;
+    S4_1 -> S4_2;
+    S4_1 -> S4_3;
+    S0_4 -> S4_4 [label="probes become telemetry"];
+    S5_2 -> S5_3 [label="primitives carry the a11y contract"];
+    S5_1 -> S5_2 [label="tokens before components"];
+    S5_4 -> S5_7;
+    S5_6 -> S5_4 [label="new surfaces need the data layer"];
+    S6_2 -> S6_3 [label="edge then image"];
+    S6_3 -> S6_7;
+    S0_1 -> S6_6 [label="claims must match code before selling"];
+
+    // ---- soft sequencing ----
+    S0_2 -> S3_5 [style=dashed, color="#888888"];
+    S1_5 -> S1_3 [style=dashed, color="#888888"];
+    S2_3 -> S3_3 [style=dashed, color="#888888", label="PII in list data"];
+    S3_2 -> S6_6 [style=dashed, color="#888888"];
+    S5_8 -> S5_1 [style=dashed, color="#888888", label="one design system, not three"];
+    S4_5 -> S6_6 [style=dashed, color="#888888"];
+    S6_5 -> S6_7 [style=dashed, color="#888888"];
+
+    // ---- critical path (see migration-roadmap.md §Critical path) ----
+    // S0.2 + S0.3 -> S1.1 -> S1.2 -> S2.5 -> S2.7 -> S3.2 -> S6.6
+    {rank=same; S0_2; S0_3;}
+}

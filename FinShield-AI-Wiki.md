@@ -4,6 +4,8 @@
 
 This document is the canonical reference for the project. It is written to be consumed by both engineers and LLM coding assistants working in this repo — use it to understand system intent, architecture, and conventions before making changes.
 
+> **Documentation status — read this first.** This wiki is the **design specification** (design intent), not a description of the running code. Most sections describe the *target* system. What is actually built is recorded in [§21](#21-implementation-status--future-work) with one of four labels: `Implemented & wired`, `Built but not wired`, `Stub`, `Absent`. The authoritative, evidence-backed gap analysis (every claim checked against source with `path:line`) is [docs/architecture/evolution/](./docs/architecture/evolution/README.md); progress is tracked in [PROGRESS.md](./docs/architecture/evolution/PROGRESS.md). Architecture decisions D1–D13 in [MASTER-PROMPT.md §2](./docs/architecture/evolution/MASTER-PROMPT.md) supersede conflicting choices below (notably: no LLM in the decision path, D1; RLS tenancy, D3; managed PaaS instead of Kubernetes/Vault, D9). The OpenAPI schema at `/api/docs` is the source of truth for the API surface (D10).
+
 ---
 
 ## 1. Overview
@@ -33,6 +35,8 @@ This document is the canonical reference for the project. It is written to be co
 ---
 
 ## 2. Tech Stack
+
+> **Target stack.** Of the rows below, only FastAPI, PostgreSQL + pgvector (RAG store only; primary DB is SQLite today), Pydantic v2, JWT auth (no OAuth2/OIDC/SAML/RBAC), Docker Compose and React 18 (via Next.js 14, without TanStack Query or WebSocket) exist in the repo. Per-row status: [README Tech Stack](./README.md#tech-stack).
 
 | Layer | Technology | Purpose |
 |---|---|---|
@@ -822,6 +826,12 @@ Every sanitization decision is logged:
 
 ### 17.3 Multi-tenancy data isolation
 
+**Status: `Absent`** — no tenant concept exists in the code; isolation today is per-user row filtering. Roadmap slice S3.4.
+
+**Ruled design (D3): shared schema + `tenant_id` + PostgreSQL row-level security.** Every tenant-owned table carries a non-null `tenant_id`; RLS policies keyed on a per-connection `app.tenant_id` setting enforce isolation in the database, and an application-level guard scopes every query as a second layer. A cross-tenant read returns 404, never 403, so tenant existence is not disclosed. Rationale for overruling the original schema-per-tenant design: Alembic migrations, connection pooling, reporting and backups stay single-schema; RLS misconfiguration is mitigated by a dedicated cross-tenant test suite and by forcing RLS on the table owner. Shared resources (worker, broker) carry the tenant id in task payloads.
+
+*Superseded original design (kept for the record):*
+
 Tenant isolation uses **separate PostgreSQL schemas** per tenant (not row-level security). Rationale:
 - Tenants may be separate legal entities (subsidiaries, client banks) — a cross-tenant data leak in a compliance system has catastrophic regulatory consequences.
 - Schema-level isolation is enforced by construction (queries are scoped to a schema by the connection context), not by configuration (RLS policies that can be misconfigured).
@@ -854,6 +864,8 @@ Tenant isolation uses **separate PostgreSQL schemas** per tenant (not row-level 
 ---
 
 ## 19. Project Structure
+
+> **Target layout — not built.** None of the top-level directories below exist, and Alembic is not yet adopted (slice S1.2). Ruling D13 replaces this tree with packages inside `backend/app/` (`api/`, `domain/`, `worker/`); the target layout is in [MASTER-PROMPT.md §5](./docs/architecture/evolution/MASTER-PROMPT.md) and the actual tree is in the [README](./README.md#project-structure).
 
 ```
 finshield-ai/
@@ -1126,18 +1138,42 @@ finshield-ai/
 
 *Current state of the project with clear distinction between what's built, what's designed-but-not-built, and what's not-yet-designed.*
 
-### ✅ Implemented (Phases 1-8 + Docker)
-These features are fully implemented, tested, and production-ready:
+### Status table (verified against code, commit `91e4de8` + P0 fixes)
 
-- **✅ SAR/STR filing module** — Complete workflow with draft → under_review → submitted → confirmed lifecycle, 30-day deadline tracking (FinCEN compliance), narrative generation, structured data, reference numbers, and regulator-ready exports. (Phase 1)
-- **✅ Case management** — Full lifecycle with SLA-based auto-escalation (1hr/4hr/24hr/72hr by severity), smart case aggregation (prevents duplicate investigations), investigator notes (ephemeral, not audit-logged), resolution tracking, and assignment workflow. (Phase 2)
-- **✅ Hard rule engine** — Priority-ordered execution, rule simulation against historical data, versioning with effective dates, hit tracking, false-positive reporting, and 4 pre-configured rules (OFAC sanctions, PEP check, amount thresholds, high-risk countries). (Phase 3)
-- **✅ Behavioral monitoring** — Z-score based anomaly detection, cold-start policy for new accounts (<30 days), typical pattern identification, configurable trigger thresholds, and baseline recomputation. (Phase 4)
-- **✅ Circuit breaker & degraded mode** — Per-dependency circuit breakers with three-state model (closed/open/half_open), auto-transition logic, dashboard health indicators (green/yellow/red), and graceful degradation routing to human review. (Phase 5)
-- **✅ Webhook events** — Event dispatch and delivery tracking with retry logic (exponential backoff), dead letter queue support, and lifecycle event notifications (flag/block/case.created/case.resolved/filing.submitted). (Phase 6)
-- **✅ Data privacy (GDPR)** — DSAR request handling, PII field classification, audit-logged privacy requests, and regulatory retention balancing. (Phase 7)
-- **✅ Audit logging enhancement** — Immutable audit trail for all critical actions with chain-of-custody export ready. (Phase 8)
-- **✅ Docker deployment** — Full containerization with docker-compose, multi-stage builds, persistent volumes, inter-service networking, and production-ready configuration. Backend (Python 3.11-slim + FastAPI), Frontend (Node 18-alpine + Next.js 14).
+Labels: **`Implemented & wired`** = built and on the live request path. **`Built but not wired`** = real code that nothing in the product path calls, or that only changes when a client tells it to. **`Stub`** = an endpoint or record exists but the behaviour it names does not happen. **`Absent`** = no code. Evidence is in [evidence.md](./docs/architecture/evolution/evidence.md); the roadmap slice that closes each gap is in the last column.
+
+| Capability | Status | What actually exists | Gap → slice |
+|---|---|---|---|
+| SAR/STR filing records | `Implemented & wired` | Filing CRUD with draft → under_review → submitted → confirmed lifecycle, 30-day deadline set at creation, reference numbers, stored narrative | Narrative is user-supplied (no generation); no deadline reminders (S4.3); no regulator submission (out of scope) |
+| Case management | `Implemented & wired` | Case CRUD, assignment, comments, notes, severity-based SLA deadline, aggregation endpoint | SLA escalation runs only when a client calls `POST /api/v1/cases/check-sla` — no scheduler (S4.3) |
+| Hard rule engine | `Implemented & wired` | 4 built-in rules (sanctions, PEP, amount thresholds, high-risk geography); per-user enable/threshold/action overrides editable in the UI; simulation, hit and false-positive tracking; rule-action precedence gate | Sanctions/PEP match 3-element in-code sets, not list data (S2.3); `priority`/`version`/`effective_from`/`effective_to` are stored but never read by the engine (S1.4); no rule authoring |
+| Behavioral monitoring | `Built but not wired` | Real z-score monitor with cold-start thresholds behind `/api/v1/behavioral/*` | `screen()` never calls it — the screening path adds `random.uniform` instead; baselines keyed on `sender_name` (S2.1, S2.2) |
+| ML classification | `Stub` | `_ml_classify` returns random confidences | Deterministic explainable `RiskModel` per ruling D1 (S2.2, S2.5) |
+| RAG retrieval | `Implemented & wired` (when `RAG_DATABASE_URL` is Postgres) | pgvector cosine search over policies/sanctions/precedents; can flip approved → flagged; context persisted per transaction | Embeddings are MD5 feature hashes (lexical, not semantic); seeding is manual; off by default outside Docker (S2.4) |
+| Circuit breaker & degraded mode | `Built but not wired` | Breaker rows with closed/open/half_open transitions, status endpoints | State changes only via client POSTs; wraps no real call; no degraded routing to human review (S2.6) |
+| Webhook events | `Stub` | Event rows inserted as `pending`; list and retry endpoints | No HTTP delivery, no signing, no backoff, no dead-letter transition (S4.1, S4.2) |
+| Data privacy (GDPR/DSAR) | `Stub` | `POST /privacy/dsar` writes one audit row ("we just log it"); PII classification is a literal dict | No access export, no erasure, no masking, no retention logic (S3.3) |
+| Audit logging | `Built but not wired` | 15 `AuditLog` write sites for user actions | Not append-only, no hash chain, no read or export API; screening decisions are not audited (S3.2) |
+| Health endpoint | see P0 ledger | `/api/health` | Was a hardcoded "healthy" map; real probes are slice S0.4 |
+| RBAC | `Absent` | — | No role column; every authenticated user can reach admin-style routes (S3.1) |
+| Multi-tenancy | `Absent` | — | Ruling D3: shared schema + RLS (S3.4) |
+| Encryption at rest / secret management | `Absent` | — | Plaintext card columns exist (S3.5, S6.1) |
+| Docker deployment | `Implemented` with blockers | Root `docker-compose.yml` with postgres (pgvector), backend, frontend | Single-stage images running as root; SQLite primary DB in the backend container; Node 18 (EOL); build-time-baked API URL (S0.2, S0.4, S1.1, S6.3) |
+| Observability | `Absent` | stdlib logging + `X-Process-Time-Ms` header | Tracing, metrics, JSON logs, alert rules (S4.4) |
+
+### Original "Implemented" claims (superseded by the table above)
+
+*Kept for the record. These bullets were written as "fully implemented, tested, and production-ready"; the table above records which parts of each claim the code supports.*
+
+- **SAR/STR filing module** — Complete workflow with draft → under_review → submitted → confirmed lifecycle, 30-day deadline tracking (FinCEN compliance), narrative generation, structured data, reference numbers, and regulator-ready exports. (Phase 1)
+- **Case management** — Full lifecycle with SLA-based auto-escalation (1hr/4hr/24hr/72hr by severity), smart case aggregation (prevents duplicate investigations), investigator notes (ephemeral, not audit-logged), resolution tracking, and assignment workflow. (Phase 2)
+- **Hard rule engine** — Priority-ordered execution, rule simulation against historical data, versioning with effective dates, hit tracking, false-positive reporting, and 4 pre-configured rules (OFAC sanctions, PEP check, amount thresholds, high-risk countries). (Phase 3)
+- **Behavioral monitoring** — Z-score based anomaly detection, cold-start policy for new accounts (<30 days), typical pattern identification, configurable trigger thresholds, and baseline recomputation. (Phase 4)
+- **Circuit breaker & degraded mode** — Per-dependency circuit breakers with three-state model (closed/open/half_open), auto-transition logic, dashboard health indicators (green/yellow/red), and graceful degradation routing to human review. (Phase 5)
+- **Webhook events** — Event dispatch and delivery tracking with retry logic (exponential backoff), dead letter queue support, and lifecycle event notifications (flag/block/case.created/case.resolved/filing.submitted). (Phase 6)
+- **Data privacy (GDPR)** — DSAR request handling, PII field classification, audit-logged privacy requests, and regulatory retention balancing. (Phase 7)
+- **Audit logging enhancement** — Immutable audit trail for all critical actions with chain-of-custody export ready. (Phase 8)
+- **Docker deployment** — Full containerization with docker-compose, multi-stage builds, persistent volumes, inter-service networking, and production-ready configuration. Backend (Python 3.11-slim + FastAPI), Frontend (Node 18-alpine + Next.js 14).
 
 ### 🎯 Designed, Not Yet Implemented
 These have architecture and module structure defined in this wiki but are not yet built:
@@ -1147,7 +1183,7 @@ These have architecture and module structure defined in this wiki but are not ye
 - **RAG evaluation** — RAGAS integration designed (Section 14.5), not yet implemented. Retrieval quality metrics: context precision, context recall, faithfulness, answer relevancy.
 - **Python SDK** — Structure defined in project layout, not yet implemented. Typed models and retry logic for integrating engineers.
 - **Core banking adapters** — ISO 20022/SWIFT MT adapter interface designed conceptually, not yet implemented.
-- **Multi-tenant isolation** — Architecture designed but not yet implemented. Per-tenant data separation for SaaS deployment.
+- **Multi-tenant isolation** — Designed (Section 17.3, ruling D3: shared schema + RLS), not yet implemented. Per-tenant data separation for SaaS deployment.
 - **Advanced ML pipeline** — LoRA fine-tuning, DSPy prompt optimization, vLLM serving designed but not yet integrated. Currently using statistical models and rule engine.
 
 ### Not yet designed
@@ -1165,24 +1201,31 @@ These are acknowledged as requirements but don't yet have architecture defined:
 
 ## 22. Current Implementation Statistics
 
-**As of October 1, 2026:**
+**Measured October 23, 2026 (commit `91e4de8`).** Re-measure rather than hand-edit: the commands are in the right-hand column.
 
-| Metric | Count |
-|--------|-------|
-| **Total API Endpoints** | 56 |
-| **Database Models** | 14 |
-| **Unit Tests** | 65/65 passing |
-| **E2E Tests** | 8/8 passing |
-| **Browser Tests** | 7/7 pages verified |
-| **Docker Services** | 2 (backend + frontend) |
-| **Compliance Rules** | 4 pre-configured |
-| **Pipeline Stages** | 7-stage transaction screening |
+| Metric | Value | How measured |
+|--------|-------|--------------|
+| **API routes** | 68 | `grep -cE '@app\.(get\|post\|put\|patch\|delete)\(' backend/app/main.py` |
+| **Database models** | 14 primary + 3 RAG (separate declarative base) | `backend/app/db_models.py`, `backend/app/rag_service.py` |
+| **Backend tests** | 65 passing at baseline (API + engine, SQLite) | `cd backend && APP_ENV=test python -m pytest tests/` — current count is in CI |
+| **E2E tests** | 1 filing-flow test, needs a running stack | `backend/tests/e2e/` (run with `-m e2e`) |
+| **Browser tests** | none automated | — |
+| **Docker Compose services** | 3 (postgres, backend, frontend) | `docker-compose.yml` |
+| **Compliance rules** | 4 built-in | `backend/app/compliance_engine.py` (RULE-001…004) |
+| **Pipeline stages** | 7 recorded (idempotency, validation, rules, behavioral\*, ML\*, risk scoring, decision) + optional RAG | \* simulated — see §21 |
 
-**Production Readiness Score: 8.5/10**
+**Readiness.** The product is **not production-ready**. The compliance decision path contains simulated (random) scoring, sanctions screening uses in-code lists, and there is no RBAC, tenancy, immutable audit trail, worker, or observability. The ship-blockers, the ordered plan to close them and the 25 falsifiable conditions for calling it market-ready are in [docs/architecture/evolution/migration-roadmap.md](./docs/architecture/evolution/migration-roadmap.md) and [MASTER-PROMPT.md §9](./docs/architecture/evolution/MASTER-PROMPT.md).
 
 ---
 
 ## 23. Resume Line
+
+**What exists today:**
+
+> **FinShield AI** — Python, FastAPI, SQLAlchemy, PostgreSQL/pgvector, Next.js/React, TypeScript, Docker Compose
+> Built a transaction-compliance platform with a configurable hard-rule screening engine (sanctions, PEP, amount and geography rules with per-user overrides and a rule-action precedence gate), pgvector retrieval over policy, sanctions and precedent corpora, case management with SLA deadlines, SAR/STR filing records with deadline tracking, JWT + hashed-API-key authentication, and a Next.js compliance dashboard.
+
+### Target-state summary (aspirational — not yet built)
 
 > **FinShield AI** — Python, FastAPI, Celery, PostgreSQL/pgvector, LangChain, LoRA Fine-Tuning (PEFT, BitsAndBytes), DSPy, vLLM, React, Docker, Kubernetes
 > Built a local-first, full-lifecycle transaction compliance engine combining pgvector agentic RAG retrieval with a LoRA fine-tuned Llama classifier, gated by independent risk scoring, hard-rule enforcement, continuous behavioral fraud monitoring, case management with SLA-driven investigation workflow, SAR/STR filing support, circuit-breaker resilience, prompt-injection defense, GDPR-compliant data handling, full audit logging, and a real-time case-centric compliance dashboard — designed config-first with multi-tenant isolation for enterprise and fintech deployment.

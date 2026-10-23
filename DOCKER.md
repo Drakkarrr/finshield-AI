@@ -1,5 +1,7 @@
 # FinShield AI - Docker Deployment
 
+> **Status.** The root `docker-compose.yml` runs three services: `postgres` (pgvector — RAG store), `backend` (FastAPI, SQLite primary DB until slice S1.1) and `frontend` (Next.js). Images are single-stage and run as root (hardening is slice S6.3). This is a development setup, not a production deployment — see [docs/architecture/evolution/](./docs/architecture/evolution/README.md).
+
 ## Quick Start
 
 ### Prerequisites
@@ -10,30 +12,30 @@
 
 ```bash
 # Build and start all services
-docker-compose up --build
+docker compose up --build
 
 # Run in detached mode (background)
-docker-compose up --build -d
+docker compose up --build -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop services
-docker-compose down
+docker compose down
 
 # Stop and remove volumes
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Access the Application
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8091
-- **API Docs**: http://localhost:8091/docs
+- **API Docs**: http://localhost:8091/api/docs
 
 ### Environment Variables
 
-Edit `docker-compose.yml` to customize:
+Copy `.env.example` to `.env` at the repo root and edit it; compose interpolates these values and refuses to start while required secrets (`JWT_SECRET_KEY`, `POSTGRES_PASSWORD`) are unset. Never put real secrets in `docker-compose.yml`.
 
 **Backend:**
 - `DATABASE_URL`: Database connection string (default: SQLite)
@@ -51,7 +53,7 @@ Edit `docker-compose.yml` to customize:
    ```bash
    openssl rand -hex 32
    ```
-   Update `JWT_SECRET_KEY` in `docker-compose.yml`
+   Set `JWT_SECRET_KEY` in `.env` (or your platform's secret store)
 
 2. **Use PostgreSQL** (recommended for production):
    ```yaml
@@ -84,21 +86,24 @@ ports:
 docker system prune -a
 
 # Rebuild without cache
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 **Database issues:**
 ```bash
 # Reset database
-docker-compose down -v
-docker-compose up --build
+docker compose down -v
+docker compose up --build
 ```
 
 ### Health Checks
 
 ```bash
-# Check backend health
+# Check backend health (per-dependency status)
 curl http://localhost:8091/api/health
+# Liveness / readiness probes (slice S0.4)
+curl http://localhost:8091/api/health/live
+curl http://localhost:8091/api/health/ready   # 503 when a dependency is down
 
 # Check frontend
 curl http://localhost:3000
@@ -108,28 +113,30 @@ curl http://localhost:3000
 
 ```bash
 # View all logs
-docker-compose logs
+docker compose logs
 
 # View specific service logs
-docker-compose logs backend
-docker-compose logs frontend
+docker compose logs backend
+docker compose logs frontend
 
 # Follow logs in real-time
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### Backup & Restore
 
+> **Interim only.** Tested backup/restore scripts are slice S4.5. The SQLite file must live on the `backend-data` volume (`/app/data`) for these commands — and for data to survive container recreation; check `DATABASE_URL` in compose points at `sqlite:////app/data/finshield.db`.
+
 **Backup database:**
 ```bash
-docker-compose exec backend cp /app/data/finshield.db /app/data/finshield.db.backup
+docker compose exec backend cp /app/data/finshield.db /app/data/finshield.db.backup
 docker cp finshield-backend:/app/data/finshield.db.backup ./backup/
 ```
 
 **Restore database:**
 ```bash
 docker cp ./backup/finshield.db finshield-backend:/app/data/finshield.db
-docker-compose restart backend
+docker compose restart backend
 ```
 
 ## Architecture
@@ -149,12 +156,12 @@ docker-compose restart backend
 │   Port 8091     │
 └────────┬────────┘
          │
-         │ SQLite
-         │
-┌────────▼────────┐
-│   Database      │
-│   (Volume)      │
-└─────────────────┘
+         │ SQLite (primary)        pgvector (RAG)
+         │                              │
+┌────────▼────────┐          ┌────────▼────────┐
+│   SQLite file   │          │   PostgreSQL 16 │
+│ (backend-data)  │          │ (postgres-data) │
+└─────────────────┘          └─────────────────┘
 ```
 
 ## Security Notes
@@ -168,6 +175,6 @@ docker-compose restart backend
 ## Support
 
 For issues or questions:
-- Check logs: `docker-compose logs -f`
-- Review API docs: http://localhost:8091/docs
+- Check logs: `docker compose logs -f`
+- Review API docs: http://localhost:8091/api/docs
 - See main README.md for detailed documentation

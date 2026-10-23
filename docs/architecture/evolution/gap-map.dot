@@ -1,0 +1,103 @@
+// FinShield AI — capability gap map (current evidence vs target state)
+// Produced by architecture-visualization:evolution-planner + graphviz
+// Legend: green = implemented AND wired; amber-dashed = implemented but not wired (dead code);
+//         orange = stub / hardcoded placeholder; red = entirely absent.
+// Every node cites path:line evidence. See ../evidence.md.
+digraph gap_map {
+    rankdir=TB;
+    fontname="Helvetica";
+    node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled"];
+    edge [fontname="Helvetica", fontsize=9, color="#666666"];
+    label="FinShield AI — capability gap map (generated 2026-10-23)\nGreen=wired  Amber(dashed)=built but unreachable  Orange=stub  Red=absent";
+    labelloc=t;
+
+    // ---------- capability clusters ----------
+    subgraph cluster_detect {
+        label="Detection pipeline"; style=filled; color="#f2f4f7"; fontsize=12;
+        rules_engine      [label="Hard rule engine\n4 rules, precedence gate\ncompliance_engine.py:165-240,339-361", fillcolor="#1e6f5c", fontcolor=white];
+        sanctions_data    [label="Sanctions / PEP data\n3-element Python sets\ncompliance_engine.py:22-24", fillcolor="#b0632a", fontcolor=white];
+        behavioral_mon    [label="Behavioral z-score monitor\nreal logic, never called by screen()\nmain.py:2170-2328", fillcolor="#8a6d1f", fontcolor=white, style="rounded,filled,dashed"];
+        ml_classifier     [label="ML classifier\nrandom.uniform, docstring says 'Simulate'\ncompliance_engine.py:297-304", fillcolor="#b0632a", fontcolor=white];
+        risk_scorer       [label="Independent risk scorer\nfixed literal weights + randomness\ncompliance_engine.py:307-327", fillcolor="#b0632a", fontcolor=white];
+        rag_retrieval     [label="pgvector RAG retrieval\nreal SQL, gated off in local .env\nrag_service.py:276-345, main.py:139-150", fillcolor="#8a6d1f", fontcolor=white, style="rounded,filled,dashed"];
+        embeddings        [label="Semantic embeddings\nMD5 feature-hash stand-in\nrag_service.py:52-73", fillcolor="#b0632a", fontcolor=white];
+        rag_seed          [label="Corpus seeding\n__main__ only, never invoked\nseed_rag_data.py:190-197", fillcolor="#8a6d1f", fontcolor=white, style="rounded,filled,dashed"];
+        idempotency       [label="Idempotency\nDB layer real; engine cache unbounded in-memory\nmain.py:454-473, compliance_engine.py:37", fillcolor="#b0632a", fontcolor=white];
+        eval_harness      [label="Model / RAG eval harness\n(RAGAS, precision-recall)\nno code in repo", fillcolor="#a3312a", fontcolor=white];
+    }
+
+    subgraph cluster_investigate {
+        label="Investigation & filing"; style=filled; color="#f2f4f7"; fontsize=12;
+        cases       [label="Case management\nlifecycle, comments, notes, aggregation, SLA check\nmain.py:724-1875", fillcolor="#1e6f5c", fontcolor=white];
+        filings     [label="SAR/STR filing\n30-day deadline, structured data\nmain.py:1926-2143", fillcolor="#1e6f5c", fontcolor=white];
+        reg_gateway [label="Regulator e-filing gateway\n(BSA E-Filing) not designed", fillcolor="#a3312a", fontcolor=white];
+        sla_jobs    [label="SLA escalation as a job\nendpoint exists, no scheduler\nmain.py:1749", fillcolor="#8a6d1f", fontcolor=white, style="rounded,filled,dashed"];
+        webhooks    [label="Webhook delivery + DLQ\nrows only, no dispatcher\nmain.py:2589-2667", fillcolor="#b0632a", fontcolor=white];
+    }
+
+    subgraph cluster_platform {
+        label="Platform & data"; style=filled; color="#f2f4f7"; fontsize=12;
+        auth        [label="AuthN: bcrypt + JWT + API keys\napplied on 64/68 routes\nauth.py:32-121", fillcolor="#1e6f5c", fontcolor=white];
+        rbac        [label="AuthZ / RBAC\nno role column, no require_admin", fillcolor="#a3312a", fontcolor=white];
+        tenancy     [label="Multi-tenancy\n0 hits for 'tenant' in backend/", fillcolor="#a3312a", fontcolor=white];
+        migrations  [label="Schema migrations\ncreate_all only, no Alembic\ndatabase.py:36-38", fillcolor="#a3312a", fontcolor=white];
+        primary_db  [label="Primary DB = SQLite in container\nPostgres used only for RAG\ndocker-compose.yml:32-33", fillcolor="#b0632a", fontcolor=white];
+        async_db    [label="async def handlers + blocking sync SQLAlchemy\nevent-loop stall on every request", fillcolor="#b0632a", fontcolor=white];
+        config_svc  [label="Runtime config service\nmodule constants + per-user rule_configs only\ncompliance_engine.py:25-27", fillcolor="#b0632a", fontcolor=white];
+        audit_trail [label="Audit trail\n15 write sites, no append-only constraint, no read API", fillcolor="#b0632a", fontcolor=white];
+        privacy     [label="GDPR / DSAR / PII masking\nDSAR writes one log row; classification is a literal dict\nmain.py:2682-2724", fillcolor="#b0632a", fontcolor=white];
+        encryption  [label="Encryption at rest / Vault\n0 hits for encrypt|Fernet", fillcolor="#a3312a", fontcolor=white];
+    }
+
+    subgraph cluster_ops {
+        label="Delivery & operations"; style=filled; color="#f2f4f7"; fontsize=12;
+        compose     [label="docker-compose: 3 services\nplaintext secrets, pg on 5432, no limits\ndocker-compose.yml:5-56", fillcolor="#b0632a", fontcolor=white];
+        dockerfiles [label="Dockerfiles\nroot user, no HEALTHCHECK, node:18-alpine EOL,\nCI contexts wrong so builds cannot pass", fillcolor="#b0632a", fontcolor=white];
+        ci          [label="CI: pytest + build + docker\nno coverage, no lint/typecheck,\nsafety scan continue-on-error:112", fillcolor="#b0632a", fontcolor=white];
+        tests       [label="Tests: 65 unit/integration passing\nfilings, RAG, behavioral, breakers, webhooks untested", fillcolor="#1e6f5c", fontcolor=white];
+        health      [label="Health endpoint\nhardcoded 'healthy' for every dependency\nmain.py:2830-2845", fillcolor="#b0632a", fontcolor=white];
+        observ      [label="OTel / Prometheus / structlog / Sentry\n0 hits each; no /metrics", fillcolor="#a3312a", fontcolor=white];
+        backups     [label="Backup / restore / retention\nmanual docker cp only (DOCKER.md:121-133)", fillcolor="#a3312a", fontcolor=white];
+        tls         [label="TLS + security headers\nnginx port 80 only; next.config.js has no headers()", fillcolor="#a3312a", fontcolor=white];
+        secrets     [label="Secret hygiene\nbackend/.env tracked in git since first commit", fillcolor="#a3312a", fontcolor=white];
+    }
+
+    subgraph cluster_ux {
+        label="Frontend & design"; style=filled; color="#f2f4f7"; fontsize=12;
+        app_routes  [label="11 routes, 8 fully wired to real CRUD\nplatform-app/src/app/*", fillcolor="#1e6f5c", fontcolor=white];
+        api_client  [label="Typed API client + ApiError\nJWT in localStorage (XSS-exposed), no 401 interceptor\nlib/api.ts:358-417", fillcolor="#b0632a", fontcolor=white];
+        route_guard [label="Route protection\nno middleware.ts; only root page.tsx:12 checks auth", fillcolor="#a3312a", fontcolor=white];
+        design_sys  [label="Design system\nsemantic Tailwind tokens exist; no DESIGN.md,\nno primitives, 67 arbitrary values, 16 hex, 79 px", fillcolor="#b0632a", fontcolor=white];
+        a11y        [label="Accessibility\n12 aria-required only; 0 role, 0 aria-label,\nno th scope, ~12 unlabeled controls, 2 focus: styles", fillcolor="#a3312a", fontcolor=white];
+        realtime    [label="Real-time updates\nno WebSocket/SSE; one 30s notification poll\nTopbar.tsx:240-245", fillcolor="#b0632a", fontcolor=white];
+        pagination  [label="Pagination\nAPI supports limit/offset; UI fetches flat 100", fillcolor="#b0632a", fontcolor=white];
+        docs_page   [label="In-app API docs\nhardcoded ENDPOINTS array, already drifted\ndocs/page.tsx:6-40", fillcolor="#b0632a", fontcolor=white];
+        legacy_web  [label="website/platform/*.html\nstatic mockups, zero fetch calls, unreferenced", fillcolor="#6b6b6b", fontcolor=white, style="rounded,filled,dashed"];
+        billing_ui  [label="Billing UI\nwired to backend, but no payment provider;\ncard fields stored plaintext (db_models.py:46-48)", fillcolor="#b0632a", fontcolor=white];
+    }
+
+    // ---------- gap edges: what must exist for the wired state ----------
+    rules_engine -> sanctions_data [label="needs real lists", style=dashed, color="#b0632a"];
+    ml_classifier -> eval_harness  [label="cannot ship without", style=dashed, color="#a3312a"];
+    behavioral_mon -> rules_engine [label="wire into screen()", style=dashed, color="#8a6d1f"];
+    rag_retrieval -> embeddings    [label="needs semantic vectors", style=dashed, color="#b0632a"];
+    rag_retrieval -> rag_seed      [label="needs startup seeding", style=dashed, color="#8a6d1f"];
+    cases -> sla_jobs              [label="needs scheduler", style=dashed, color="#8a6d1f"];
+    filings -> reg_gateway         [label="manual today", style=dashed, color="#a3312a"];
+    webhooks -> async_db           [label="needs a worker", style=dashed, color="#b0632a"];
+    sla_jobs -> webhooks           [label="same worker", style=dashed, color="#666666"];
+    migrations -> primary_db       [label="Postgres first", style=dashed, color="#b0632a"];
+    tenancy -> rbac                [label="roles before tenants", style=dashed, color="#a3312a"];
+    audit_trail -> reg_gateway     [label="regulator evidence", style=dashed, color="#a3312a"];
+    health -> observ               [label="real probes", style=dashed, color="#a3312a"];
+    compose -> secrets             [label="untrack .env", style=dashed, color="#a3312a"];
+    compose -> tls                 [label="edge termination", style=dashed, color="#a3312a"];
+    dockerfiles -> ci              [label="fix build contexts", style=dashed, color="#b0632a"];
+    route_guard -> rbac            [label="role-gated nav", style=dashed, color="#a3312a"];
+    design_sys -> a11y             [label="primitives fix a11y", style=dashed, color="#b0632a"];
+    app_routes -> pagination       [label="list scale", style=dashed, color="#b0632a"];
+    app_routes -> realtime         [label="drop or build claim", style=dashed, color="#b0632a"];
+    billing_ui -> migrations        [label="drop card columns", style=dashed, color="#b0632a"];
+    legacy_web -> d7               [label="retire", style=dashed, color="#6b6b6b"];
+    d7 [label="Decision D7: delete legacy console,\nkeep marketing site", shape=note, fillcolor="#fff3cd"];
+}

@@ -15,6 +15,10 @@
 
 ---
 
+> **Documentation status.** Parts of this README describe the *target* product, not the code as it stands. Sections are labelled **Implemented** or **Target**. The authoritative gap analysis — every claim checked against source with `path:line` evidence — lives in [docs/architecture/evolution/](./docs/architecture/evolution/README.md), and implementation progress is tracked in [PROGRESS.md](./docs/architecture/evolution/PROGRESS.md). Where this README and the code disagree, the code wins; the OpenAPI schema at `/api/docs` is the source of truth for the API surface.
+
+---
+
 ## What is FinShield AI?
 
 FinShield AI is a **full-lifecycle compliance engine** for financial transactions. It screens transactions against hard compliance rules, ML-based classification, and continuous behavioral monitoring — then routes flagged items through case management, investigation workflow, and regulatory filing (SAR/STR). All inference runs on infrastructure you control. No transaction data leaves your boundary.
@@ -29,6 +33,8 @@ It's designed for compliance teams at fintechs and banks who need:
 ---
 
 ## Key Features
+
+> **Target feature set.** This list is the product vision. For the per-feature status (`Implemented & wired` / `Built but not wired` / `Stub` / `Absent`) see [Wiki §21](./FinShield-AI-Wiki.md#21-implementation-status--future-work). In short, today: the hard-rule engine, case management, SAR/STR filing records, rule configuration and pgvector retrieval are implemented; the classifier and behavioral stage in the screening path are simulated; circuit breakers, webhooks, DSAR, multi-tenancy, encryption, observability and the model lifecycle are not yet built or are stubs.
 
 ### Detection Pipeline
 - **Hard rule engine** — deterministic compliance rules (sanctions blocks, country restrictions, amount thresholds) authored from admin UI, no code changes
@@ -45,7 +51,7 @@ It's designed for compliance teams at fintechs and banks who need:
 
 ### Enterprise Operations
 - **Circuit breaker resilience** — graceful degradation when dependencies fail; never silently auto-approves
-- **Multi-tenant isolation** — separate PostgreSQL schemas per tenant for regulatory-grade data isolation
+- **Multi-tenant isolation** — shared schema with `tenant_id` on every owned table, enforced by PostgreSQL row-level security (ruling D3; originally specified as schema-per-tenant)
 - **Data privacy (GDPR/CCPA)** — DSAR handling, right-to-erasure workflow, PII classification and masking
 - **Encryption & key management** — at-rest (pgcrypto), in-transit (TLS 1.3), secrets via Vault
 - **Observability** — distributed tracing (OpenTelemetry), metrics (Prometheus), structured JSON logs
@@ -55,6 +61,8 @@ It's designed for compliance teams at fintechs and banks who need:
 ---
 
 ## Architecture
+
+> **Target pipeline.** Today the screening path runs, in order: idempotency check → hard rules (sanctions/PEP/geography/amount against small built-in lists) → a simulated behavioral score → a simulated classifier → risk blend → rule-action precedence gate → optional pgvector RAG check (when `RAG_DATABASE_URL` points at Postgres). There is no circuit-breaker check, no worker and no webhook delivery in the path yet.
 
 ```
 Transaction → Idempotency Check → Sanitization → Circuit Breaker Check
@@ -106,95 +114,159 @@ See the [Project Wiki](./FinShield-AI-Wiki.md) for the full technical flow, desi
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| API | FastAPI |
-| Async Processing | Celery + Redis |
-| Database | PostgreSQL 16 + pgvector |
-| Retrieval | LangChain (agentic RAG) |
-| Prompt Optimization | DSPy |
-| Classification | Llama (LoRA via PEFT + BitsAndBytes) |
-| Model Serving | vLLM |
-| Behavioral Scoring | Statistical (z-score / isolation forest) |
-| RAG Evaluation | RAGAS |
-| Frontend | React 18 + TypeScript |
-| Observability | OpenTelemetry + Prometheus + structlog |
-| Containerization | Docker Compose (dev) / Kubernetes + Helm (prod) |
-| Secrets | HashiCorp Vault |
+Status: **Implemented** = in `backend/requirements.txt` / `platform-app/package.json` and used. **Partial** = present but not as described. **Target** = not in the repo; on the roadmap ([migration-roadmap.md](./docs/architecture/evolution/migration-roadmap.md)). Where an architecture decision has replaced the original choice, the ruling is noted ([decision-map.md](./docs/architecture/evolution/decision-map.md)).
+
+| Layer | Technology | Status |
+|---|---|---|
+| API | FastAPI 0.115 (SQLAlchemy 2.0 sync, Pydantic 2.9, slowapi) | Implemented |
+| Async Processing | Celery + Redis | Target (S4.1) |
+| Database | PostgreSQL 16 + pgvector | Partial — Postgres/pgvector backs RAG only; the primary DB is SQLite (Postgres primary is S1.1) |
+| Retrieval | LangChain (agentic RAG) | Partial — direct pgvector cosine search without LangChain; embeddings are an MD5 feature hash, not a semantic model (S2.4) |
+| Prompt Optimization | DSPy | Target — superseded by ruling D1 (no LLM in the decision path) |
+| Classification | Llama (LoRA via PEFT + BitsAndBytes) | Target — the current "classifier" is simulated; ruling D1 replaces it with a deterministic `RiskModel` (S2.5) |
+| Model Serving | vLLM | Target — superseded by ruling D1 |
+| Behavioral Scoring | Statistical (z-score / isolation forest) | Partial — a z-score monitor exists but is not called by screening (S2.1) |
+| RAG Evaluation | RAGAS | Target (S2.7) |
+| Frontend | Next.js 14 + React 18 + TypeScript + Tailwind 3 | Implemented |
+| Observability | OpenTelemetry + Prometheus + structlog | Target (S4.4) — today: stdlib logging + `X-Process-Time-Ms` header |
+| Containerization | Docker Compose (dev) / Kubernetes + Helm (prod) | Partial — root `docker-compose.yml` implemented; Kubernetes superseded by ruling D9 (managed PaaS) |
+| Secrets | HashiCorp Vault | Target — superseded by ruling D9 (platform secret store) |
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+
-- Node.js 18+ (for dashboard)
-- GPU with ≥16GB VRAM (for model inference; CPU-only mode available for development)
+- Docker with Docker Compose v2
+- For running the backend outside Docker: Python 3.11
+- For running the dashboard outside Docker: Node.js 20+
 
-### Local Development
+No GPU is needed — nothing in the current stack runs a model.
+
+### Run the stack with Docker (Implemented)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/finshield-ai.git
-cd finshield-ai
+git clone <your-fork-url> finshield
+cd finshield
 
-# Copy environment configuration
+# Create your local env file, then set JWT_SECRET_KEY and POSTGRES_PASSWORD in it.
+# Compose refuses to start while either is unset.
 cp .env.example .env
-# Edit .env with your local settings
 
-# Start the full stack (API + worker + Postgres/pgvector + Redis + dashboard)
-docker compose -f docker/docker-compose.yml up -d
+# Starts postgres (pgvector), backend (FastAPI) and frontend (Next.js)
+docker compose up -d --build
+docker compose ps        # wait until all three are healthy
 
-# Run database migrations
-docker compose -f docker/docker-compose.yml exec api alembic upgrade head
-
-# Load sample compliance policies into the RAG index
-docker compose -f docker/docker-compose.yml exec api python -m rag.ingest_policies --seed
-
-# Access the services
-# API:          http://localhost:8000
-# API Docs:     http://localhost:8000/docs
-# Dashboard:    http://localhost:3000
-# Prometheus:   http://localhost:9090
+# Optional: seed the RAG index (policies, sanctions entries, precedents)
+docker compose exec backend python -m app.seed_rag_data
 ```
 
-### Submitting Your First Transaction
+| Service | URL |
+|---|---|
+| Dashboard | http://localhost:3000 |
+| API | http://localhost:8091 |
+| API docs (OpenAPI) | http://localhost:8091/api/docs |
+| Health | http://localhost:8091/api/health |
+
+Tables are created on backend startup (`init_db()` → SQLAlchemy `create_all`). Alembic migrations are not adopted yet (roadmap slice S1.2).
+
+### Run the backend without Docker (Implemented)
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/transactions \
+cd backend
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                                  # set JWT_SECRET_KEY
+uvicorn app.main:app --port 8091 --reload
+```
+
+Without `RAG_DATABASE_URL` pointing at Postgres the app runs with RAG disabled.
+
+### Submitting Your First Transaction (Implemented)
+
+```bash
+# 1. Register (returns a JWT); or log in with POST /api/auth/login
+TOKEN=$(curl -s -X POST http://localhost:8091/api/auth/register \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: TX-00001" \
-  -H "Authorization: Bearer <your-api-key>" \
+  -d '{"email":"analyst@example.com","password":"change-me-please","first_name":"Ada","last_name":"Analyst"}' \
+  | python -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+
+# 2. Screen a transaction
+curl -s -X POST http://localhost:8091/api/v1/transactions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
-    "account_id": "ACC-4471",
+    "idempotency_key": "TX-00001",
     "amount": 18400.00,
     "currency": "USD",
-    "type": "withdrawal",
+    "transaction_type": "wire",
+    "sender_name": "Acme Corp",
+    "receiver_name": "Globex Ltd",
     "destination_country": "US",
-    "memo": "Wire transfer for equipment purchase",
-    "metadata": {
-      "channel": "online_banking",
-      "beneficiary": "Acme Corp"
-    }
+    "description": "Wire transfer for equipment purchase"
   }'
 ```
 
-Response:
+`transaction_type` is one of `wire`, `ach`, `card`, `international`, `crypto`, `p2p`. Programmatic clients can use an API key (`fsk_…`, created at `POST /api/v1/keys`) in place of the JWT. The response is a `TransactionResponse`:
+
 ```json
 {
-  "transaction_id": "TX-88213",
-  "status": "pending_review",
-  "case_id": "CASE-2024-00847",
-  "trigger_source": "behavioral",
-  "severity": "flagged",
-  "message": "Transaction flagged for review — behavioral anomaly detected"
+  "success": true,
+  "data": {
+    "transaction_id": "…",
+    "idempotency_key": "TX-00001",
+    "status": "approved | flagged | blocked | in_review",
+    "risk_score": 0.31,
+    "credit_tier": "…",
+    "credits_consumed": 1.0,
+    "rule_results": [{"rule_id": "…", "rule_type": "…", "rule_name": "…", "triggered": false, "detail": null, "latency_ms": 0.1}],
+    "behavioral_score": 0.12,
+    "ml_classification": "…",
+    "ml_confidence": 0.9,
+    "total_latency_ms": 4.2,
+    "pipeline_stages": ["…"],
+    "rag_context": null
+  },
+  "error": null
 }
 ```
+
+Until roadmap slice S2.2 lands, `behavioral_score`, `ml_classification` and `ml_confidence` contain simulated (random) values, so the same payload can score differently on repeat submissions.
 
 ---
 
 ## Project Structure
+
+### Actual structure (Implemented)
+
+```
+finshield/
+├── backend/                  # FastAPI service
+│   ├── app/
+│   │   ├── main.py           # app setup + all API routes (being split into api/ + domain/, slice S1.6)
+│   │   ├── compliance_engine.py  # screening pipeline: rules, scoring, precedence gate
+│   │   ├── rag_service.py    # pgvector retrieval (policies, sanctions, precedents)
+│   │   ├── seed_rag_data.py  # RAG seed corpus (python -m app.seed_rag_data)
+│   │   ├── auth.py           # bcrypt passwords, JWT, fsk_ API keys
+│   │   ├── db_models.py      # SQLAlchemy ORM models
+│   │   ├── models.py         # Pydantic request/response schemas
+│   │   └── database.py       # engine, session, init_db()
+│   ├── tests/                # pytest suite (API + engine)
+│   ├── Dockerfile
+│   └── requirements.txt
+├── platform-app/             # Next.js 14 dashboard (src/app, src/components, src/lib/api.ts)
+├── website/                  # static nginx marketing site
+├── docs/architecture/evolution/  # gap analysis, roadmap, implementation ledger
+├── .github/workflows/ci.yml
+├── docker-compose.yml        # postgres (pgvector) + backend + frontend
+├── FinShield-AI-Wiki.md      # design specification (with implementation-status labels)
+├── DEPLOYMENT.md / DOCKER.md
+└── README.md
+```
+
+### Target structure (not yet built)
+
+Ruling D13 replaces the layout below with packages *inside* `backend/app/` (`api/`, `domain/`, `worker/`) — see [MASTER-PROMPT.md §5](./docs/architecture/evolution/MASTER-PROMPT.md). The original target tree is kept for reference:
 
 ```
 finshield-ai/
@@ -225,6 +297,8 @@ finshield-ai/
 
 ## Configuration
 
+> **Target.** Today the only runtime-configurable parameters are per-user hard-rule overrides (`/api/v1/rules`, editable from the dashboard's Rules page). Thresholds, model versions, feature flags, SLA timers and retention are code constants; tenants do not exist yet. The runtime config service is roadmap slice S1.4.
+
 FinShield treats all operational parameters as runtime configuration, not code:
 
 | Parameter | Example | Scope |
@@ -245,7 +319,27 @@ See [Wiki Section 12](./FinShield-AI-Wiki.md#12-configuration--extensibility-phi
 
 ## API Overview
 
-The API is versioned (`/api/v1/...`) with idempotent transaction submission and webhook events.
+The API is versioned (`/api/v1/...`) with idempotent transaction submission. The live OpenAPI schema at `http://localhost:8091/api/docs` is the source of truth (ruling D10); the table below is a summary.
+
+| Endpoint | Method | Description | Status |
+|---|---|---|---|
+| `/api/auth/register`, `/api/auth/login` | POST | Create an account / obtain a JWT | Implemented |
+| `/api/v1/keys` | GET/POST/DELETE | Manage `fsk_` API keys | Implemented |
+| `/api/v1/transactions` | POST | Submit a transaction for screening | Implemented |
+| `/api/v1/transactions/{id}` | GET | Get transaction status and decision | Implemented |
+| `/api/v1/cases` | GET | List cases (filterable by status, severity, assignee) | Implemented |
+| `/api/v1/cases/{id}` | GET | Get case detail with full reasoning trail | Implemented |
+| `/api/v1/filings` | GET | List SAR/STR filings | Implemented |
+| `/api/v1/rules`, `/api/v1/rules/{id}` | GET / PATCH | List built-in hard rules / override one per user (enable, threshold, action) | Implemented — creating new rules is Target |
+| `/api/v1/rules/simulate` | POST | Simulate rule configuration against historical transactions | Implemented |
+| `/api/health` | GET | System health | Implemented — see the Wiki status table for probe coverage |
+| `/api/v1/privacy/dsar` | POST | Submit a data subject access request | Stub — records an audit entry only (S3.3) |
+| `/api/v1/cases/{id}/resolve` | POST | Resolve a case (approve, override, escalate) | Target — case status changes go through the case update routes today |
+| `/api/v1/filings/{id}` | GET | Get filing detail and status | Implemented |
+| `/api/v1/admin/users` | CRUD | User and role management | Target (S3.1) |
+| `/api/v1/settings` | GET/PUT | Thresholds, retention, notification config | Target (S1.4) |
+
+<details><summary>Original target endpoint table</summary>
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -263,11 +357,32 @@ The API is versioned (`/api/v1/...`) with idempotent transaction submission and 
 | `/api/v1/health` | GET | System health (per-dependency circuit breaker status) |
 | `/api/v1/privacy/dsar` | POST | Submit a data subject access request |
 
-Full API documentation: [http://localhost:8000/docs](http://localhost:8000/docs) (when running locally)
+</details>
+
+Full API documentation: [http://localhost:8091/api/docs](http://localhost:8091/api/docs) (when running locally)
 
 ---
 
 ## Testing
+
+### Current suite (Implemented)
+
+```bash
+cd backend
+pip install -r requirements.txt -r requirements-dev.txt
+APP_ENV=test python -m pytest tests/ -v --cov=app      # unit + API tests on SQLite; e2e excluded by default
+ruff check . && mypy app                                # lint + typecheck
+
+# End-to-end filing flow against a running stack (docker compose up first)
+APP_ENV=test python -m pytest tests/e2e -m e2e -v
+
+cd ../platform-app
+npm ci && npx tsc --noEmit && npm run lint && npm run build
+```
+
+### Target suite (not yet built)
+
+Evaluation harness (S2.7) and load tests (S6.5) are on the roadmap. The commands below describe that target:
 
 ```bash
 # Unit tests
@@ -293,12 +408,19 @@ locust -f tests/load/test_throughput.py
 
 ## Deployment
 
-### Development
+### Development (Implemented)
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose up -d --build
 ```
 
-### Production (Kubernetes)
+### Production
+
+There is no production deployment target in the repo yet. Ruling D9 sets it as a managed PaaS using the platform's own secret store (roadmap slices S6.2/S6.3); [DEPLOYMENT.md](./DEPLOYMENT.md) describes a proposed setup. Before any production use, see the blockers in [evolution-summary.md](./docs/architecture/evolution/evolution-summary.md).
+
+### Production on Kubernetes (Target — conditional, ruling D9)
+
+No Helm chart or `deploy/` directory exists. The original target:
+
 ```bash
 # Add the Helm repo
 helm repo add finshield ./deploy/k8s
@@ -316,6 +438,10 @@ See [Wiki Section 17](./FinShield-AI-Wiki.md#17-enterprise--fintech-readiness) f
 
 ## Security
 
+**Implemented today:** bcrypt password hashing; HS256 JWTs; hashed `fsk_` API keys accepted alongside JWTs; per-user row filtering on every authenticated route; rate limits on register (5/min), login (10/min) and screening (60/min); all inference local (there is no external model call).
+
+**Target** (not yet built — see roadmap phase P3 and S6.2):
+
 - **Local-first**: all inference runs in your infrastructure, no data leaves your boundary
 - **Prompt injection defense**: multi-layer (denylist, structured delimiting, perplexity scoring, length limits)
 - **Encryption**: at rest (pgcrypto/TDE), in transit (TLS 1.3, mTLS between services)
@@ -329,7 +455,8 @@ Report security vulnerabilities to `security@your-org.com`. Do not file publicly
 
 ## Documentation
 
-- **[Project Wiki](./FinShield-AI-Wiki.md)** — canonical reference covering architecture, technical flow, all modules, design principles, user stories, and known gaps
+- **[Architecture evolution](./docs/architecture/evolution/README.md)** — authoritative gap analysis between docs and code, roadmap, and implementation ledger
+- **[Project Wiki](./FinShield-AI-Wiki.md)** — design specification (design intent, with implementation-status labels) covering architecture, technical flow, all modules, design principles, user stories, and known gaps
   - [Technical Flow](./FinShield-AI-Wiki.md#3-technical-flow) — full pipeline walkthrough
   - [Behavioral Monitoring](./FinShield-AI-Wiki.md#4-behavioral-monitoring--fraud-detection) — anomaly detection with cold-start handling
   - [Hard Rule Engine](./FinShield-AI-Wiki.md#5-hard-rule-engine) — no-code deterministic compliance rules

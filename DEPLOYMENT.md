@@ -3,6 +3,8 @@
 > Step-by-step guide to take FinShield from local dev to a live, revenue-generating SaaS.
 > Written for a solo developer based in the Philippines.
 
+> **Status: PROPOSED.** Nothing in this guide has been deployed or automated, and no Railway/Vercel/Neon/PayMongo/Resend/Sentry/UptimeRobot integration exists in the code (there is no `backend/app/payment.py`). Sections marked **PROPOSED** describe a plan, not a working setup. Rulings in [MASTER-PROMPT.md §2](./docs/architecture/evolution/MASTER-PROMPT.md) govern the eventual design: managed PaaS with the platform secret store (D9 — Railway/Vercel fit), Postgres primary (D6), **Stripe** for payments (D8 — replaces PayMongo below). The product is not production-ready; see [evolution-summary.md](./docs/architecture/evolution/evolution-summary.md) for the blockers. For running locally today, follow the [README quick start](./README.md#quick-start).
+
 ---
 
 ## Prerequisites Checklist
@@ -19,7 +21,7 @@ Before starting, make sure you have:
 
 ---
 
-## Phase 1: Database (PostgreSQL)
+## Phase 1: Database (PostgreSQL) — PROPOSED
 
 SQLite doesn't work in production. Use **Neon** (free tier, serverless Postgres).
 
@@ -48,16 +50,18 @@ pip install psycopg2-binary
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finshield.db")
 ```
 
-7. Test locally with Neon connection, then run migrations:
+7. Test locally with the Neon connection, then create the tables:
 
 ```bash
 cd backend
 python -c "from app.database import init_db; init_db()"
 ```
 
+`init_db()` runs SQLAlchemy `create_all`: it creates missing tables but never alters existing ones. Alembic migrations are not yet adopted (roadmap slice S1.2); until then, any schema change requires manual DDL on an existing database.
+
 ---
 
-## Phase 2: Backend Deployment (Railway)
+## Phase 2: Backend Deployment (Railway) — PROPOSED
 
 Railway gives you a free-tier Python server with auto-deploy from GitHub.
 
@@ -77,7 +81,7 @@ web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 | Variable | Value |
 |----------|-------|
 | `DATABASE_URL` | (from Neon) |
-| `SECRET_KEY` | (generate: `python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `JWT_SECRET_KEY` | (generate: `python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `CORS_ORIGINS` | `https://yourdomain.com,https://app.yourdomain.com` |
 | `APP_PORT` | (Railway sets `$PORT` automatically) |
 | `DEBUG` | `false` |
@@ -97,7 +101,7 @@ Visit `https://your-railway-url.com/api/health` — should return `{"status": "h
 
 ---
 
-## Phase 3: Frontend Deployment (Vercel)
+## Phase 3: Frontend Deployment (Vercel) — PROPOSED
 
 ### Steps
 
@@ -139,7 +143,9 @@ module.exports = nextConfig;
 
 ---
 
-## Phase 4: Payment Integration (PayMongo)
+## Phase 4: Payment Integration (PayMongo) — PROPOSED, superseded by ruling D8 (Stripe)
+
+> **Superseded.** Ruling D8 selects Stripe Checkout + Stripe Billing, storing only Stripe customer/subscription/payment-method ids (roadmap slice S6.1). The PayMongo plan below is kept for reference only. Note that today the backend has plaintext card columns and a simulated checkout — do not take real payments with it.
 
 PayMongo is the best option for PH-based SaaS. Supports cards, GCash, Maya.
 
@@ -264,7 +270,7 @@ async def paymongo_webhook(request: Request, db: Session = Depends(get_db)):
 
 ---
 
-## Phase 5: Email Notifications (Resend)
+## Phase 5: Email Notifications (Resend) — PROPOSED
 
 ### Setup
 
@@ -318,7 +324,7 @@ Create a `.env` file for production (never commit this):
 ```bash
 # backend/.env
 DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/finshield?sslmode=require
-SECRET_KEY=your-26-hex-char-secret
+JWT_SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_hex(32))">
 CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
 APP_ENV=production
 DEBUG=false
@@ -361,7 +367,7 @@ async def security_headers(request, call_next):
 
 ---
 
-## Phase 8: Monitoring & Error Tracking
+## Phase 8: Monitoring & Error Tracking — PROPOSED
 
 ### Sentry (free tier: 5k errors/month)
 
@@ -383,12 +389,12 @@ sentry_sdk.init(
 ### Uptime Monitoring
 
 - Sign up at [UptimeRobot.com](https://uptimerobot.com) (free)
-- Monitor: `https://your-railway-url/api/health`
+- Monitor: `https://your-railway-url/api/health/ready` (probes the database and returns 503 when degraded — slice S0.4; before S0.4, `/api/health` returned a hardcoded "healthy" and must not be used for monitoring)
 - Alert via email/Telegram if down
 
 ---
 
-## Phase 9: Backup Strategy
+## Phase 9: Backup Strategy — PROPOSED
 
 ### Database (Neon)
 - Neon auto-backs up (point-in-time restore on paid plan)
