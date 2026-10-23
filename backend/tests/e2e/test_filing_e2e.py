@@ -3,19 +3,22 @@
 E2E Test: SAR/STR Filing Module
 Tests the complete filing workflow from case resolution to filing submission.
 """
-import httpx
-import json
+import os
 import sys
 import time
 
-BASE_URL = "http://localhost:8091"
+import httpx
+import pytest
 
-def test_filing_workflow():
-    """Test complete filing workflow."""
+BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost:8091")
+
+
+def run_filing_workflow():
+    """Run the complete filing workflow; returns False on the first failed step."""
     print("=" * 60)
     print("E2E Test: SAR/STR Filing Module")
     print("=" * 60)
-    
+
     # Step 1: Register user
     print("\n[1/8] Registering user...")
     unique_email = f"test.filing.{int(time.time())}@example.com"
@@ -32,7 +35,7 @@ def test_filing_workflow():
     token = resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     print("✓ User registered")
-    
+
     # Step 2: Create transaction
     print("\n[2/8] Creating transaction...")
     resp = httpx.post(f"{BASE_URL}/api/v1/transactions", headers=headers, json={
@@ -49,7 +52,7 @@ def test_filing_workflow():
         return False
     tx_id = resp.json()["data"]["transaction_id"] if "data" in resp.json() else resp.json()["transaction_id"]
     print(f"✓ Transaction created: {tx_id}")
-    
+
     # Step 3: Create case
     print("\n[3/8] Creating case...")
     resp = httpx.post(f"{BASE_URL}/api/v1/cases", headers=headers, json={
@@ -63,7 +66,7 @@ def test_filing_workflow():
     case_data = resp.json()
     case_id = case_data.get("case_id") or case_data.get("id") or case_data.get("data", {}).get("id")
     print(f"✓ Case created: {case_id}")
-    
+
     # Step 4: Resolve case as suspicious (required before filing)
     print("\n[4/8] Resolving case as suspicious...")
     resp = httpx.patch(f"{BASE_URL}/api/v1/cases/{case_id}", headers=headers, json={
@@ -75,7 +78,7 @@ def test_filing_workflow():
         print(f"❌ Failed to resolve case: {resp.text}")
         return False
     print("✓ Case resolved as suspicious")
-    
+
     # Step 5: Create filing draft
     print("\n[5/8] Creating SAR filing draft...")
     resp = httpx.post(f"{BASE_URL}/api/v1/filings", headers=headers, json={
@@ -92,7 +95,7 @@ def test_filing_workflow():
     print(f"  - Type: {filing['filing_type']}")
     print(f"  - Status: {filing['status']}")
     print(f"  - Deadline: {filing['deadline']}")
-    
+
     # Step 6: List filings
     print("\n[6/8] Listing filings...")
     resp = httpx.get(f"{BASE_URL}/api/v1/filings", headers=headers)
@@ -102,7 +105,7 @@ def test_filing_workflow():
     filings = resp.json()
     print(f"✓ Found {len(filings)} filing(s)")
     assert len(filings) == 1, "Expected 1 filing"
-    
+
     # Step 7: Update filing to under_review
     print("\n[7/8] Updating filing to under_review...")
     resp = httpx.patch(f"{BASE_URL}/api/v1/filings/{filing_id}", headers=headers, json={
@@ -112,7 +115,7 @@ def test_filing_workflow():
         print(f"❌ Failed to update filing: {resp.text}")
         return False
     print("✓ Filing status: under_review")
-    
+
     # Step 8: Submit filing
     print("\n[8/8] Submitting filing...")
     resp = httpx.patch(f"{BASE_URL}/api/v1/filings/{filing_id}", headers=headers, json={
@@ -127,27 +130,34 @@ def test_filing_workflow():
     print(f"  - Status: {filing['status']}")
     print(f"  - Reference: {filing['reference_number']}")
     print(f"  - Submitted at: {filing['submitted_at']}")
-    
+
     # Bonus: Test filtering
     print("\n[Bonus] Testing filing filters...")
     resp = httpx.get(f"{BASE_URL}/api/v1/filings?status=submitted", headers=headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
     print("✓ Filter by status works")
-    
+
     resp = httpx.get(f"{BASE_URL}/api/v1/filings?filing_type=SAR", headers=headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
     print("✓ Filter by filing_type works")
-    
+
     print("\n" + "=" * 60)
     print("✅ ALL TESTS PASSED")
     print("=" * 60)
     return True
 
+
+@pytest.mark.e2e
+def test_filing_workflow():
+    # run_filing_workflow reports failure by returning False, which pytest would ignore
+    assert run_filing_workflow() is True
+
+
 if __name__ == "__main__":
     try:
-        success = test_filing_workflow()
+        success = run_filing_workflow()
         sys.exit(0 if success else 1)
     except Exception as e:
         print(f"\n❌ Test failed with exception: {e}")

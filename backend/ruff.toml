@@ -1,0 +1,16 @@
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "E501",  # line length: enforced by review, not CI, until the S1.6 split
+    "E712",  # `== True` is the SQLAlchemy column-comparison idiom; `is True` breaks queries
+]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Body"]
+
+[lint.per-file-ignores]
+# load_dotenv() must run before app imports read the environment
+"app/main.py" = ["E402"]
