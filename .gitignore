@@ -44,3 +44,6 @@ backend/tests/eval/report.json
 
 # Database backups (S4.5)
 backups/
+
+# Qoder agent workspace (repo wiki, knowledge base): local only, never committed
+.qoder/

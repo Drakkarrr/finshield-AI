@@ -1,7 +1,7 @@
 # Limitations and target state
 
 These are the gaps a bank's vendor-risk team, an auditor or an AML examiner would raise about
-FinShield, written for commit `5bbf592`. Priorities:
+FinShield, written for commit `0affe29`. Priorities:
 - **P1**: would block a regulated customer, or is a record-keeping or control failure.
 - **P2**: will be asked about, and needs a plan with a date.
 - **P3**: worth knowing.

@@ -1,8 +1,8 @@
 # FinShield compliance evidence pack
 
-Slice S6.6. Written 2026-10-24 against branch `claude/backend` at commit `5bbf592`. That commit
+Slice S6.6. Written 2026-10-24 against branch `claude/backend` at commit `0affe29`. That commit
 merged main, and its own S3.2/S3.3 superseded the parallel Qoder S3.2/S3.3. The backend at
-`5bbf592` matches `0493af3`, apart from one change to the case-status list in `api/cases.py`.
+`0affe29` matches `fc3d05b`, apart from one change to the case-status list in `api/cases.py`.
 
 This pack describes the controls that exist in this repository and links each one to its evidence: a
 test, a runbook section, or a commit. If a control has none of these, the pack says so. It is
@@ -105,7 +105,7 @@ DATABASE_URL=postgresql://owner@host/empty_db scripts/restore.sh backups/finshie
 
 - **SQLite suite: 150 passed, 9 skipped.** Run locally with Python 3.13 and `requirements.txt` plus
   `requirements-dev.txt`. numpy was unpinned because 1.26.4 has no 3.13 wheel; CI and the image use
-  Python 3.11. The commit message of `0493af3` records the same count.
+  Python 3.11. The commit message of `fc3d05b` records the same count.
 - **Security headers, manual spot check.** `GET https://test/api/health/live` through the ASGI test
   client returned `nosniff`, `DENY`, `no-referrer`, the Permissions-Policy, COOP `same-origin`,
   CSP `default-src 'none'; frame-ancestors 'none'`, `Cache-Control: no-store` and HSTS. No automated
@@ -115,7 +115,7 @@ DATABASE_URL=postgresql://owner@host/empty_db scripts/restore.sh backups/finshie
   - Audit trigger: `test_update_and_delete_fail_at_the_database_level`
   - Migrations: `test_database_is_at_alembic_head`, `test_migrations_match_models`
 
-  Their last recorded result is in commit `0493af3`: "Postgres 158 passed / 1 skipped". The CI job
+  Their last recorded result is in commit `fc3d05b`: "Postgres 158 passed / 1 skipped". The CI job
   `backend-postgres` runs them. Re-run them with the Postgres command above before you send this pack out.
 
 ## Conventions
