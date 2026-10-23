@@ -9,7 +9,20 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -98,6 +111,14 @@ class Transaction(Base):
     total_latency_ms = Column(Float, nullable=True)
     pipeline_stages = Column(JSON, nullable=True)
     rag_context = Column(JSON, nullable=True)
+
+    # Structured, reproducible decision (S2.1/S2.2/S2.5)
+    account_id = Column(String, nullable=True, index=True)  # baseline key: account_id > sender_id > sender_name
+    reasons = Column(JSON, nullable=True)
+    decision = Column(JSON, nullable=True)  # the full ScreeningResult as returned
+    model_version = Column(String, nullable=True)
+    degraded = Column(Boolean, default=False)
+    shadow_result = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -273,24 +294,24 @@ class Filing(Base):
 
 
 class CircuitBreaker(Base):
-    """Circuit breaker state per downstream dependency."""
+    """Circuit breaker state per real dependency (see app.resilience.DEPENDENCIES)."""
     __tablename__ = "circuit_breakers"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
-    dependency = Column(String, nullable=False, unique=True)  # model_server, pgvector, redis, notification_service
-    state = Column(String, default="closed")  # closed, open, half_open
-    failure_count = Column(Integer, default=0)
-    success_count = Column(Integer, default=0)
-    last_failure_at = Column(DateTime, nullable=True)
-    last_state_change_at = Column(DateTime, nullable=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    dependency: Mapped[str] = mapped_column(String, unique=True)
+    state: Mapped[Optional[str]] = mapped_column(String, default="closed")  # closed, open, half_open
+    failure_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    success_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    last_failure_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_state_change_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Configuration
-    failure_threshold = Column(Integer, default=5)  # Failures before opening
-    cooldown_seconds = Column(Integer, default=60)  # Seconds to wait before half-open
-    half_open_max_calls = Column(Integer, default=3)  # Max probe calls in half-open
+    failure_threshold: Mapped[Optional[int]] = mapped_column(Integer, default=5)  # consecutive failures to open
+    cooldown_seconds: Mapped[Optional[int]] = mapped_column(Integer, default=60)  # open -> half_open after this
+    half_open_max_calls: Mapped[Optional[int]] = mapped_column(Integer, default=3)  # successes to close
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class WebhookEvent(Base):
@@ -316,41 +337,41 @@ class WebhookEvent(Base):
 
 
 class AccountBaseline(Base):
-    """Rolling per-account behavioral baseline for fraud detection."""
+    """Per-account behavioral baseline, refreshed after every screening of that account."""
     __tablename__ = "account_baselines"
+    __table_args__ = (UniqueConstraint("user_id", "account_id", name="uq_account_baselines_user_account"),)
 
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    account_id = Column(String, nullable=False)  # External account identifier
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    account_id: Mapped[str] = mapped_column(String)  # transactions.account_id key
 
-    # Rolling statistics (90-day window by default)
-    avg_amount = Column(Float, default=0.0)
-    avg_frequency_per_day = Column(Float, default=0.0)
-    max_amount = Column(Float, default=0.0)
-    min_amount = Column(Float, default=0.0)
-    std_dev_amount = Column(Float, default=0.0)
+    # Rolling statistics (90-day window)
+    avg_amount: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    avg_frequency_per_day: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    max_amount: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    min_amount: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    std_dev_amount: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
 
     # Typical patterns
-    typical_countries = Column(JSON, nullable=True)  # List of frequent destination countries
-    typical_payees = Column(JSON, nullable=True)  # List of frequent receiver names
-    typical_tx_types = Column(JSON, nullable=True)  # List of frequent transaction types
+    typical_countries: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    typical_payees: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    typical_tx_types: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     # Account age tracking
-    first_transaction_at = Column(DateTime, nullable=True)
-    last_transaction_at = Column(DateTime, nullable=True)
-    history_days = Column(Integer, default=0)
-    total_transactions = Column(Integer, default=0)
+    first_transaction_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_transaction_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    history_days: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    total_transactions: Mapped[Optional[int]] = mapped_column(Integer, default=0)
 
-    # Cold-start flag
-    is_cold_start = Column(Boolean, default=True)  # True if < 30 days of history
+    # Cold-start flag (see app.domain.behavioral.is_cold_start)
+    is_cold_start: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
 
     # Baseline freshness
-    last_computed_at = Column(DateTime, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_computed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User")
-
 
 
 class Setting(Base):
@@ -373,6 +394,74 @@ class FeatureFlag(Base):
     enabled: Mapped[bool] = mapped_column(Boolean)
     updated_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class WatchlistEntry(Base):
+    """A sanctions or PEP list entry (S2.3). Replaced wholesale per source on each import."""
+    __tablename__ = "watchlist_entries"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # "<source>:<source id>"
+    source: Mapped[str] = mapped_column(String, index=True)
+    list_version: Mapped[str] = mapped_column(String)
+    list_type: Mapped[str] = mapped_column(String, index=True)  # sanctions | pep
+    primary_name: Mapped[str] = mapped_column(String)
+    aliases: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    entity_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    effective_from: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    effective_to: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    raw: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+
+
+class ListImport(Base):
+    """One import run per source: what version is loaded, when, and how many entries."""
+    __tablename__ = "list_imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String, index=True)
+    list_type: Mapped[str] = mapped_column(String)
+    list_version: Mapped[str] = mapped_column(String)
+    entry_count: Mapped[int] = mapped_column(Integer)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_fixture: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class HighRiskCountry(Base):
+    """Jurisdictions screened by RULE-004 (ISO 3166-1 alpha-2)."""
+    __tablename__ = "high_risk_countries"
+
+    code: Mapped[str] = mapped_column(String(2), primary_key=True)
+    source: Mapped[str] = mapped_column(String)
+    reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    added_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+
+class ModelVersion(Base):
+    """A versioned risk model (S2.5). Exactly one `active` version per kind (enforced by a partial
+    unique index); `shadow` versions are scored alongside but never affect a decision."""
+    __tablename__ = "model_versions"
+    __table_args__ = (
+        Index("uq_model_versions_one_active_per_kind", "kind", unique=True,
+              postgresql_where=text("status = 'active'"), sqlite_where=text("status = 'active'")),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    name: Mapped[str] = mapped_column(String)
+    version: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String, default="risk")
+    status: Mapped[str] = mapped_column(String, default="shadow")  # shadow | active | retired
+    params: Mapped[Any] = mapped_column(JSON)
+    feature_list: Mapped[Any] = mapped_column(JSON)
+    metrics: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    model_card: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    activated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    @property
+    def label(self) -> str:
+        return f"{self.name}@{self.version}"
 
 # --- RAG corpora (pgvector). 384-dim matches both the hashing embedder and all-MiniLM-L6-v2. ---
 EMBEDDING_DIM = 384

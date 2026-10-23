@@ -7,9 +7,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # --- Enums ---
 
@@ -74,6 +74,11 @@ class TransactionRequest(BaseModel):
     transaction_type: TransactionType
     sender_name: str
     sender_id: Optional[str] = None
+    account_id: Optional[str] = Field(
+        default=None,
+        description="Originating account identifier; behavioral baselines are keyed on it "
+                    "(falls back to sender_id, then sender_name, recorded as account_key_source)",
+    )
     receiver_name: str
     receiver_id: Optional[str] = None
     destination_country: Optional[str] = None
@@ -100,8 +105,25 @@ class RuleResult(BaseModel):
     latency_ms: float
 
 
+class Reason(BaseModel):
+    """One machine-readable explanation of a decision input.
+
+    source: rule | list | behavioral | rag | model | gate | resilience.
+    contribution: this input's share of the risk score (0 for purely categorical gate reasons).
+    """
+    model_config = ConfigDict(extra="allow")
+
+    source: str
+    feature: str
+    value: Any = None
+    contribution: float = 0.0
+    detail: Optional[str] = None
+
+
 class ScreeningResult(BaseModel):
-    """Result of the full compliance pipeline."""
+    """Result of the full compliance pipeline: the structured, reproducible decision."""
+    model_config = ConfigDict(protected_namespaces=())
+
     transaction_id: str
     idempotency_key: str
     status: ScreeningStatus
@@ -116,6 +138,13 @@ class ScreeningResult(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     pipeline_stages: list[str]
     rag_context: Optional[dict] = None
+    reasons: list[Reason] = Field(default_factory=list)
+    model_version: Optional[str] = None
+    degraded: bool = Field(default=False, description="A configured dependency failed; never auto-approved")
+    degraded_dependencies: list[str] = Field(default_factory=list)
+    rag_status: Optional[str] = Field(default=None, description="ok | disabled | unavailable")
+    account_key: Optional[str] = None
+    account_key_source: Optional[str] = None
 
 
 class TransactionResponse(BaseModel):

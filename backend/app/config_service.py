@@ -87,6 +87,10 @@ SETTINGS: dict[str, tuple[Any, Callable[[Any], bool], str]] = {
     "rules.threshold.international": (50000.0, _number, "RULE-003 review threshold for other types"),
     "behavioral.trigger.cold_start": (0.5, _unit, "Anomaly score that triggers review for accounts < 30 days old"),
     "behavioral.trigger.warm": (0.65, _unit, "Anomaly score that triggers review for established accounts"),
+    "behavioral.cold_start_days": (30, _number, "Accounts with less history than this are cold-start"),
+    "behavioral.min_history_txs": (5, _number, "Fewer prior transactions than this is also cold-start"),
+    "lists.fuzzy_threshold": (0.88, _unit, "Minimum name similarity (0-1) for a fuzzy sanctions/PEP hit"),
+    "lists.max_age_hours": (48, _number, "A list source older than this is reported stale"),
     "risk.weights": ({"rules": 0.5, "behavioral": 0.3, "model": 0.2}, _weights, "Risk blend weights (sum to 1)"),
     "decision.bands": ({"block": 0.8, "block_if_rule": 0.6, "flag": 0.5, "review": 0.3}, _bands,
                        "Score-based decision bands, used only when no rule action fired"),
@@ -198,6 +202,11 @@ class ScreeningConfig:
     credit_cost: dict
     behavioral_enabled: bool
     ml_enabled: bool
+    behavioral_trigger_warm: float = 0.65
+    behavioral_trigger_cold_start: float = 0.5
+    cold_start_days: int = 30
+    min_history_txs: int = 5
+    list_fuzzy_threshold: float = 0.88
 
     @classmethod
     def defaults(cls) -> "ScreeningConfig":
@@ -209,6 +218,11 @@ class ScreeningConfig:
             credit_cost=SETTINGS["billing.credit_cost"][0],
             behavioral_enabled=True,
             ml_enabled=True,
+            behavioral_trigger_warm=SETTINGS["behavioral.trigger.warm"][0],
+            behavioral_trigger_cold_start=SETTINGS["behavioral.trigger.cold_start"][0],
+            cold_start_days=SETTINGS["behavioral.cold_start_days"][0],
+            min_history_txs=SETTINGS["behavioral.min_history_txs"][0],
+            list_fuzzy_threshold=SETTINGS["lists.fuzzy_threshold"][0],
         )
 
 
@@ -221,6 +235,11 @@ def screening_config(db: Session) -> ScreeningConfig:
         credit_cost=get_setting(db, "billing.credit_cost"),
         behavioral_enabled=get_flag(db, "screening.behavioral"),
         ml_enabled=get_flag(db, "screening.ml"),
+        behavioral_trigger_warm=float(get_setting(db, "behavioral.trigger.warm")),
+        behavioral_trigger_cold_start=float(get_setting(db, "behavioral.trigger.cold_start")),
+        cold_start_days=int(get_setting(db, "behavioral.cold_start_days")),
+        min_history_txs=int(get_setting(db, "behavioral.min_history_txs")),
+        list_fuzzy_threshold=float(get_setting(db, "lists.fuzzy_threshold")),
     )
 
 

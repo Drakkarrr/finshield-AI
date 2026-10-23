@@ -76,9 +76,10 @@ class TestHealthEndpoint:
         resp = await client.get("/api/health")
         services = resp.json()["services"]
         # Only real probes; no static "healthy" entries for things nothing checks.
-        assert set(services) == {"database", "rag_service"}
+        assert set(services) == {"database", "rag_service", "sanctions_list", "circuit_breakers"}
         assert services["database"] == "healthy"
         assert services["rag_service"] == "disabled"  # no RAG_DATABASE_URL under test
+        assert services["sanctions_list"] == "fresh"  # fixture list loaded by conftest
 
     @pytest.mark.asyncio
     async def test_health_uptime_positive(self, client):

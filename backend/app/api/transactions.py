@@ -5,11 +5,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app import config_service
+from app import screening_service
 from app.auth import (
     get_current_user,
 )
-from app.core import engine, limiter, logger
+from app.core import limiter, logger
 from app.database import get_db
 from app.db_models import (
     Case,
@@ -57,7 +57,9 @@ def screen_transaction(
     existing_tx = db.query(Transaction).filter(
         Transaction.idempotency_key == tx.idempotency_key, Transaction.user_id == current_user.id
     ).first()
-    if existing_tx:
+    if existing_tx and existing_tx.decision:
+        return TransactionResponse(success=True, data=ScreeningResult.model_validate(existing_tx.decision))
+    if existing_tx:  # screened before decisions were persisted: rebuild from the stored columns
         return TransactionResponse(success=True, data=ScreeningResult(
             transaction_id=existing_tx.id,
             idempotency_key=existing_tx.idempotency_key,
@@ -75,34 +77,9 @@ def screen_transaction(
             timestamp=existing_tx.created_at,
         ))
 
-    # Runtime config (settings + flags) and the user's in-effect rule overrides
-    screening_cfg = config_service.screening_config(db)
-    user_rule_configs = config_service.rule_overrides(db, current_user.id)
-
-    result = engine.screen(tx, rule_configs=user_rule_configs, config=screening_cfg)
-
-    # RAG enrichment: retrieve relevant compliance context (policies, sanctions, precedents).
-    # Non-blocking — if RAG is unavailable, screening still completes normally.
-    rag_service = getattr(request.app.state, "rag_service", None)
-    if rag_service is not None and config_service.get_flag(db, "screening.rag"):
-        try:
-            rag_context = rag_service.multi_hop_retrieval({
-                "sender_name": tx.sender_name,
-                "receiver_name": tx.receiver_name,
-                "transaction_type": tx.transaction_type.value,
-                "destination_country": tx.destination_country,
-            })
-            result.rag_context = rag_context
-            # Surface the retrieval stage in the pipeline for explainability
-            if "rag_retrieval" not in result.pipeline_stages:
-                result.pipeline_stages = result.pipeline_stages + ["rag_retrieval"]
-            # A strong sanctions match reinforces escalation (never silently auto-approves)
-            if rag_context.get("sanctions_matches") and result.status.value == "approved":
-                result.status = ScreeningStatus.flagged
-                if result.risk_score < 0.5:
-                    result.risk_score = 0.5
-        except Exception as e:
-            logger.warning(f"RAG enrichment failed (screening continues): {e}")
+    # Pure pipeline over inputs resolved through circuit breakers (lists, history, RAG, model)
+    outcome = screening_service.run(db, current_user.id, tx, getattr(request.app.state, "rag_service", None))
+    result = outcome.result
 
     # Update user credits
     current_user.used_credits += result.credits_consumed
@@ -128,13 +105,22 @@ def screen_transaction(
         total_latency_ms=result.total_latency_ms,
         pipeline_stages=result.pipeline_stages,
         rag_context=result.rag_context,
+        account_id=result.account_key,
+        reasons=[r.model_dump() for r in result.reasons],
+        model_version=result.model_version,
+        degraded=result.degraded,
+        shadow_result=outcome.shadow,
     )
     db.add(db_tx)
+    db.flush()
+
+    # The persisted DB id is the single source of truth for downstream case creation
+    result.transaction_id = db_tx.id
+    db_tx.decision = result.model_dump(mode="json")
+    if result.account_key:
+        screening_service.refresh_baseline(db, current_user.id, result.account_key)
     db.commit()
     db.refresh(db_tx)
-
-    # Return the persisted DB id (single source of truth for downstream case creation)
-    result.transaction_id = db_tx.id
 
     # Generate notifications for important events
     if result.status.value == "blocked":
@@ -290,6 +276,12 @@ def get_transaction(
         "total_latency_ms": tx.total_latency_ms,
         "pipeline_stages": tx.pipeline_stages or [],
         "rag_context": tx.rag_context,
+        "account_id": tx.account_id,
+        "reasons": tx.reasons or [],
+        "model_version": tx.model_version,
+        "degraded": bool(tx.degraded),
+        "shadow_result": tx.shadow_result,
+        "decision": tx.decision,
         "created_at": tx.created_at.isoformat(),
     }
 

@@ -1,10 +1,11 @@
 """
-FinShield AI — Unit Tests for Compliance Engine
-Tests the 7-stage pipeline: rules, behavioral, ML, risk scoring, decisions.
+FinShield AI — Unit tests for the pure screening pipeline (rules, behavioral, model, gate).
 """
 import pytest
 
-from app.compliance_engine import ComplianceEngine
+from app.config_service import ScreeningConfig
+from app.domain.models_registry.registry import BUILTIN
+from app.domain.screening import ScreeningContext, screen
 from app.models import (
     CreditTier,
     ScreeningStatus,
@@ -12,10 +13,25 @@ from app.models import (
     TransactionType,
 )
 
+LEGACY_COUNTRIES = frozenset({"KP", "IR", "SY", "CU", "RU"})
+
+
+class _Engine:
+    """Runs the pure pipeline with the list fixture, the legacy country list and the v1 model."""
+
+    def __init__(self, watchlist):
+        self.watchlist = watchlist
+
+    def screen(self, tx, **ctx):
+        base = dict(config=ScreeningConfig.defaults(), model=BUILTIN, watchlist=self.watchlist,
+                    high_risk_countries=LEGACY_COUNTRIES, account_key=tx.sender_name, account_key_source="sender_name")
+        base.update(ctx)
+        return screen(tx, ScreeningContext(**base)).result
+
 
 @pytest.fixture
-def engine():
-    return ComplianceEngine()
+def engine(fixture_watchlist):
+    return _Engine(fixture_watchlist)
 
 
 # --- Helper to build transactions ---
@@ -116,7 +132,6 @@ class TestPipeline:
     def test_pipeline_includes_all_stages(self, engine):
         tx = make_tx(amount=60000.0, destination_country="SY")
         result = engine.screen(tx)
-        assert "idempotency_check" in result.pipeline_stages
         assert "validation" in result.pipeline_stages
         assert "rule_engine" in result.pipeline_stages
         assert "risk_scoring" in result.pipeline_stages
@@ -173,18 +188,15 @@ class TestDecisions:
 # Idempotency Tests
 # =============================================
 
-class TestIdempotency:
-    def test_different_idempotency_keys_different_results(self, engine):
+class TestDeterminism:
+    def test_identical_payload_identical_decision_regardless_of_key(self, engine):
         tx1 = make_tx(amount=1000.0)
         tx1.idempotency_key = "key-a"
-        result1 = engine.screen(tx1)
-
         tx2 = make_tx(amount=1000.0)
         tx2.idempotency_key = "key-b"
-        result2 = engine.screen(tx2)
-
-        # Different keys should produce different transaction IDs
-        assert result1.transaction_id != result2.transaction_id
+        a, b = engine.screen(tx1), engine.screen(tx2)
+        assert (a.status, a.risk_score, a.reasons) == (b.status, b.risk_score, b.reasons)
+        assert a.transaction_id == ""  # ids are assigned at persistence, never random
 
 
 # =============================================

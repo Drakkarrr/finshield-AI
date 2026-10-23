@@ -687,6 +687,29 @@
     "title": "LoginRequest",
     "type": "object"
    },
+   "ModelRegisterRequest": {
+    "properties": {
+     "model_card": {
+      "title": "Model Card",
+      "type": "object"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "params": {
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "name",
+     "params",
+     "model_card"
+    ],
+    "title": "ModelRegisterRequest",
+    "type": "object"
+   },
    "NotificationPreferencesUpdate": {
     "properties": {
      "email_blocked_tx": {
@@ -972,6 +995,45 @@
     "title": "RAGSearchRequest",
     "type": "object"
    },
+   "Reason": {
+    "additionalProperties": true,
+    "description": "One machine-readable explanation of a decision input.\n\nsource: rule | list | behavioral | rag | model | gate | resilience.\ncontribution: this input's share of the risk score (0 for purely categorical gate reasons).",
+    "properties": {
+     "contribution": {
+      "default": 0.0,
+      "title": "Contribution",
+      "type": "number"
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     },
+     "feature": {
+      "title": "Feature",
+      "type": "string"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     },
+     "value": {
+      "title": "Value"
+     }
+    },
+    "required": [
+     "source",
+     "feature"
+    ],
+    "title": "Reason",
+    "type": "object"
+   },
    "RegisterRequest": {
     "properties": {
      "company": {
@@ -1178,8 +1240,30 @@
     "type": "object"
    },
    "ScreeningResult": {
-    "description": "Result of the full compliance pipeline.",
+    "description": "Result of the full compliance pipeline: the structured, reproducible decision.",
     "properties": {
+     "account_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Account Key"
+     },
+     "account_key_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Account Key Source"
+     },
      "behavioral_score": {
       "anyOf": [
        {
@@ -1197,6 +1281,19 @@
      "credits_consumed": {
       "title": "Credits Consumed",
       "type": "number"
+     },
+     "degraded": {
+      "default": false,
+      "description": "A configured dependency failed; never auto-approved",
+      "title": "Degraded",
+      "type": "boolean"
+     },
+     "degraded_dependencies": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Degraded Dependencies",
+      "type": "array"
      },
      "idempotency_key": {
       "title": "Idempotency Key",
@@ -1224,6 +1321,17 @@
       ],
       "title": "Ml Confidence"
      },
+     "model_version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Version"
+     },
      "pipeline_stages": {
       "items": {
        "type": "string"
@@ -1241,6 +1349,25 @@
        }
       ],
       "title": "Rag Context"
+     },
+     "rag_status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "ok | disabled | unavailable",
+      "title": "Rag Status"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/Reason"
+      },
+      "title": "Reasons",
+      "type": "array"
      },
      "risk_score": {
       "maximum": 1.0,
@@ -1348,6 +1475,18 @@
    "TransactionRequest": {
     "description": "Incoming transaction to screen.",
     "properties": {
+     "account_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Originating account identifier; behavioral baselines are keyed on it (falls back to sender_id, then sender_name, recorded as account_key_source)",
+      "title": "Account Id"
+     },
      "amount": {
       "description": "Transaction amount",
       "exclusiveMinimum": 0.0,
@@ -1779,7 +1918,7 @@
   },
   "/api/health": {
    "get": {
-    "description": "System health: same shape as before, but every service entry is a real probe result.",
+    "description": "System health for monitoring: 503 when a dependency is down, sanctions data is missing or\nstale, or a circuit breaker is open.",
     "operationId": "health_check_api_health_get",
     "responses": {
      "200": {
@@ -1821,7 +1960,7 @@
   },
   "/api/health/ready": {
    "get": {
-    "description": "Readiness probe \u2014 503 with a per-dependency body when any probe fails.",
+    "description": "Readiness probe \u2014 503 when a hard dependency (DB, RAG) fails. Compliance signals (list\nfreshness, open breakers) are reported but do not take the instance out of rotation: it still\nserves, and the gate holds affected decisions for review.",
     "operationId": "readiness_probe_api_health_ready_get",
     "responses": {
      "200": {
@@ -1887,7 +2026,7 @@
   },
   "/api/v1/behavioral/score": {
    "post": {
-    "description": "Score a transaction against account's behavioral baseline.",
+    "description": "Score an amount against the account's baseline: the same function screening uses.",
     "operationId": "score_transaction_behavior_api_v1_behavioral_score_post",
     "requestBody": {
      "content": {
@@ -1932,7 +2071,7 @@
   },
   "/api/v1/behavioral/update-baseline": {
    "post": {
-    "description": "Recompute behavioral baseline for an account from transaction history.",
+    "description": "Recompute the account's baseline from its transaction history (keyed on account_id).",
     "operationId": "update_account_baseline_api_v1_behavioral_update_baseline_post",
     "parameters": [
      {
@@ -3094,7 +3233,7 @@
   },
   "/api/v1/health/circuit-breakers": {
    "get": {
-    "description": "Get circuit breaker status for all dependencies.",
+    "description": "Live state of the breaker around each real dependency.",
     "operationId": "get_circuit_breaker_status_api_v1_health_circuit_breakers_get",
     "responses": {
      "200": {
@@ -3117,10 +3256,10 @@
     ]
    }
   },
-  "/api/v1/health/circuit-breakers/{dependency}/check-half-open": {
+  "/api/v1/health/circuit-breakers/{dependency}/reset": {
    "post": {
-    "description": "Check if an open circuit breaker should transition to half-open.",
-    "operationId": "check_half_open_transition_api_v1_health_circuit_breakers__dependency__check_half_open_post",
+    "description": "Manually close a breaker after an incident is resolved (audited in S3.1/S3.2).",
+    "operationId": "reset_circuit_breaker_api_v1_health_circuit_breakers__dependency__reset_post",
     "parameters": [
      {
       "in": "path",
@@ -3157,99 +3296,7 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "Check Half Open Transition",
-    "tags": [
-     "System"
-    ]
-   }
-  },
-  "/api/v1/health/circuit-breakers/{dependency}/record-failure": {
-   "post": {
-    "description": "Record a failure for a circuit breaker.",
-    "operationId": "record_circuit_breaker_failure_api_v1_health_circuit_breakers__dependency__record_failure_post",
-    "parameters": [
-     {
-      "in": "path",
-      "name": "dependency",
-      "required": true,
-      "schema": {
-       "title": "Dependency",
-       "type": "string"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "security": [
-     {
-      "HTTPBearer": []
-     }
-    ],
-    "summary": "Record Circuit Breaker Failure",
-    "tags": [
-     "System"
-    ]
-   }
-  },
-  "/api/v1/health/circuit-breakers/{dependency}/record-success": {
-   "post": {
-    "description": "Record a success for a circuit breaker.",
-    "operationId": "record_circuit_breaker_success_api_v1_health_circuit_breakers__dependency__record_success_post",
-    "parameters": [
-     {
-      "in": "path",
-      "name": "dependency",
-      "required": true,
-      "schema": {
-       "title": "Dependency",
-       "type": "string"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "security": [
-     {
-      "HTTPBearer": []
-     }
-    ],
-    "summary": "Record Circuit Breaker Success",
+    "summary": "Reset Circuit Breaker",
     "tags": [
      "System"
     ]
@@ -3257,7 +3304,7 @@
   },
   "/api/v1/health/overall": {
    "get": {
-    "description": "Get overall system health status for dashboard.",
+    "description": "Overall degradation level for the dashboard.",
     "operationId": "get_overall_health_status_api_v1_health_overall_get",
     "responses": {
      "200": {
@@ -3400,6 +3447,145 @@
     "summary": "Revoke Api Key",
     "tags": [
      "API Keys"
+    ]
+   }
+  },
+  "/api/v1/lists/status": {
+   "get": {
+    "description": "Last import per source, its version and size, and whether it is stale.",
+    "operationId": "list_status_api_v1_lists_status_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Status",
+    "tags": [
+     "Lists"
+    ]
+   }
+  },
+  "/api/v1/models": {
+   "get": {
+    "description": "Every model version, newest first.",
+    "operationId": "list_models_api_v1_models_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Models",
+    "tags": [
+     "Models"
+    ]
+   },
+   "post": {
+    "description": "Register a new version. It starts in shadow: scored on every eligible screening and stored\non the transaction, but it never affects a decision until promoted.",
+    "operationId": "register_model_api_v1_models_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ModelRegisterRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Register Model",
+    "tags": [
+     "Models"
+    ]
+   }
+  },
+  "/api/v1/models/{version_id}/promote": {
+   "post": {
+    "description": "Make this version the single active one (the previous active version is retired).",
+    "operationId": "promote_model_api_v1_models__version_id__promote_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "version_id",
+      "required": true,
+      "schema": {
+       "title": "Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Promote Model",
+    "tags": [
+     "Models"
     ]
    }
   },

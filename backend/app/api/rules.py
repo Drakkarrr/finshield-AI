@@ -10,7 +10,6 @@ from app import config_service
 from app.auth import (
     get_current_user,
 )
-from app.core import engine
 from app.database import get_db
 from app.db_models import (
     AuditLog,
@@ -18,8 +17,15 @@ from app.db_models import (
     Transaction,
     User,
 )
+from app.domain.lists import provider as lists
+from app.domain.screening import rules as rule_engine
 
 router = APIRouter()
+
+
+def _definitions(db: Session) -> list[dict]:
+    return rule_engine.rule_definitions(config_service.screening_config(db), lists.high_risk_countries(db),
+                                        lists.snapshot(db))
 
 
 # ============================================================
@@ -54,7 +60,7 @@ def update_rule(
 ):
     """Toggle or customize a compliance rule for the current user. Every change bumps the
     override's version and is audit-logged with before/after values."""
-    definitions = engine.rule_definitions(config_service.screening_config(db))
+    definitions = _definitions(db)
     if not any(r["rule_id"] == rule_id for r in definitions):
         raise HTTPException(status_code=404, detail="Rule not found")
 
@@ -101,7 +107,7 @@ def list_rules(
     db: Session = Depends(get_db),
 ):
     """List rules with the user's overrides applied, in execution (priority) order."""
-    definitions = engine.rule_definitions(config_service.screening_config(db))
+    definitions = _definitions(db)
     now = datetime.utcnow()
     config_map = {c.rule_id: c for c in db.query(RuleConfig).filter(RuleConfig.user_id == current_user.id).all()}
 
@@ -138,7 +144,9 @@ def simulate_rule(
     """Simulate a rule against historical transaction data."""
     # Get rule definition
     screening_cfg = config_service.screening_config(db)
-    definitions = engine.rule_definitions(screening_cfg)
+    watchlist = lists.snapshot(db)
+    countries = lists.high_risk_countries(db)
+    definitions = rule_engine.rule_definitions(screening_cfg, countries, watchlist)
     rule_def = next((r for r in definitions if r["rule_id"] == req.rule_id), None)
     if not rule_def:
         raise HTTPException(404, "Rule not found")
@@ -167,7 +175,7 @@ def simulate_rule(
             "description": tx.description,
         }
 
-        result = engine.evaluate_rule(rule_def, tx_data, screening_cfg)
+        result = rule_engine.evaluate_rule(rule_def, tx_data, screening_cfg, watchlist, countries)
         if result["triggered"]:
             triggered_count += 1
             if rule_def["action"] == "block":
