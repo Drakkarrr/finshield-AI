@@ -174,19 +174,6 @@ class TestDecisions:
 # =============================================
 
 class TestIdempotency:
-    def test_same_idempotency_key_returns_same_result(self, engine):
-        tx1 = make_tx(amount=1000.0)
-        tx1.idempotency_key = "test-key-123"
-        result1 = engine.screen(tx1)
-
-        tx2 = make_tx(amount=2000.0)
-        tx2.idempotency_key = "test-key-123"
-        result2 = engine.screen(tx2)
-
-        assert result1.transaction_id == result2.transaction_id
-        assert result1.status == result2.status
-        assert result1.risk_score == result2.risk_score
-
     def test_different_idempotency_keys_different_results(self, engine):
         tx1 = make_tx(amount=1000.0)
         tx1.idempotency_key = "key-a"

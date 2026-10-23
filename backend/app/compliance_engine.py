@@ -31,9 +31,6 @@ class ComplianceEngine:
     Each stage is a separate method for clarity and testability.
     """
 
-    def __init__(self) -> None:
-        self._idempotency_cache: dict[str, ScreeningResult] = {}
-
     @staticmethod
     def rule_definitions() -> list[dict]:
         """Expose the hard-rule definitions for the Rules management UI.
@@ -95,9 +92,7 @@ class ComplianceEngine:
         pipeline_start = time.monotonic()
         stages: list[str] = []
 
-        # Stage 1: Idempotency check
-        if tx.idempotency_key in self._idempotency_cache:
-            return self._idempotency_cache[tx.idempotency_key]
+        # Stage 1: Idempotency check (handled at API layer via Transaction.idempotency_key)
         stages.append("idempotency_check")
 
         # Stage 2: Input validation (already done by Pydantic)
@@ -156,7 +151,6 @@ class ComplianceEngine:
             pipeline_stages=stages,
         )
 
-        self._idempotency_cache[tx.idempotency_key] = result
         return result
 
     # --- Stage 3: Rule Engine ---
