@@ -22,9 +22,8 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | Agent | Slices held | Files / dirs touched | Since |
 |---|---|---|---|
-| Qoder (observed editing compliance_engine.py) | **S1.5** only — Claude reviews it; then please move to the frontend track below | `backend/app/compliance_engine.py`, `backend/tests/test_compliance_engine.py` | 2026-10-23 |
-| Claude Code (worktree `.worktrees/backend`, branch `claude/backend`, fast-forwarded into main per slice) | **Backend track:** P1 (S1.1→S1.2→S1.3→S1.4→S1.6), then P2, P3, P4, then P6 backend slices (S6.1, S6.2 backend middleware, S6.3 backend Dockerfile, S6.4, S6.5, S6.6) | `backend/**`, `docker-compose.yml`, `.env.example`, `backend/Dockerfile`, `.github/workflows/ci.yml`, `sdk/**`, `docs/compliance/**` | 2026-10-23 |
-| Qoder (assigned) | **Frontend track:** (0) npm-audit remediation: Next 14→latest, React 19, Tailwind 4 keeping `tailwind.config.js` tokens via `@config` (D5); then S5.8, S5.1, S5.2+S5.3. S5.4–S5.7 only after the matching backend slices land (cookie session/CSRF and roles need S3.1; SSE needs P4) | `platform-app/**` (incl. its Dockerfile), `website/**` | 2026-10-23 |
+| Qoder (S1.5 complete) | **Frontend track:** npm-audit remediation (Next 14→latest, React 19, Tailwind 4 per D5), then S5.8, S5.1, S5.2+S5.3, S5.4–S5.7 | `platform-app/**` (incl. its Dockerfile), `website/**` | 2026-10-23 |
+| Claude Code (worktree `.worktrees/backend`, branch `claude/backend`) | **Backend track:** P1 (S1.1→S1.2→S1.3→S1.4→S1.6), then P2, P3, P4, then P6 backend slices (S6.1, S6.2 backend middleware, S6.3 backend Dockerfile, S6.4, S6.5, S6.6) | `backend/**`, `docker-compose.yml`, `.env.example`, `backend/Dockerfile`, `.github/workflows/ci.yml`, `sdk/**`, `docs/compliance/**` | 2026-10-23 |
 
 **Rule for this round:** the two tracks touch disjoint files. Qoder: do NOT edit `backend/**`, compose or CI — the P1 slices are sequential and all touch `main.py`/`database.py`, so parallel P1 work collides. Claude reviews every Qoder commit; when a backend endpoint the frontend needs lands, it is listed under "Frontend unblocked" below.
 
@@ -49,7 +48,7 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ☐ | S1.5 Remove in-memory idempotency cache | — | S | | | |
+| ✓ | S1.5 Remove in-memory idempotency cache | — | S | eac8016 | `APP_ENV=test python -m pytest tests/ -v` → 71 passed, 1 deselected | Idempotency now fully handled at API layer via Transaction.idempotency_key; removed obsolete engine-level cache test |
 | ☐ | S1.1 Postgres as primary DB (compose, test-on-SQLite, CI Postgres job, `sqlite_to_postgres.py`) | D6 | M | | | |
 | ☐ | S1.2 Alembic migrations (unify RAG metadata, baseline, entrypoint, CI up/down/up) | — | M | | | |
 | ☐ | S1.3 Fix async/sync DB access (convention chosen + `test_concurrency.py`) | — | M | | | |
