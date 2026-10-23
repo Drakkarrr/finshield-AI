@@ -125,7 +125,15 @@ docker compose logs -f
 
 ### Backup & Restore
 
-> **Interim only.** Tested backup/restore scripts are slice S4.5. The SQLite file must live on the `backend-data` volume (`/app/data`) for these commands — and for data to survive container recreation; check `DATABASE_URL` in compose points at `sqlite:////app/data/finshield.db`.
+The stack runs on Postgres. The `backup` service writes a daily `pg_dump` archive to `./backups`. For an archive on demand:
+
+```bash
+docker compose exec backup sh /scripts/backup.sh
+```
+
+To restore, follow the tested runbook in [DEPLOYMENT.md, Phase 9](./DEPLOYMENT.md#phase-9-backup-and-restore--implemented-s45) (`scripts/restore.sh`, then the audit-chain check).
+
+> **Superseded (SQLite only, R7).** These commands apply only to a pre-Postgres SQLite setup. To move such a file into Postgres, use `python -m scripts.sqlite_to_postgres <file>`.
 
 **Backup database:**
 ```bash

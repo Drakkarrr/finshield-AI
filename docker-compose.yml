@@ -110,6 +110,37 @@ services:
       retries: 3
       start_period: 60s
 
+  # Scheduled pg_dump (S4.5). Archives land in ./backups on the host (BACKUP_HOST_DIR).
+  # Same image as the database, so pg_dump matches the server version. Runbook: DEPLOYMENT.md.
+  backup:
+    image: pgvector/pgvector:pg16
+    container_name: finshield-backup
+    entrypoint: ["sh", "-c"]
+    command:
+      - 'while true; do sh /scripts/backup.sh || echo "backup: FAILED" >&2; sleep "$${BACKUP_INTERVAL_SECONDS}"; done'
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-finshield}
+      - BACKUP_DIR=/backups
+      - BACKUP_INTERVAL_SECONDS=${BACKUP_INTERVAL_SECONDS:-86400}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-35}
+      - BACKUP_MIN_KEEP=${BACKUP_MIN_KEEP:-7}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - finshield-network
+    healthcheck:
+      # Healthy while the newest archive is younger than two intervals.
+      test: ["CMD-SHELL", "test -n \"$$(find /backups -name 'finshield-*.dump' -mmin -$$((BACKUP_INTERVAL_SECONDS / 30)))\""]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
   frontend:
     build:
       context: .

@@ -41,3 +41,6 @@ htmlcov/
 
 # Evaluation harness output (baseline.json is committed)
 backend/tests/eval/report.json
+
+# Database backups (S4.5)
+backups/

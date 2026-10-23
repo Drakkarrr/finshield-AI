@@ -394,11 +394,69 @@ sentry_sdk.init(
 
 ---
 
-## Phase 9: Backup Strategy — PROPOSED
+## Phase 9: Backup and restore — IMPLEMENTED (S4.5)
 
-### Database (Neon)
+[scripts/backup.sh](./scripts/backup.sh) and [scripts/restore.sh](./scripts/restore.sh) work against any Postgres,
+managed or not. The retention period for each data class is in [docs/compliance/retention.md](./docs/compliance/retention.md).
+
+### What gets backed up
+
+- **The database**, as a `pg_dump` custom-format archive plus a `.sha256`. Locally, the compose `backup` service writes one every
+  `BACKUP_INTERVAL_SECONDS` (default daily) to `BACKUP_HOST_DIR` (default `./backups`). It keeps 35 days of archives and always
+  the newest 7. Set `BACKUP_S3_URI` (needs the `aws` CLI in the image) to copy each archive off the host, and use a bucket with
+  server-side encryption: the archive holds personal data in clear except for the encrypted columns.
+- **Not in the archive:**
+  - `DATA_ENCRYPTION_KEY`. Keep it in the secret store, backed up separately. Without it, encrypted columns can't be read and
+    audit exports won't match the published public key.
+  - The cluster role `finshield_app`. `restore.sh` recreates it.
+
+Run `backup.sh` as the database owner. Under row-level security, a lesser role would silently dump only the rows it can see.
+
+### Restore (tested runbook)
+
+1. **Record the chain heads before you lose them** (or take them from the last backup's run log):
+   `docker compose exec backend python -m scripts.audit_check`
+2. **Provision an empty database.** Use a new database, or a new cluster after a disaster.
+3. **Restore.** Set `DATABASE_URL` to the empty target and run `scripts/restore.sh backups/finshield-<timestamp>.dump`.
+   The script:
+   - checks the `.sha256`;
+   - refuses a non-empty target unless `RESTORE_CLEAN=yes`;
+   - recreates `finshield_app`;
+   - restores in a single transaction, so a failure leaves nothing half-restored;
+   - re-applies the application-role grants.
+4. **Start the backend with the original `DATA_ENCRYPTION_KEY`.** The entrypoint's `alembic upgrade head` is a no-op on a
+   restored database that is already at head.
+5. **Verify the audit trail, twice:**
+   `docker compose exec backend python -m scripts.audit_check --export-dir /tmp/audit`
+   then `python scripts/verify_audit_export.py /tmp/audit/<tenant>.json --public-key <trusted key>` for each tenant.
+   Every tenant must print `OK`, with the same head hash as in step 1.
+6. **Re-apply erasures** completed after the backup's timestamp (see the retention doc), then reopen the service.
+
+Restore drill on 2026-10-23, pgvector/pgvector:pg16. The source was the developer database migrated with
+`scripts.sqlite_to_postgres`. The target was a fresh cluster with a different superuser and no `finshield_app` role.
+
+```
+source   OK   tenant-9bf7…1dac entries=6 head=4a428f24b14c3d091aac14316a79f1f9da055d3416d90a7a37df8720f8878854
+backup   finshield-20261023T164726Z.dump (92K), source database dropped
+restore  finshield-20261023T164726Z.dump: OK / restore: done, schema revision 0009
+again    exit=2 "target has 29 table(s). Restore into an empty database, or set RESTORE_CLEAN=yes."
+restored OK   tenant-9bf7…1dac entries=6 head=4a428f24b14c3d091aac14316a79f1f9da055d3416d90a7a37df8720f8878854
+verifier chain: OK 6 entries chain from genesis to 4a428f24…8854 / signature: OK signature valid (trusted key)
+rls      as owner tenant: 2 transactions; as another tenant: 0 (role finshield_app)
+```
+
+The first drill attempt failed: the archive's default privileges named the source owner role. That is why `restore.sh` restores
+with `--no-acl` and re-grants. The drill also exposed a pooled-connection RLS bypass, fixed in `app/database.py` with a
+regression test.
+
+### Superseded (kept for reference, R7)
+
+The earlier plan assumed Neon:
 - Neon auto-backs up (point-in-time restore on paid plan)
 - Manual export: `pg_dump $DATABASE_URL > backup.sql` (run weekly)
+
+Managed point-in-time recovery is still worth enabling on any managed Postgres. It complements these archives (which you can
+move, verify and restore anywhere) and doesn't replace them.
 
 ### Code
 - GitHub repo is your source of truth
