@@ -83,38 +83,79 @@ def screen_transaction(
 
     # RAG enrichment: retrieve relevant compliance context (policies, sanctions, precedents).
     # Non-blocking — if RAG is unavailable, screening still completes normally with honest degraded signal.
+    # Wrapped with circuit breaker for pgvector dependency.
     rag_service = getattr(request.app.state, "rag_service", None)
     if rag_service is not None and config_service.get_flag(db, "screening.rag"):
         try:
-            rag_context = rag_service.multi_hop_retrieval({
-                "sender_name": tx.sender_name,
-                "receiver_name": tx.receiver_name,
-                "transaction_type": tx.transaction_type.value,
-                "destination_country": tx.destination_country,
-            })
-            # Add model version metadata for audit trail
-            from app.rag_service import EMBEDDING_MODEL_VERSION, EMBEDDING_MODEL_NAME
-            rag_context["model_version"] = EMBEDDING_MODEL_VERSION
-            rag_context["model_name"] = EMBEDDING_MODEL_NAME
-            result.rag_context = rag_context
-            # Surface the retrieval stage in the pipeline for explainability
-            if "rag_retrieval" not in result.pipeline_stages:
-                result.pipeline_stages = result.pipeline_stages + ["rag_retrieval"]
-            # A strong sanctions match reinforces escalation (never silently auto-approves)
-            if rag_context.get("sanctions_matches") and result.status.value == "approved":
-                result.status = ScreeningStatus.flagged
-                if result.risk_score < 0.5:
-                    result.risk_score = 0.5
+            # Check circuit breaker state for pgvector
+            from app.api.breakers import get_or_create_breaker
+            from app.domain.circuit_breaker import CircuitBreakerOpen, get_degraded_action
+            
+            pgvector_breaker = get_or_create_breaker(db, "pgvector")
+            
+            # If circuit is open, skip RAG and use degraded mode
+            if pgvector_breaker.state == "open":
+                degraded_action = get_degraded_action("pgvector")
+                result.rag_context = {
+                    "degraded": True,
+                    "reason": f"pgvector circuit breaker is open (state: {pgvector_breaker.state})",
+                    "action": degraded_action,
+                    "fallback": "rule_based_screening_only",
+                }
+                if "rag_retrieval_degraded" not in result.pipeline_stages:
+                    result.pipeline_stages = result.pipeline_stages + ["rag_retrieval_degraded"]
+            else:
+                # Circuit is closed or half-open, try RAG retrieval
+                try:
+                    rag_context = rag_service.multi_hop_retrieval({
+                        "sender_name": tx.sender_name,
+                        "receiver_name": tx.receiver_name,
+                        "transaction_type": tx.transaction_type.value,
+                        "destination_country": tx.destination_country,
+                    })
+                    # Add model version metadata for audit trail
+                    from app.rag_service import EMBEDDING_MODEL_VERSION, EMBEDDING_MODEL_NAME
+                    rag_context["model_version"] = EMBEDDING_MODEL_VERSION
+                    rag_context["model_name"] = EMBEDDING_MODEL_NAME
+                    result.rag_context = rag_context
+                    # Surface the retrieval stage in the pipeline for explainability
+                    if "rag_retrieval" not in result.pipeline_stages:
+                        result.pipeline_stages = result.pipeline_stages + ["rag_retrieval"]
+                    # A strong sanctions match reinforces escalation (never silently auto-approves)
+                    if rag_context.get("sanctions_matches") and result.status.value == "approved":
+                        result.status = ScreeningStatus.flagged
+                        if result.risk_score < 0.5:
+                            result.risk_score = 0.5
+                    # Record success for circuit breaker
+                    pgvector_breaker.success_count += 1
+                    if pgvector_breaker.state == "half_open" and pgvector_breaker.success_count >= pgvector_breaker.half_open_max_calls:
+                        pgvector_breaker.state = "closed"
+                        pgvector_breaker.failure_count = 0
+                        pgvector_breaker.last_state_change_at = datetime.utcnow()
+                    db.commit()
+                except Exception as e:
+                    # Record failure for circuit breaker
+                    pgvector_breaker.failure_count += 1
+                    pgvector_breaker.last_failure_at = datetime.utcnow()
+                    if pgvector_breaker.state == "closed" and pgvector_breaker.failure_count >= pgvector_breaker.failure_threshold:
+                        pgvector_breaker.state = "open"
+                        pgvector_breaker.last_state_change_at = datetime.utcnow()
+                    elif pgvector_breaker.state == "half_open":
+                        pgvector_breaker.state = "open"
+                        pgvector_breaker.last_state_change_at = datetime.utcnow()
+                        pgvector_breaker.failure_count = 1
+                    db.commit()
+                    logger.warning(f"RAG enrichment failed (screening continues): {e}")
+                    # Honest degraded signal - RAG was attempted but failed
+                    result.rag_context = {
+                        "degraded": True,
+                        "reason": f"RAG retrieval failed: {type(e).__name__}",
+                        "fallback": "rule_based_screening_only",
+                    }
+                    if "rag_retrieval_degraded" not in result.pipeline_stages:
+                        result.pipeline_stages = result.pipeline_stages + ["rag_retrieval_degraded"]
         except Exception as e:
-            logger.warning(f"RAG enrichment failed (screening continues): {e}")
-            # Honest degraded signal - RAG was attempted but failed
-            result.rag_context = {
-                "degraded": True,
-                "reason": f"RAG retrieval failed: {type(e).__name__}",
-                "fallback": "rule_based_screening_only",
-            }
-            if "rag_retrieval_degraded" not in result.pipeline_stages:
-                result.pipeline_stages = result.pipeline_stages + ["rag_retrieval_degraded"]
+            logger.warning(f"Circuit breaker check failed: {e}")
     else:
         # Honest degraded signal - RAG not available or disabled
         if rag_service is None:
