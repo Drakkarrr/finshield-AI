@@ -33,6 +33,8 @@ class User(Base):
     used_credits = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    # RBAC (S3.1)
+    role = Column(String, default="user")  # user, analyst, admin, super_admin
     # Trial
     is_trial = Column(Boolean, default=True)
     trial_expires_at = Column(DateTime, nullable=True)
