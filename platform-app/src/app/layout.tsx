@@ -1,24 +1,23 @@
 import type { Metadata } from 'next';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { Inter, JetBrains_Mono } from 'next/font/google';
+import Providers from '@/components/Providers';
 import './globals.css';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'FinShield AI — Transaction Compliance Platform',
-  description: 'Real-time transaction screening, risk scoring, and compliance automation.',
+  description: 'Transaction screening, explainable risk scoring and compliance case management.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body>
-        <AuthProvider>
+        <Providers>
           {children}
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

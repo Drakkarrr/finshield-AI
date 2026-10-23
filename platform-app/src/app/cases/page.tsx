@@ -1,414 +1,459 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
+import Link from 'next/link';
+import useSWR from 'swr';
 import PlatformLayout from '@/components/PlatformLayout';
-import { api, CaseData, CaseComment, TransactionListItem } from '@/lib/api';
-import { formatCurrency, formatNumber, formatDateTime, timeAgo } from '@/lib/format';
+import { useCan } from '@/contexts/AuthContext';
+import { api, CaseData, errorMessage } from '@/lib/api';
+import {
+  Alert, Badge, Button, Card, EmptyState, FilterChips, Input, LoadingState, Modal, PageHeader, Pagination, Select,
+  StatusBadge, Tabs, TabPanel, Textarea, Tone, humanize,
+} from '@/components/ui';
+import { formatCurrency, formatDateTime, timeAgo } from '@/lib/format';
 
-const PRIORITY_COLORS: Record<string, string> = {
-  critical: 'text-red-600 bg-red-50',
-  high: 'text-orange-600 bg-orange-50',
-  medium: 'text-amber-600 bg-amber-50',
-  low: 'text-ink-muted bg-gray-100',
-};
+const PAGE_SIZE = 25;
 
-const STATUS_COLORS: Record<string, string> = {
-  created: 'text-blue-600 bg-blue-50',
-  open: 'text-blue-600 bg-blue-50',
-  under_review: 'text-amber-600 bg-amber-50',
-  in_progress: 'text-amber-600 bg-amber-50',
-  escalated: 'text-red-600 bg-red-50',
-  resolved: 'text-emerald-600 bg-emerald-50',
-  closed: 'text-emerald-600 bg-emerald-50',
-};
+const PRIORITY_TONES: Record<string, Tone> = { critical: 'danger', high: 'danger', medium: 'warning', low: 'neutral' };
+const PRIORITIES = ['low', 'medium', 'high', 'critical'].map((p) => ({ value: p, label: humanize(p) }));
 
-const VALID_TRANSITIONS: Record<string, string[]> = {
+// Statuses the API's CaseResponse model accepts (backend/app/models.py CaseStatus).
+const NEXT_STATUS: Record<string, string[]> = {
   created: ['open', 'under_review'],
   open: ['under_review', 'escalated', 'resolved'],
-  under_review: ['in_progress', 'escalated', 'resolved'],
-  in_progress: ['escalated', 'resolved'],
+  under_review: ['escalated', 'resolved'],
   escalated: ['resolved'],
   resolved: ['closed'],
   closed: [],
 };
 
-function statusLabel(s: string): string {
-  return s.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}
-
-// Group the 6 raw statuses into 4 buckets shared by stats + filters
-const STATUS_GROUPS: Record<string, string[]> = {
-  open: ['created', 'open', 'under_review', 'in_progress'],
+const GROUPS: Record<string, string[]> = {
+  open: ['created', 'open', 'under_review'],
   escalated: ['escalated'],
   resolved: ['resolved', 'closed'],
 };
 
-function inGroup(status: string, group: string): boolean {
-  return (STATUS_GROUPS[group] || []).includes(status);
-}
+const FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'open', label: 'Open' },
+  { value: 'escalated', label: 'Escalated' },
+  { value: 'resolved', label: 'Resolved' },
+] as const;
+type Filter = (typeof FILTERS)[number]['value'];
 
-export default function CasesPage() {
-  const [cases, setCases] = useState<CaseData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+function Cases() {
+  const can = useCan();
+  const cases = useSWR('cases', api.listCases);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [page, setPage] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState('');
-  const [newCase, setNewCase] = useState({ transaction_id: '', reason: '', priority: 'medium' });
-  const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
-  const [availableTxs, setAvailableTxs] = useState<TransactionListItem[]>([]);
+  const [selected, setSelected] = useState<CaseData | null>(null);
+  const [notice, setNotice] = useState<{ tone: Tone; text: string } | null>(null);
+  const [sweeping, setSweeping] = useState(false);
 
-  const loadCases = useCallback(async () => {
+  const all = cases.data ?? [];
+  const filtered = filter === 'all' ? all : all.filter((c) => GROUPS[filter].includes(c.status));
+  const shown = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const count = (g: string) => all.filter((c) => GROUPS[g].includes(c.status)).length;
+
+  const runSla = async () => {
+    setSweeping(true);
     try {
-      const data = await api.listCases();
-      setCases(data);
-      setError('');
-    } catch (e: any) {
-      setError(e.message || 'Unable to load cases.');
+      const r = await api.checkSla();
+      setNotice({ tone: 'success', text: `SLA sweep finished: ${r.escalated} case(s) escalated, ${r.approaching_notified} approaching-deadline notification(s) sent.` });
+      cases.mutate();
+    } catch (e) {
+      setNotice({ tone: 'danger', text: errorMessage(e, 'SLA sweep failed.') });
     } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCases();
-    api.listTransactions(50, 0).then(setAvailableTxs).catch(() => {});
-  }, [loadCases]);
-
-  const filtered = filter === 'all' ? cases : cases.filter(c => inGroup(c.status, filter));
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreating(true);
-    setError('');
-    try {
-      const created = await api.createCase({
-        transaction_id: newCase.transaction_id,
-        reason: newCase.reason,
-        priority: newCase.priority,
-      });
-      setCases([created, ...cases]);
-      setShowCreate(false);
-      setNewCase({ transaction_id: '', reason: '', priority: 'medium' });
-    } catch (e: any) {
-      setError(e.message || 'Failed to create case.');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleDeleteCase = async (caseId: string) => {
-    if (!confirm('Delete this case and its comments? This cannot be undone.')) return;
-    try {
-      await api.deleteCase(caseId);
-      setCases(cases.filter(c => c.case_id !== caseId));
-      if (selectedCase?.case_id === caseId) setSelectedCase(null);
-    } catch (e: any) {
-      setError(e.message || 'Failed to delete case.');
+      setSweeping(false);
     }
   };
 
   return (
-    <PlatformLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-ink">Cases</h1>
-            <p className="text-sm text-ink-muted mt-0.5">Manage compliance cases and investigations</p>
-          </div>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="bg-accent hover:bg-accent-light text-ink text-sm font-semibold px-4 py-2.5 rounded-xl transition-all"
-          >
-            {showCreate ? 'Close' : '+ Create Case'}
-          </button>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
-        )}
-
-        {/* Create Case Form */}
-        {showCreate && (
-          <div className="glass p-6 animate-fade-in-up">
-            <h3 className="text-sm font-semibold text-ink mb-4">Create New Case</h3>
-            {availableTxs.length === 0 ? (
-              <p className="text-sm text-ink-light">No transactions available. Screen a transaction first before creating a case.</p>
-            ) : (
-            <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="case_tx" className="block text-xs font-medium text-ink-muted mb-1">Transaction</label>
-                <select id="case_tx" value={newCase.transaction_id} onChange={(e) => setNewCase({ ...newCase, transaction_id: e.target.value })} className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-ink" required aria-required="true">
-                  <option value="">Select transaction...</option>
-                  {availableTxs.map((t) => (
-                    <option key={t.id} value={t.id}>{t.sender} → {t.receiver} · {formatCurrency(t.amount, t.currency)} · {t.status}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="case_reason" className="block text-xs font-medium text-ink-muted mb-1">Reason</label>
-                <input id="case_reason" placeholder="e.g. Suspicious wire pattern" value={newCase.reason} onChange={(e) => setNewCase({ ...newCase, reason: e.target.value })} className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder-ink-light" required aria-required="true" />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label htmlFor="case_priority" className="block text-xs font-medium text-ink-muted mb-1">Priority</label>
-                  <select id="case_priority" value={newCase.priority} onChange={(e) => setNewCase({ ...newCase, priority: e.target.value })} className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-ink">
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <button type="submit" disabled={creating} className="bg-accent hover:bg-accent-light text-white font-semibold px-4 py-2.5 rounded-xl transition-all disabled:opacity-50">
-                    {creating ? 'Creating...' : 'Create'}
-                  </button>
-                </div>
-              </div>
-            </form>
+    <div className="space-y-6">
+      <PageHeader
+        title="Cases"
+        description="Compliance cases and investigations"
+        actions={
+          <>
+            {can(['POST', '/api/v1/cases/check-sla']) && (
+              <Button variant="secondary" onClick={runSla} loading={sweeping}>Run SLA check now</Button>
             )}
-          </div>
-        )}
+            <Button onClick={() => setShowCreate(!showCreate)} aria-expanded={showCreate} aria-controls="create-case">
+              {showCreate ? 'Close form' : 'Create case'}
+            </Button>
+          </>
+        }
+      />
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Total', value: cases.length, color: 'text-ink' },
-            { label: 'Open', value: cases.filter(c => inGroup(c.status, 'open')).length, color: 'text-blue-600' },
-            { label: 'Escalated', value: cases.filter(c => inGroup(c.status, 'escalated')).length, color: 'text-red-600' },
-            { label: 'Resolved', value: cases.filter(c => inGroup(c.status, 'resolved')).length, color: 'text-emerald-600' },
-          ].map((s) => (
-            <div key={s.label} className="glass p-4 text-center">
-              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-xs text-ink-muted mt-1">{s.label}</div>
-            </div>
-          ))}
-        </div>
+      {notice && <Alert tone={notice.tone} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
 
-        {/* Filters */}
-        <div className="flex items-center gap-2">
-          {['all', 'open', 'escalated', 'resolved'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filter === s ? 'bg-accent/10 text-accent-dark' : 'text-ink-muted hover:bg-bg'
-              }`}
-            >
-              {s === 'all' ? 'All' : statusLabel(s)}
-            </button>
-          ))}
-        </div>
+      {showCreate && (
+        <CreateCase
+          canAggregate={can(['POST', '/api/v1/cases/aggregate'])}
+          onDone={(text) => { setShowCreate(false); setNotice({ tone: 'success', text }); cases.mutate(); }}
+        />
+      )}
 
-        {/* Cases List */}
-        {loading ? (
-          <div className="glass p-12 text-center">
-            <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-ink-muted">Loading cases...</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="glass p-12 text-center">
-            <p className="text-sm text-ink-light">
-              {cases.length === 0 ? 'No cases yet. Create one from a flagged or blocked transaction.' : 'No cases match this filter.'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((c) => (
-              <div key={c.case_id} className="glass glass-hover p-5 transition-all duration-300 hover:-translate-y-0.5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm font-semibold text-ink">{c.case_id}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${PRIORITY_COLORS[c.priority] || PRIORITY_COLORS.medium}`}>
-                      {c.priority.toUpperCase()}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[c.status] || STATUS_COLORS.open}`}>
-                      {statusLabel(c.status).toUpperCase()}
-                    </span>
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Total', value: all.length, cls: 'text-ink' },
+          { label: 'Open', value: count('open'), cls: 'text-info-fg' },
+          { label: 'Escalated', value: count('escalated'), cls: 'text-danger-fg' },
+          { label: 'Resolved', value: count('resolved'), cls: 'text-success-fg' },
+        ].map((s) => (
+          <Card key={s.label} padding="sm" className="text-center flex flex-col-reverse">
+            <dt className="text-xs text-ink-muted mt-1">{s.label}</dt>
+            <dd className={`text-2xl font-bold ${s.cls}`}>{s.value}</dd>
+          </Card>
+        ))}
+      </dl>
+
+      <FilterChips label="Filter cases by status" options={FILTERS} value={filter} onChange={(f) => { setFilter(f); setPage(0); }} />
+
+      {cases.isLoading && !cases.data ? (
+        <Card><LoadingState label="Loading cases…" /></Card>
+      ) : cases.error ? (
+        <Alert tone="danger" title="Could not load cases">{errorMessage(cases.error)}</Alert>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <EmptyState title={all.length === 0 ? 'No cases yet.' : 'No cases match this filter.'} description={all.length === 0 ? 'Create one from a flagged or blocked transaction.' : undefined} />
+        </Card>
+      ) : (
+        <Card padding="none">
+          <ul className="divide-y divide-border-light">
+            {shown.map((c) => (
+              <li key={c.case_id} className="p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-mono text-sm font-semibold text-ink">{c.case_id}</h2>
+                    <Badge tone={PRIORITY_TONES[c.priority] ?? 'neutral'}>{humanize(c.priority)} priority</Badge>
+                    <StatusBadge status={c.status} />
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSelectedCase(c)}
-                      className="text-xs text-accent-dark hover:text-accent transition-colors px-2 py-1 rounded bg-accent/5 hover:bg-accent/10"
-                    >
-                      Manage →
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCase(c.case_id)}
-                      className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded bg-red-50 hover:bg-red-100 transition-colors"
-                      title="Delete case"
-                    >
-                      Delete
-                    </button>
-                    <span className="text-xs text-ink-light" title={formatDateTime(c.created_at)}>{timeAgo(c.created_at)}</span>
+                    <time className="text-xs text-ink-muted" dateTime={c.created_at} title={formatDateTime(c.created_at)}>{timeAgo(c.created_at)}</time>
+                    <Button variant="secondary" size="sm" onClick={() => setSelected(c)} aria-label={`Manage case ${c.case_id}`}>Manage</Button>
                   </div>
                 </div>
                 <p className="text-sm text-ink-secondary mb-2">{c.reason}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs text-ink-light">TX: <span className="font-mono text-ink-muted">{c.transaction_id}</span></span>
-                    <span className="text-xs text-ink-light">Assigned: <span className="text-ink-secondary">{c.assigned_to || 'Unassigned'}</span></span>
-                  </div>
-                </div>
-              </div>
+                <p className="text-xs text-ink-muted">
+                  Transaction <span className="font-mono">{c.transaction_id}</span> · Assigned to {c.assigned_to || 'nobody'}
+                </p>
+              </li>
             ))}
-          </div>
-        )}
+          </ul>
+          <Pagination label="Cases pages" page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
+        </Card>
+      )}
 
-        {/* Case Management Modal */}
-        {selectedCase && (
-          <CaseManagementModal
-            caseData={selectedCase}
-            onClose={() => setSelectedCase(null)}
-            onUpdate={() => { loadCases(); setSelectedCase(null); }}
-          />
-        )}
-      </div>
-    </PlatformLayout>
+      {selected && (
+        <CaseModal
+          caseData={selected}
+          onClose={() => setSelected(null)}
+          onChanged={(text) => { cases.mutate(); setSelected(null); if (text) setNotice({ tone: 'success', text }); }}
+        />
+      )}
+    </div>
   );
 }
 
-// ── Case Management Modal ──
-function CaseManagementModal({ caseData, onClose, onUpdate }: { caseData: CaseData; onClose: () => void; onUpdate: () => void }) {
-  const [status, setStatus] = useState(caseData.status);
-  const [assignedTo, setAssignedTo] = useState(caseData.assigned_to || '');
-  const [comments, setComments] = useState<CaseComment[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [loadingComments, setLoadingComments] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [addingComment, setAddingComment] = useState(false);
+function CreateCase({ canAggregate, onDone }: { canAggregate: boolean; onDone: (message: string) => void }) {
+  const txs = useSWR('transactions:for-cases', () => api.listTransactions(100, 0));
+  const [form, setForm] = useState({ transaction_id: '', reason: '', priority: 'medium' });
+  const [aggregate, setAggregate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const validNext = VALID_TRANSITIONS[caseData.status] || [];
-
-  useEffect(() => {
-    api.listCaseComments(caseData.case_id)
-      .then(setComments)
-      .catch(() => {})
-      .finally(() => setLoadingComments(false));
-  }, [caseData.case_id]);
-
-  const handleUpdate = async () => {
-    setUpdating(true);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
     try {
-      await api.updateCase(caseData.case_id, {
-        status: status !== caseData.status ? status : undefined,
-        assigned_to: assignedTo || undefined,
-      });
-      onUpdate();
-    } catch { /* ignore */ }
-    setUpdating(false);
+      if (aggregate) {
+        const r = await api.aggregateCase(form);
+        onDone(r.aggregated ? `Attached to existing case ${r.case_id}.` : `Case ${r.case_id} created.`);
+      } else {
+        const c = await api.createCase(form);
+        onDone(`Case ${c.case_id} created.`);
+      }
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to create case.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
-    setAddingComment(true);
+  const items = txs.data?.items ?? [];
+  return (
+    <Card as="section" padding="lg" id="create-case" aria-labelledby="create-case-h">
+      <h2 id="create-case-h" className="text-sm font-semibold text-ink mb-4">Create a case</h2>
+      {txs.isLoading ? <LoadingState label="Loading transactions…" /> : items.length === 0 ? (
+        <p className="text-sm text-ink-muted">No transactions yet. Screen a transaction first.</p>
+      ) : (
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Select
+            label="Transaction (100 most recent)"
+            value={form.transaction_id}
+            onChange={(e) => setForm({ ...form, transaction_id: e.target.value })}
+            required
+            options={[
+              { value: '', label: 'Select a transaction…' },
+              ...items.map((t) => ({ value: t.id, label: `${t.sender} → ${t.receiver} · ${formatCurrency(t.amount, t.currency)} · ${humanize(t.status)}` })),
+            ]}
+          />
+          <Input label="Reason" placeholder="e.g. Suspicious wire pattern" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} required />
+          <Select label="Priority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} options={PRIORITIES} />
+          {canAggregate && (
+            <label className="md:col-span-3 flex items-center gap-2 text-sm text-ink-secondary">
+              <input type="checkbox" checked={aggregate} onChange={(e) => setAggregate(e.target.checked)} className="w-4 h-4 accent-accent" />
+              Attach to an existing open case for the same sender if there is one
+            </label>
+          )}
+          <div className="md:col-span-3 flex justify-end">
+            <Button type="submit" loading={saving}>Create case</Button>
+          </div>
+        </form>
+      )}
+      {error && <Alert tone="danger" className="mt-4">{error}</Alert>}
+    </Card>
+  );
+}
+
+const MODAL_TABS = [
+  { id: 'manage', label: 'Manage' },
+  { id: 'comments', label: 'Comments' },
+  { id: 'notes', label: 'Investigator notes' },
+];
+
+function CaseModal({ caseData, onClose, onChanged }: { caseData: CaseData; onClose: () => void; onChanged: (message?: string) => void }) {
+  const can = useCan();
+  const [tab, setTab] = useState('manage');
+  const [error, setError] = useState('');
+  const canDelete = can(['DELETE', '/api/v1/cases/{case_id}']);
+
+  const remove = async () => {
+    if (!window.confirm(`Delete case ${caseData.case_id} and its comments? This cannot be undone.`)) return;
     try {
-      const comment = await api.addCaseComment(caseData.case_id, newComment.trim());
-      setComments([...comments, comment]);
-      setNewComment('');
-    } catch { /* ignore */ }
-    setAddingComment(false);
+      await api.deleteCase(caseData.case_id);
+      onChanged(`Case ${caseData.case_id} deleted.`);
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to delete case.'));
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg glass border border-border rounded-2xl shadow-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6 space-y-5">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-ink">{caseData.case_id}</h3>
-              <p className="text-xs text-ink-muted mt-0.5">{caseData.reason}</p>
-            </div>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[caseData.status]}`}>
-              {statusLabel(caseData.status).toUpperCase()}
-            </span>
-          </div>
-
-          {/* Status Update */}
-          {validNext.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-ink-muted mb-1.5">Update Status</label>
-              <div className="flex flex-wrap gap-2">
-                {validNext.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setStatus(s)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      status === s ? 'bg-accent/10 text-accent-dark ring-1 ring-accent/30' : 'bg-bg text-ink-muted hover:bg-white/10'
-                    }`}
-                  >
-                    {statusLabel(s)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Assignment */}
-          <div>
-            <label className="block text-xs font-medium text-ink-muted mb-1.5">Assigned To</label>
-            <input
-              value={assignedTo}
-              onChange={e => setAssignedTo(e.target.value)}
-              placeholder="Analyst name or team"
-              className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder-ink-light"
-            />
-          </div>
-
-          <button
-            onClick={handleUpdate}
-            disabled={updating}
-            className="w-full bg-accent hover:bg-accent-light text-ink text-sm font-semibold py-2.5 rounded-xl transition-all disabled:opacity-50"
-          >
-            {updating ? 'Updating...' : 'Save Changes'}
-          </button>
-
-          {/* Comments */}
-          <div>
-            <h4 className="text-sm font-semibold text-ink mb-3">Comments</h4>
-            {loadingComments ? (
-              <p className="text-xs text-ink-light">Loading comments...</p>
-            ) : comments.length === 0 ? (
-              <p className="text-xs text-ink-light mb-3">No comments yet.</p>
-            ) : (
-              <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-                {comments.map(c => (
-                  <div key={c.id} className="bg-bg-alt rounded-lg px-3 py-2">
-                    <p className="text-sm text-ink-secondary">{c.body}</p>
-                    <span className="text-[10px] text-ink-light">{formatDateTime(c.created_at)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <input
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                placeholder="Add a comment..."
-                className="flex-1 bg-bg border border-border rounded-xl px-4 py-2 text-sm text-ink placeholder-ink-light"
-                onKeyDown={e => e.key === 'Enter' && handleAddComment()}
-              />
-              <button
-                onClick={handleAddComment}
-                disabled={addingComment || !newComment.trim()}
-                className="bg-accent/10 hover:bg-accent/20 text-accent-dark text-sm font-semibold px-4 rounded-xl transition-all disabled:opacity-50"
-              >
-                {addingComment ? '...' : 'Post'}
-              </button>
-            </div>
-          </div>
-
-          {/* Case Info */}
-          <div className="border-t border-border-light pt-3 space-y-1">
-            <div className="text-[11px] text-ink-light">Transaction: <span className="font-mono text-ink-muted">{caseData.transaction_id}</span></div>
-            <div className="text-[11px] text-ink-light">Priority: <span className={`font-semibold ${PRIORITY_COLORS[caseData.priority]}`}>{caseData.priority.toUpperCase()}</span></div>
-            <div className="text-[11px] text-ink-light">Created: {formatDateTime(caseData.created_at)}</div>
-          </div>
+    <Modal
+      open
+      onClose={onClose}
+      title={caseData.case_id}
+      description={caseData.reason}
+      size="xl"
+      footer={
+        <>
+          {canDelete && <Button variant="danger" onClick={remove}>Delete case</Button>}
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+          <StatusBadge status={caseData.status} />
+          <Badge tone={PRIORITY_TONES[caseData.priority] ?? 'neutral'}>{humanize(caseData.priority)} priority</Badge>
+          <span>Transaction <span className="font-mono">{caseData.transaction_id}</span></span>
+          <span>· Created {formatDateTime(caseData.created_at)}</span>
         </div>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Tabs idPrefix="case" label="Case sections" tabs={MODAL_TABS} value={tab} onChange={setTab} />
+        <TabPanel idPrefix="case" id={tab}>
+          {tab === 'manage' && <ManageTab caseData={caseData} onChanged={onChanged} />}
+          {tab === 'comments' && <CommentsTab caseId={caseData.case_id} />}
+          {tab === 'notes' && <NotesTab caseId={caseData.case_id} />}
+        </TabPanel>
       </div>
+    </Modal>
+  );
+}
+
+function ManageTab({ caseData, onChanged }: { caseData: CaseData; onChanged: (message?: string) => void }) {
+  const can = useCan();
+  const [status, setStatus] = useState(caseData.status);
+  const [assignedTo, setAssignedTo] = useState(caseData.assigned_to || '');
+  const [filingType, setFilingType] = useState('SAR');
+  const [narrative, setNarrative] = useState('');
+  const [busy, setBusy] = useState<'save' | 'filing' | null>(null);
+  const [error, setError] = useState('');
+  const canUpdate = can(['PATCH', '/api/v1/cases/{case_id}']);
+  const canFile = can(['POST', '/api/v1/filings']);
+  const next = NEXT_STATUS[caseData.status] ?? [];
+
+  const save = async () => {
+    setBusy('save');
+    setError('');
+    try {
+      await api.updateCase(caseData.case_id, {
+        status: status !== caseData.status ? status : undefined,
+        assigned_to: assignedTo !== (caseData.assigned_to || '') ? assignedTo : undefined,
+      });
+      onChanged(`Case ${caseData.case_id} updated.`);
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to update case.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const draftFiling = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy('filing');
+    setError('');
+    try {
+      const f = await api.createFiling(caseData.case_id, filingType, narrative || undefined);
+      onChanged(`${f.filing_type} draft ${f.id.slice(0, 8)}… created — continue on the Filings page.`);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to create the filing.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!canUpdate && !canFile) {
+    return <p className="text-sm text-ink-muted">Changing status or assignment needs the investigator role. You can comment and add notes.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && <Alert tone="danger">{error}</Alert>}
+      {canUpdate && (
+        <section aria-labelledby="case-update-h" className="space-y-4">
+          <h3 id="case-update-h" className="text-sm font-semibold text-ink">Status and assignment</h3>
+          <Select
+            label="Status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            disabled={next.length === 0}
+            helpText={next.length === 0 ? 'This case is closed.' : undefined}
+            options={[caseData.status, ...next].map((s) => ({ value: s, label: s === caseData.status ? `${humanize(s)} (current)` : humanize(s) }))}
+          />
+          <Input label="Assigned to" placeholder="Analyst name or team" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} />
+          <Button onClick={save} loading={busy === 'save'}>Save changes</Button>
+        </section>
+      )}
+      {canFile && (
+        <section aria-labelledby="case-filing-h">
+          <h3 id="case-filing-h" className="text-sm font-semibold text-ink mb-3">Draft a regulatory filing</h3>
+          <form onSubmit={draftFiling} className="space-y-3">
+            <Select label="Filing type" value={filingType} onChange={(e) => setFilingType(e.target.value)} options={[
+              { value: 'SAR', label: 'SAR — Suspicious Activity Report' },
+              { value: 'STR', label: 'STR — Suspicious Transaction Report' },
+            ]} />
+            <Textarea label="Narrative (optional)" rows={3} value={narrative} onChange={(e) => setNarrative(e.target.value)} />
+            <Button type="submit" variant="secondary" loading={busy === 'filing'}>Create draft filing</Button>
+          </form>
+          <p className="text-xs text-ink-muted mt-2">
+            Drafts are reviewed and submitted on the <Link href="/filings">Filings</Link> page.
+          </p>
+        </section>
+      )}
     </div>
+  );
+}
+
+function CommentsTab({ caseId }: { caseId: string }) {
+  const comments = useSWR(['case-comments', caseId], () => api.listCaseComments(caseId));
+  const [body, setBody] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!body.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.addCaseComment(caseId, body.trim());
+      setBody('');
+      comments.mutate();
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to post comment.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-ink-muted">Comments are part of the case record and visible to everyone in your organisation.</p>
+      {comments.isLoading ? <LoadingState label="Loading comments…" /> : (comments.data ?? []).length === 0 ? (
+        <p className="text-sm text-ink-muted">No comments yet.</p>
+      ) : (
+        <ul className="space-y-2 max-h-60 overflow-y-auto">
+          {comments.data!.map((c) => (
+            <li key={c.id} className="bg-bg-alt rounded-lg px-3 py-2">
+              <p className="text-sm text-ink-secondary whitespace-pre-wrap">{c.body}</p>
+              <p className="text-2xs text-ink-muted mt-1">{formatDateTime(c.created_at)}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <Alert tone="danger">{error}</Alert>}
+      <form onSubmit={submit} className="space-y-2">
+        <Textarea label="New comment" rows={2} value={body} onChange={(e) => setBody(e.target.value)} required />
+        <Button type="submit" size="sm" loading={saving} disabled={!body.trim()}>Post comment</Button>
+      </form>
+    </div>
+  );
+}
+
+function NotesTab({ caseId }: { caseId: string }) {
+  const notes = useSWR(['case-notes', caseId], () => api.listCaseNotes(caseId));
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!note.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.addCaseNote(caseId, note.trim());
+      setNote('');
+      notes.mutate();
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save note.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-ink-muted">Working notes for investigators. Unlike comments they are not written to the audit trail.</p>
+      {notes.isLoading ? <LoadingState label="Loading notes…" /> : (notes.data ?? []).length === 0 ? (
+        <p className="text-sm text-ink-muted">No notes yet.</p>
+      ) : (
+        <ul className="space-y-2 max-h-60 overflow-y-auto">
+          {notes.data!.map((n) => (
+            <li key={n.id} className="bg-bg-alt rounded-lg px-3 py-2">
+              <p className="text-sm text-ink-secondary whitespace-pre-wrap">{n.note}</p>
+              <p className="text-2xs text-ink-muted mt-1">{formatDateTime(n.created_at)}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <Alert tone="danger">{error}</Alert>}
+      <form onSubmit={submit} className="space-y-2">
+        <Textarea label="New note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} required />
+        <Button type="submit" size="sm" loading={saving} disabled={!note.trim()}>Add note</Button>
+      </form>
+    </div>
+  );
+}
+
+export default function CasesPage() {
+  return (
+    <PlatformLayout>
+      <Cases />
+    </PlatformLayout>
   );
 }

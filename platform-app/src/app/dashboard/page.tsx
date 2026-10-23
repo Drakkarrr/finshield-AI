@@ -1,268 +1,168 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import useSWR from 'swr';
 import PlatformLayout from '@/components/PlatformLayout';
+import RiskScore from '@/components/RiskScore';
 import { useAuth } from '@/contexts/AuthContext';
-import { api, StatsData, HealthData, TransactionListItem } from '@/lib/api';
-import { formatCurrency, formatNumber, formatDateTime, timeAgo as timeAgoFmt, calcCredits } from '@/lib/format';
+import { api, errorMessage, StatsData } from '@/lib/api';
+import {
+  Alert, Badge, Card, EmptyState, LoadingState, Meter, PageHeader, StatusBadge, Table, TBody, THead, Td, Th, Tr,
+  buttonClasses, humanize,
+} from '@/components/ui';
+import { calcCredits, formatCurrency, formatNumber, formatTime, timeAgo } from '@/lib/format';
 
-const STATUS_COLORS: Record<string, string> = {
-  approved: 'text-emerald-600 bg-emerald-50',
-  flagged: 'text-amber-600 bg-amber-50',
-  blocked: 'text-red-600 bg-red-50',
-  in_review: 'text-blue-600 bg-blue-50',
-};
+// S5.7: honest polling, not push. SWR pauses refreshInterval while the tab is hidden.
+const REFRESH_MS = 15_000;
 
-export default function DashboardPage() {
+function Dashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<StatsData | null>(null);
-  const [recent, setRecent] = useState<TransactionListItem[]>([]);
-  const [health, setHealth] = useState<HealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const poll = { refreshInterval: REFRESH_MS, onSuccess: () => setUpdatedAt(new Date()) };
+  const stats = useSWR('stats', api.getStats, poll);
+  const recent = useSWR('transactions:recent', () => api.listTransactions(6, 0), poll);
+  const health = useSWR('health', api.health, { refreshInterval: REFRESH_MS });
+  const overall = useSWR('health:overall', api.overallHealth, { refreshInterval: REFRESH_MS });
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [s, txs, h] = await Promise.all([
-          api.getStats(),
-          api.listTransactions(6, 0),
-          api.health(),
-        ]);
-        setStats(s);
-        setRecent(txs);
-        setHealth(h);
-      } catch (e: any) {
-        setError(e.message || 'Unable to reach the FinShield API.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+  if (stats.isLoading && !stats.data) return <LoadingState label="Loading your compliance overview…" />;
 
-  if (loading) {
-    return (
-      <PlatformLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="w-10 h-10 border-2 border-accent/30 border-t-accent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-ink-muted">Loading your compliance overview...</p>
-          </div>
-        </div>
-      </PlatformLayout>
-    );
-  }
-
-  const firstName = user?.first_name || 'there';
+  const s = stats.data;
+  const credits = calcCredits(user?.total_credits ?? 0, user?.used_credits ?? 0);
+  const error = stats.error ?? recent.error;
 
   return (
-    <PlatformLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-ink">Welcome, {firstName}</h1>
-            <p className="text-sm text-ink-muted mt-0.5">Your real-time compliance overview</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {error ? (
-              <span className="text-xs text-red-600">API offline</span>
-            ) : (
-              <>
-                <span className={`w-2 h-2 rounded-full ${health?.status === 'healthy' ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
-                <span className="text-xs text-ink-muted">API v{health?.version || '—'}</span>
-              </>
-            )}
-          </div>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={`Welcome, ${user?.first_name || 'there'}`}
+        description="Compliance overview for your organisation"
+        actions={
+          <p className="text-xs text-ink-muted" aria-live="polite">
+            Auto-refreshes every {REFRESH_MS / 1000} s while this tab is visible
+            {updatedAt && <> · Last updated <time dateTime={updatedAt.toISOString()}>{formatTime(updatedAt.toISOString())}</time></>}
+          </p>
+        }
+      />
 
-        {error && (
-          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
-            {error} Make sure the backend is running on port 8091.
-          </div>
-        )}
+      {error && <Alert tone="danger" title="Could not load the overview">{errorMessage(error)}</Alert>}
 
-        {/* KPI Cards — real data */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Screened', value: stats?.total_transactions ?? 0, color: 'text-ink' },
-            { label: 'Flagged', value: stats?.flagged ?? 0, color: 'text-amber-600' },
-            { label: 'Blocked', value: stats?.blocked ?? 0, color: 'text-red-600' },
-            { label: 'Open Cases', value: stats?.open_cases ?? 0, color: 'text-blue-600' },
-          ].map((kpi, i) => (
-            <div key={kpi.label} className={`glass p-5 animate-fade-in-up animate-delay-${i + 1}`}>
-              <div className="text-xs font-medium text-ink-muted uppercase tracking-wider mb-3">{kpi.label}</div>
-              <div className={`text-3xl font-bold ${kpi.color}`}>{formatNumber(kpi.value)}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Results breakdown + credits */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="glass p-5">
-            <h3 className="text-sm font-semibold text-ink mb-4">Screening Results</h3>
-            {(stats?.total_transactions ?? 0) === 0 ? (
-              <EmptyState text="No transactions screened yet." cta="Screen your first transaction" href="/transactions" />
-            ) : (
-              <>
-                <div className="flex items-center justify-center mb-4">
-                  <div className="relative w-36 h-36">
-                    <div
-                      className="w-full h-full rounded-full"
-                      style={{ background: donutGradient(stats!) }}
-                    />
-                    <div className="absolute inset-4 bg-bg rounded-full flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-xl font-bold text-ink">{formatNumber(stats!.total_transactions)}</div>
-                        <div className="text-[10px] text-ink-muted">Total</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {[
-                    { label: 'Approved', value: stats!.approved, color: 'bg-emerald-500' },
-                    { label: 'Flagged', value: stats!.flagged, color: 'bg-amber-500' },
-                    { label: 'Blocked', value: stats!.blocked, color: 'bg-red-500' },
-                    { label: 'In Review', value: stats!.in_review, color: 'bg-blue-500' },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
-                        <span className="text-xs text-ink-muted">{item.label}</span>
-                      </div>
-                      <span className="text-xs font-semibold text-ink-secondary">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Credits card */}
-          <div className="glass p-5">
-            <h3 className="text-sm font-semibold text-ink mb-4">Credit Usage</h3>
-            {(() => {
-              const c = calcCredits(user?.total_credits ?? 0, user?.used_credits ?? 0);
-              return (
-                <>
-                  <div className="text-3xl font-bold text-accent-dark mb-1">
-                    {formatNumber(c.remaining)}
-                  </div>
-                  <div className="text-xs text-ink-muted mb-4">credits remaining</div>
-                  <div className="w-full h-2 bg-bg rounded-full overflow-hidden mb-2">
-                    <div
-                      className="h-full bg-accent rounded-full transition-all duration-500"
-                      style={{ width: `${c.pctUsed}%` }}
-                    />
-                  </div>
-                  <div className="text-[11px] text-ink-light mb-4">
-                    {formatNumber(c.used)} of {formatNumber(c.total)} used ({c.pctUsed}%)
-                  </div>
-                </>
-              );
-            })()}
-            <Link href="/settings?tab=billing" className="block text-center bg-accent/10 hover:bg-accent/20 text-accent-dark text-sm font-semibold py-2.5 rounded-xl transition-all">
-              Manage billing
-            </Link>
-          </div>
-
-          {/* System health */}
-          <div className="glass p-5">
-            <h3 className="text-sm font-semibold text-ink mb-3">System Health</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(health?.services ?? { database: 'unknown' }).map(([svc, st]) => (
-                <div key={svc} className="flex items-center gap-2 bg-bg-alt rounded-lg px-3 py-2">
-                  <span className={`w-2 h-2 rounded-full ${st === 'healthy' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                  <div className="truncate">
-                    <div className="text-[10px] text-ink-muted capitalize">{svc.replace(/_/g, ' ')}</div>
-                    <div className="text-[10px] text-ink-light">{st}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Transactions */}
-        <div className="glass p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-ink">Recent Transactions</h3>
-            <Link href="/transactions" className="text-xs text-accent-dark hover:text-accent-dark-dark transition-colors">View all</Link>
-          </div>
-          {recent.length === 0 ? (
-            <EmptyState text="No transactions yet. Screened transactions will appear here." cta="Screen a transaction" href="/transactions" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-ink-light border-b border-border-light">
-                    <th className="pb-2 font-medium">Amount</th>
-                    <th className="pb-2 font-medium">Parties</th>
-                    <th className="pb-2 font-medium">Status</th>
-                    <th className="pb-2 font-medium">Risk</th>
-                    <th className="pb-2 font-medium">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.map((tx) => (
-                    <tr key={tx.id} className="border-b border-border-light hover:bg-bg-alt transition-colors">
-                      <td className="py-3 text-ink font-medium">{formatCurrency(tx.amount, tx.currency)}</td>
-                      <td className="py-3">
-                        <div className="text-xs text-ink-secondary">{tx.sender} → {tx.receiver}</div>
-                      </td>
-                      <td className="py-3">
-                        <span className={`status-badge status-${tx.status === 'in_review' ? 'review' : tx.status}`}>
-                          <span className="status-dot" />
-                          {tx.status === 'in_review' ? 'In Review' : tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <span className={`text-xs font-mono ${tx.risk_score > 0.7 ? 'text-red-600' : tx.risk_score > 0.4 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                          {(tx.risk_score * 100).toFixed(0)}%
-                        </span>
-                      </td>
-                      <td className="py-3 text-xs text-ink-light">{timeAgoFmt(tx.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total screened', value: s?.total_transactions ?? 0, cls: 'text-ink' },
+          { label: 'Flagged', value: s?.flagged ?? 0, cls: 'text-warning-fg' },
+          { label: 'Blocked', value: s?.blocked ?? 0, cls: 'text-danger-fg' },
+          { label: 'Open cases', value: s?.open_cases ?? 0, cls: 'text-info-fg' },
+        ].map((kpi) => (
+          <Card key={kpi.label}>
+            <h2 className="text-xs font-medium text-ink-muted uppercase tracking-wider mb-3">{kpi.label}</h2>
+            <p className={`text-3xl font-bold ${kpi.cls}`}>{formatNumber(kpi.value)}</p>
+          </Card>
+        ))}
       </div>
-    </PlatformLayout>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card as="section" aria-labelledby="results-h">
+          <h2 id="results-h" className="text-sm font-semibold text-ink mb-4">Screening results</h2>
+          {!s || s.total_transactions === 0 ? (
+            <EmptyState
+              title="No transactions screened yet."
+              action={<Link href="/transactions" className={buttonClasses('primary', 'sm')}>Screen your first transaction</Link>}
+            />
+          ) : (
+            <Breakdown stats={s} />
+          )}
+        </Card>
+
+        <Card as="section" aria-labelledby="credits-h">
+          <h2 id="credits-h" className="text-sm font-semibold text-ink mb-4">Credit usage</h2>
+          <p className="text-3xl font-bold text-accent-fg mb-1">{formatNumber(credits.remaining)}</p>
+          <p className="text-xs text-ink-muted mb-4">credits remaining</p>
+          <Meter value={credits.used} max={credits.total || 1} label="Credits used" valueText={`${credits.pctUsed}% used`} />
+          <p className="text-2xs text-ink-muted mt-2 mb-4">
+            {formatNumber(credits.used)} of {formatNumber(credits.total)} used ({credits.pctUsed}%)
+          </p>
+          <Link href="/settings?tab=billing" className={buttonClasses('secondary', 'md', 'w-full')}>Billing</Link>
+        </Card>
+
+        <Card as="section" aria-labelledby="health-h">
+          <h2 id="health-h" className="text-sm font-semibold text-ink mb-3">System health</h2>
+          {overall.data && (
+            <Alert tone={overall.data.health === 'green' ? 'success' : overall.data.health === 'yellow' ? 'warning' : 'danger'} className="mb-3">
+              {overall.data.message}
+            </Alert>
+          )}
+          {health.error ? (
+            <Alert tone="danger">API unreachable: {errorMessage(health.error)}</Alert>
+          ) : (
+            <ul className="grid grid-cols-2 gap-2">
+              {Object.entries(health.data?.services ?? {}).map(([svc, st]) => (
+                <li key={svc} className="bg-bg-alt rounded-lg px-3 py-2">
+                  <p className="text-2xs text-ink-muted">{humanize(svc)}</p>
+                  <Badge tone={st === 'healthy' ? 'success' : 'warning'}>{humanize(st)}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {health.data && <p className="text-2xs text-ink-muted mt-3">API version {health.data.version}</p>}
+        </Card>
+      </div>
+
+      <Card as="section" padding="none" aria-labelledby="recent-h">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 id="recent-h" className="text-sm font-semibold text-ink">Recent transactions</h2>
+          <Link href="/transactions" className="text-xs font-medium">View all</Link>
+        </div>
+        {!recent.data || recent.data.items.length === 0 ? (
+          <EmptyState title="No transactions yet." description="Screened transactions appear here." />
+        ) : (
+          <Table caption="Six most recent transactions">
+            <THead>
+              <Th>Amount</Th><Th>Parties</Th><Th>Status</Th><Th>Risk</Th><Th>Time</Th>
+            </THead>
+            <TBody>
+              {recent.data.items.map((tx) => (
+                <Tr key={tx.id}>
+                  <Td className="text-ink font-medium">{formatCurrency(tx.amount, tx.currency)}</Td>
+                  <Td className="text-xs text-ink-secondary">{tx.sender} → {tx.receiver}</Td>
+                  <Td><StatusBadge status={tx.status} /></Td>
+                  <Td><RiskScore score={tx.risk_score} /></Td>
+                  <Td className="text-xs text-ink-muted">{timeAgo(tx.created_at)}</Td>
+                </Tr>
+              ))}
+            </TBody>
+          </Table>
+        )}
+      </Card>
+    </div>
   );
 }
 
-function donutGradient(s: StatsData): string {
-  const total = s.total_transactions || 1;
-  const seg = (n: number) => (n / total) * 360;
-  const approved = seg(s.approved);
-  const flagged = approved + seg(s.flagged);
-  const blocked = flagged + seg(s.blocked);
-  return `conic-gradient(
-    #10B981 0deg ${approved}deg,
-    #F59E0B ${approved}deg ${flagged}deg,
-    #EF4444 ${flagged}deg ${blocked}deg,
-    #3B82F6 ${blocked}deg 360deg
-  )`;
-}
-
-function pctUsed(stats: StatsData | null, user: any): number {
-  const c = calcCredits(user?.total_credits ?? 0, user?.used_credits ?? 0);
-  return c.pctUsed;
-}
-
-function EmptyState({ text, cta, href }: { text: string; cta: string; href: string }) {
+function Breakdown({ stats }: { stats: StatsData }) {
+  const total = stats.total_transactions;
+  const rows = [
+    { label: 'Approved', value: stats.approved, tone: 'success' as const },
+    { label: 'Flagged', value: stats.flagged, tone: 'warning' as const },
+    { label: 'Blocked', value: stats.blocked, tone: 'danger' as const },
+    { label: 'In review', value: stats.in_review, tone: 'info' as const },
+  ];
   return (
-    <div className="text-center py-8">
-      <p className="text-sm text-ink-light mb-4">{text}</p>
-      <Link href={href} className="inline-block bg-accent hover:bg-accent-light text-ink text-sm font-semibold px-4 py-2 rounded-xl transition-all">
-        {cta}
-      </Link>
-    </div>
+    <ul className="space-y-3">
+      {rows.map((r) => {
+        const pct = total > 0 ? Math.round((r.value / total) * 100) : 0;
+        return (
+          <li key={r.label}>
+            <Meter value={r.value} max={total} label={r.label} tone={r.tone} showValue valueText={`${formatNumber(r.value)} (${pct}%)`} />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <PlatformLayout>
+      <Dashboard />
+    </PlatformLayout>
   );
 }

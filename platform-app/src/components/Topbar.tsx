@@ -1,260 +1,207 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
-import { api, SearchResults, NotificationListResponse } from '@/lib/api';
-import { formatCurrency, formatNumber, formatDateTime, timeAgo, timezoneLabel, USER_TIMEZONE } from '@/lib/format';
+import { api, SearchResults } from '@/lib/api';
+import { Modal, StatusBadge } from '@/components/ui';
+import { formatCurrency, formatNumber, timeAgo, trialDaysLeft } from '@/lib/format';
 
-// ── Search Command Palette ──
-function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+// ── Search ──
+function SearchDialog({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (open) {
-      setQuery('');
-      setResults(null);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (query.length < 2) { setResults(null); return; }
+    if (query.length < 2) return;
     const timeout = setTimeout(async () => {
       setLoading(true);
-      try {
-        const res = await api.search(query);
-        setResults(res);
-      } catch { /* ignore */ }
+      try { setResults(await api.search(query)); } catch { setResults(null); }
       setLoading(false);
     }, 300);
     return () => clearTimeout(timeout);
   }, [query]);
 
-  const navigate = (href: string) => { router.push(href); onClose(); };
-
-  if (!open) return null;
-
-  const totalResults = results ? results.transactions.length + results.cases.length + results.api_keys.length : 0;
+  const go = (href: string) => { router.push(href); onClose(); };
+  const total = results ? results.transactions.length + results.cases.length + results.api_keys.length : 0;
+  const row = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg-alt transition-colors text-left';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
-      <div className="relative w-full max-w-xl bg-white border border-border rounded-xl shadow-dropdown overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-border-light">
-          <svg className="w-5 h-5 text-ink-light shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search transactions, cases, API keys..."
-            className="flex-1 bg-transparent text-sm text-ink placeholder-ink-light outline-none"
-          />
-          <kbd className="hidden sm:inline text-[10px] text-ink-light bg-bg px-1.5 py-0.5 rounded border border-border-light">ESC</kbd>
-        </div>
-
-        <div className="max-h-80 overflow-y-auto">
-          {loading && <div className="p-6 text-center text-sm text-ink-muted">Searching...</div>}
-          {!loading && query.length >= 2 && totalResults === 0 && (
-            <div className="p-6 text-center text-sm text-ink-muted">No results for &quot;{query}&quot;</div>
-          )}
-          {!loading && results && totalResults > 0 && (
-            <div className="p-2">
-              {results.transactions.length > 0 && (
-                <div className="mb-2">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Transactions</div>
-                  {results.transactions.map(tx => (
-                    <button key={tx.id} onClick={() => navigate('/transactions')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg transition-colors text-left">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${tx.status === 'blocked' ? 'bg-red-500' : tx.status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-ink truncate">{formatCurrency(tx.amount, tx.currency)} — {tx.sender} → {tx.receiver}</div>
-                        <div className="text-[10px] text-ink-light">{timeAgo(tx.created_at)}</div>
-                      </div>
-                      <span className="text-xs text-ink-muted capitalize">{tx.status}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {results.cases.length > 0 && (
-                <div className="mb-2">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Cases</div>
-                  {results.cases.map(c => (
-                    <button key={c.case_id} onClick={() => navigate('/cases')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg transition-colors text-left">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${c.status === 'resolved' ? 'bg-emerald-500' : c.status === 'escalated' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-ink truncate">{c.case_id} — {c.reason}</div>
-                        <div className="text-[10px] text-ink-light">{c.priority} priority</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {results.api_keys.length > 0 && (
-                <div>
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">API Keys</div>
-                  {results.api_keys.map(k => (
-                    <button key={k.id} onClick={() => navigate('/api-keys')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg transition-colors text-left">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${k.is_active ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                      <div className="text-sm text-ink">{k.name}</div>
-                      <span className="text-xs text-ink-light font-mono">{k.key_prefix}••••</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {!loading && query.length < 2 && (
-            <div className="p-6 text-center text-sm text-ink-muted">Type at least 2 characters to search</div>
-          )}
-        </div>
+    <Modal open onClose={onClose} title="Search" size="xl">
+      <label htmlFor="global-search" className="sr-only">Search transactions, cases and API keys</label>
+      <input
+        id="global-search"
+        data-autofocus
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search transactions, cases, API keys…"
+        className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-light focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+      />
+      <div className="mt-3 max-h-80 overflow-y-auto" aria-live="polite">
+        {query.length < 2 ? (
+          <p className="p-4 text-center text-sm text-ink-muted">Type at least 2 characters to search.</p>
+        ) : loading ? (
+          <p className="p-4 text-center text-sm text-ink-muted">Searching…</p>
+        ) : total === 0 ? (
+          <p className="p-4 text-center text-sm text-ink-muted">No results for &quot;{query}&quot;.</p>
+        ) : results && (
+          <div className="space-y-2">
+            {results.transactions.length > 0 && (
+              <section>
+                <h3 className="px-3 py-1.5 text-2xs font-semibold text-ink-muted uppercase tracking-wider">Transactions</h3>
+                {results.transactions.map((tx) => (
+                  <button key={tx.id} type="button" onClick={() => go('/transactions')} className={row}>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm text-ink truncate">{formatCurrency(tx.amount, tx.currency)} — {tx.sender} → {tx.receiver}</span>
+                      <span className="block text-2xs text-ink-muted">{timeAgo(tx.created_at)}</span>
+                    </span>
+                    <StatusBadge status={tx.status} />
+                  </button>
+                ))}
+              </section>
+            )}
+            {results.cases.length > 0 && (
+              <section>
+                <h3 className="px-3 py-1.5 text-2xs font-semibold text-ink-muted uppercase tracking-wider">Cases</h3>
+                {results.cases.map((c) => (
+                  <button key={c.case_id} type="button" onClick={() => go('/cases')} className={row}>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm text-ink truncate">{c.case_id} — {c.reason}</span>
+                      <span className="block text-2xs text-ink-muted">{c.priority} priority</span>
+                    </span>
+                    <StatusBadge status={c.status} />
+                  </button>
+                ))}
+              </section>
+            )}
+            {results.api_keys.length > 0 && (
+              <section>
+                <h3 className="px-3 py-1.5 text-2xs font-semibold text-ink-muted uppercase tracking-wider">API Keys</h3>
+                {results.api_keys.map((k) => (
+                  <button key={k.id} type="button" onClick={() => go('/api-keys')} className={row}>
+                    <span className="flex-1 text-sm text-ink">{k.name}</span>
+                    <span className="text-xs text-ink-muted font-mono">{k.key_prefix}••••</span>
+                    <StatusBadge status={k.is_active ? 'active' : 'revoked'} label={k.is_active ? 'Active' : 'Revoked'} />
+                  </button>
+                ))}
+              </section>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
-// ── Notification Dropdown ──
-function NotificationDropdown({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [data, setData] = useState<NotificationListResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+// ── Notifications ──
+function Notifications() {
+  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.listNotifications(15);
-      setData(res);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { if (open) load(); }, [open, load]);
+  // Unread badge: polled every 30 s while the tab is visible (SWR pauses polling in hidden tabs).
+  const { data: unread, mutate: refreshUnread } = useSWR('notifications:unread', () => api.listNotifications(1, true), { refreshInterval: 30_000 });
+  const { data, isLoading, mutate } = useSWR(open ? 'notifications:list' : null, () => api.listNotifications(15));
+  const unreadCount = unread?.unread_count ?? 0;
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    if (open) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open, onClose]);
+    if (!open) return;
+    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
+  }, [open]);
 
-  const handleMarkRead = async (id: string) => {
-    await api.markNotificationRead(id);
-    load();
-  };
-
-  const handleMarkAllRead = async () => {
-    await api.markAllNotificationsRead();
-    load();
-  };
-
-  if (!open) return null;
+  const refresh = () => { mutate(); refreshUnread(); };
 
   return (
-    <div ref={ref} className="absolute right-0 top-full mt-2 w-80 bg-white border border-border rounded-xl shadow-dropdown overflow-hidden z-50">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border-light">
-        <span className="text-sm font-semibold text-ink">Notifications</span>
-        {data && data.unread_count > 0 && (
-          <button onClick={handleMarkAllRead} className="text-[10px] text-accent hover:text-accent-dark font-medium">Mark all read</button>
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls="notifications-panel"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+        className="relative p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-bg-alt transition-colors"
+      >
+        <svg className="w-5 h-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+        {unreadCount > 0 && (
+          <span aria-hidden="true" className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-accent rounded-full text-2xs text-navy font-bold flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
-      </div>
-      <div className="max-h-72 overflow-y-auto">
-        {loading ? (
-          <div className="p-6 text-center text-sm text-ink-muted">Loading...</div>
-        ) : !data || data.notifications.length === 0 ? (
-          <div className="p-6 text-center text-sm text-ink-muted">No notifications</div>
-        ) : (
-          data.notifications.map(n => (
-            <div key={n.id} className={`px-4 py-3 border-b border-border-light last:border-0 hover:bg-bg-alt transition-colors ${!n.is_read ? 'bg-amber-50/50' : ''}`}>
-              <div className="flex items-start gap-2.5">
-                <span className="text-sm mt-0.5">{TYPE_ICONS[n.type] || '🔔'}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-ink">{n.title}</span>
-                    {!n.is_read && <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
-                  </div>
-                  <p className="text-[11px] text-ink-muted mt-0.5 leading-relaxed">{n.message}</p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] text-ink-light">{timeAgo(n.created_at)}</span>
-                    {n.link && (
-                      <Link href={n.link} className="text-[10px] text-accent hover:text-accent-dark font-medium" onClick={onClose}>View →</Link>
-                    )}
-                    {!n.is_read && (
-                      <button onClick={() => handleMarkRead(n.id)} className="text-[10px] text-ink-light hover:text-ink-muted">Dismiss</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      </button>
+      {open && (
+        <div id="notifications-panel" className="absolute right-0 top-full mt-2 w-80 bg-surface border border-border rounded-xl shadow-dropdown overflow-hidden z-dropdown">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-light">
+            <h2 className="text-sm font-semibold text-ink">Notifications</h2>
+            {(data?.unread_count ?? 0) > 0 && (
+              <button type="button" onClick={async () => { await api.markAllNotificationsRead(); refresh(); }} className="text-2xs text-accent-fg hover:underline font-medium">
+                Mark all read
+              </button>
+            )}
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {isLoading ? (
+              <p className="p-6 text-center text-sm text-ink-muted">Loading…</p>
+            ) : !data || data.notifications.length === 0 ? (
+              <p className="p-6 text-center text-sm text-ink-muted">No notifications.</p>
+            ) : (
+              <ul>
+                {data.notifications.map((n) => (
+                  <li key={n.id} className={`px-4 py-3 border-b border-border-light last:border-0 ${!n.is_read ? 'bg-warning-bg' : ''}`}>
+                    <p className="text-xs font-semibold text-ink">
+                      {n.title}
+                      {!n.is_read && <span className="ml-2 text-2xs font-medium text-warning-fg">Unread</span>}
+                    </p>
+                    <p className="text-2xs text-ink-secondary mt-0.5 leading-relaxed">{n.message}</p>
+                    <div className="flex items-center gap-3 mt-1.5 text-2xs">
+                      <span className="text-ink-muted">{timeAgo(n.created_at)}</span>
+                      {n.link && <Link href={n.link} className="font-medium hover:underline" onClick={() => setOpen(false)}>View</Link>}
+                      {!n.is_read && (
+                        <button type="button" onClick={async () => { await api.markNotificationRead(n.id); refresh(); }} className="text-ink-muted hover:text-ink">
+                          Mark read
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  blocked_tx: '🚫',
-  new_case: '📁',
-  credit_alert: '💰',
-  plan_change: '📋',
-  system: '🔔',
-};
-
-// ── Trial Countdown Badge ──
 function TrialBadge({ expiresAt }: { expiresAt: string }) {
-  const daysLeft = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000));
-  const isExpired = daysLeft === 0;
-  const isUrgent = daysLeft <= 3;
-
+  const daysLeft = trialDaysLeft(expiresAt);
+  const tone = daysLeft === 0
+    ? 'bg-danger-bg text-danger-fg border-danger-light'
+    : daysLeft <= 3 ? 'bg-warning-bg text-warning-fg border-warning-light' : 'bg-info-bg text-info-fg border-info-light';
   return (
-    <Link href="/settings?tab=billing" className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
-      isExpired
-        ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-        : isUrgent
-        ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-    }`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-      {isExpired ? 'Trial expired — Upgrade' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
+    <Link href="/settings?tab=billing" className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${tone}`}>
+      {daysLeft === 0 ? 'Trial expired — Upgrade' : `Trial: ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
     </Link>
   );
 }
 
-// ── Main Topbar ──
 export default function Topbar() {
   const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.listNotifications(1, true);
-        setUnreadCount(res.unread_count);
-      } catch { /* ignore */ }
-    };
-    load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setSearchOpen(prev => !prev);
-      }
-      if (e.key === 'Escape') {
-        setSearchOpen(false);
-        setNotifOpen(false);
+        setSearchOpen((prev) => !prev);
       }
     };
     document.addEventListener('keydown', handler);
@@ -263,72 +210,49 @@ export default function Topbar() {
 
   return (
     <>
-      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {searchOpen && <SearchDialog onClose={() => setSearchOpen(false)} />}
 
-      <header className="h-14 bg-white border-b border-border flex items-center justify-between px-6 sticky top-0 z-40">
-        {/* Search */}
+      <header className="h-14 bg-surface border-b border-border flex items-center justify-between px-6 sticky top-0 z-topbar">
         <div className="flex items-center gap-3 flex-1 max-w-md">
           <button
+            type="button"
             onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2 bg-bg rounded-lg px-3 py-2 flex-1 hover:bg-bg-alt border border-border-light hover:border-border transition-all text-left"
+            className="flex items-center gap-2 bg-bg rounded-lg px-3 py-2 flex-1 hover:bg-bg-alt border border-border-light hover:border-border transition-colors text-left"
           >
-            <svg className="w-4 h-4 text-ink-light shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 text-ink-muted shrink-0" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
-            <span className="text-sm text-ink-light flex-1">Search transactions, cases...</span>
-            <kbd className="hidden sm:inline text-[10px] text-ink-light bg-white px-1.5 py-0.5 rounded border border-border-light">⌘K</kbd>
+            <span className="text-sm text-ink-muted flex-1">Search transactions, cases…</span>
+            <kbd className="hidden sm:inline text-2xs text-ink-muted bg-surface px-1.5 py-0.5 rounded border border-border-light">Ctrl K</kbd>
           </button>
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-4">
-          {/* Trial badge */}
-          {user?.is_trial && user?.trial_expires_at && (
-            <TrialBadge expiresAt={user.trial_expires_at} />
-          )}
+          {user?.is_trial && user.trial_expires_at && <TrialBadge expiresAt={user.trial_expires_at} />}
 
-          {/* Credits */}
-          <div className="hidden sm:flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-            <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-6.241-2.25A2.25 2.25 0 0012 7.5a2.25 2.25 0 00-2.759 2.25A2.25 2.25 0 003 12a2.25 2.25 0 006.241 2.25A2.25 2.25 0 0012 16.5a2.25 2.25 0 002.759-2.25A2.25 2.25 0 0021 12z" />
-            </svg>
-            <span className="text-sm font-semibold text-accent-dark">{formatNumber(user?.credits_remaining ?? 0)}</span>
-            <span className="text-[10px] text-ink-light hidden lg:inline">{timezoneLabel(USER_TIMEZONE)}</span>
-          </div>
+          <p className="hidden sm:flex items-center gap-1.5 bg-warning-bg border border-warning-light rounded-lg px-3 py-1.5 text-sm">
+            <span className="font-semibold text-warning-fg">{formatNumber(user?.credits_remaining ?? 0)}</span>
+            <span className="text-2xs text-ink-muted">credits</span>
+          </p>
 
-          {/* Notifications */}
-          <div className="relative">
-            <button
-              onClick={() => setNotifOpen(!notifOpen)}
-              className="relative p-2 text-ink-muted hover:text-ink transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-              </svg>
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-accent rounded-full text-[9px] text-white font-bold flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-            <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} />
-          </div>
+          <Notifications />
 
-          {/* User menu */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-navy flex items-center justify-center text-accent text-xs font-bold">
+            <span aria-hidden="true" className="w-8 h-8 rounded-full bg-navy flex items-center justify-center text-accent text-xs font-bold">
               {user?.first_name?.charAt(0) || 'U'}
-            </div>
+            </span>
             <div className="hidden md:block">
-              <div className="text-sm font-medium text-ink">{user ? `${user.first_name} ${user.last_name}` : 'User'}</div>
-              <div className="text-[10px] text-ink-muted">{user?.company || ''}</div>
+              <p className="text-sm font-medium text-ink">{user ? `${user.first_name} ${user.last_name}` : ''}</p>
+              <p className="text-2xs text-ink-muted">{[user?.company, user?.role].filter(Boolean).join(' · ')}</p>
             </div>
             <button
-              onClick={logout}
-              className="p-1.5 text-ink-light hover:text-ink transition-colors"
+              type="button"
+              onClick={() => logout()}
+              className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-bg-alt transition-colors"
+              aria-label="Sign out"
               title="Sign out"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="w-4 h-4" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
               </svg>
             </button>

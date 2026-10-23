@@ -146,3 +146,18 @@ const COUNTRY_NAMES: Record<string, string> = {
 export function countryName(code: string): string {
   return COUNTRY_NAMES[code.toUpperCase()] || code.toUpperCase();
 }
+
+// ── Risk score (0–1) → a worded level, so colour is never the only signal ──
+export function riskLevel(score: number): { label: 'High' | 'Medium' | 'Low'; tone: 'danger' | 'warning' | 'success' } {
+  if (score > 0.7) return { label: 'High', tone: 'danger' };
+  if (score > 0.4) return { label: 'Medium', tone: 'warning' };
+  return { label: 'Low', tone: 'success' };
+}
+
+export function formatPercent(fraction: number, digits = 0): string {
+  return `${(fraction * 100).toFixed(digits)}%`;
+}
+
+export function trialDaysLeft(expiresAt: string): number {
+  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000));
+}

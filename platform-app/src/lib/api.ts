@@ -1,12 +1,15 @@
 /**
- * FinShield API Client
- * Communicates with the FastAPI backend at /api/*
- * Handles authentication tokens and all API endpoints.
+ * FinShield API client.
+ *
+ * Every call goes same-origin to `/api/*`, which next.config.js rewrites to the FastAPI backend, so
+ * the httpOnly `finshield_session` cookie (ruling D11) rides along. The browser never sees or stores
+ * the token. Unsafe methods carry `X-Requested-With`, which the backend's CSRF check requires for
+ * cookie-authenticated requests.
  */
 
 const API_BASE = '/api';
 
-// ── Auth Types ──
+// ── Auth / users ──
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -20,54 +23,39 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  company: string | null;
-  plan: string;
-  credits_remaining: number;
-  billing_cycle_start?: string | null;
-  billing_cycle_end?: string | null;
-  pending_plan_change?: string | null;
-  is_trial?: boolean;
-  trial_expires_at?: string | null;
-  timezone?: string | null;
-  saved_card_last4?: string | null;
-  saved_card_expiry?: string | null;
-  saved_card_holder?: string | null;
-}
-
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-  user: AuthUser;
-}
-
+/** GET /api/auth/me */
 export interface UserProfile {
   id: string;
   email: string;
   first_name: string;
   last_name: string;
   company: string | null;
+  role: string;
+  tenant_id: string;
   plan: string;
   total_credits: number;
   used_credits: number;
   credits_remaining: number;
   created_at: string;
-  billing_cycle_start?: string | null;
-  billing_cycle_end?: string | null;
-  pending_plan_change?: string | null;
-  is_trial?: boolean;
-  trial_expires_at?: string | null;
-  timezone?: string | null;
-  saved_card_last4?: string | null;
-  saved_card_expiry?: string | null;
-  saved_card_holder?: string | null;
+  billing_cycle_start: string | null;
+  billing_cycle_end: string | null;
+  pending_plan_change: string | null;
+  is_trial: boolean;
+  trial_expires_at: string | null;
+  timezone: string | null;
 }
 
-// ── Transaction Types ──
+export interface AdminUser {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  is_active: boolean;
+  created_at: string | null;
+}
+
+// ── Transactions ──
 export interface TransactionRequest {
   amount: number;
   currency: string;
@@ -125,6 +113,11 @@ export interface TransactionListItem {
   created_at: string;
 }
 
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
+
 export interface RagMatch {
   id: string;
   score?: number;
@@ -134,14 +127,21 @@ export interface RagMatch {
   program?: string;
   decision?: string;
   case_summary?: string;
-  content?: string;
-  category?: string;
 }
 
 export interface RagContext {
   policies: RagMatch[];
   sanctions_matches: RagMatch[];
   similar_precedents: RagMatch[];
+}
+
+export interface DecisionReason {
+  source: string;
+  feature: string;
+  value?: unknown;
+  contribution: number;
+  detail?: string | null;
+  rule_id?: string;
 }
 
 export interface TransactionDetail {
@@ -164,10 +164,32 @@ export interface TransactionDetail {
   total_latency_ms: number | null;
   pipeline_stages: string[];
   rag_context: RagContext | null;
+  account_id: string | null;
+  reasons: DecisionReason[];
+  model_version: string | null;
+  degraded: boolean;
   created_at: string;
 }
 
-// ── Case Types ──
+export interface BehavioralBaseline {
+  account_id: string;
+  exists: boolean;
+  baseline: {
+    avg_amount: number;
+    std_dev_amount: number;
+    max_amount: number;
+    min_amount: number;
+    total_transactions: number;
+    history_days: number;
+    is_cold_start: boolean;
+    typical_countries: string[] | null;
+    typical_payees: string[] | null;
+    typical_tx_types: string[] | null;
+    last_computed_at: string;
+  } | null;
+}
+
+// ── Cases ──
 export interface CaseData {
   case_id: string;
   transaction_id: string;
@@ -179,7 +201,26 @@ export interface CaseData {
   updated_at: string;
 }
 
-// ── Filing Types ──
+export interface CaseComment {
+  id: string;
+  body: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface CaseNote {
+  id: string;
+  note: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface SlaSweepResult {
+  escalated: number;
+  approaching_notified: number;
+}
+
+// ── Filings ──
 export interface Filing {
   id: string;
   case_id: string;
@@ -197,7 +238,7 @@ export interface Filing {
   updated_at: string;
 }
 
-// ── Other Types ──
+// ── Health / stats ──
 export interface HealthData {
   status: string;
   version: string;
@@ -205,14 +246,6 @@ export interface HealthData {
   uptime_seconds: number;
 }
 
-export interface CreditsData {
-  total_credits: number;
-  used_credits: number;
-  remaining_credits: number;
-  plan: string;
-}
-
-// ── Analytics / Stats ──
 export interface StatsData {
   total_transactions: number;
   approved: number;
@@ -223,6 +256,68 @@ export interface StatsData {
   avg_risk_score: number;
   credits_used: number;
   credits_remaining: number;
+}
+
+export interface BreakerState {
+  dependency: string;
+  state: 'closed' | 'half_open' | 'open';
+  failure_count: number;
+  last_state_change_at: string | null;
+}
+
+export interface OverallHealth {
+  health: 'green' | 'yellow' | 'red';
+  message: string;
+  breakers_summary: Record<string, number>;
+}
+
+export interface ListsStatus {
+  max_age_hours: number;
+  sources: Array<{
+    source: string;
+    list_type: string;
+    list_version: string;
+    entry_count: number;
+    imported_at: string;
+    age_hours: number;
+    stale: boolean;
+    is_fixture: boolean;
+  }>;
+  sanctions_loaded: boolean;
+  pep_loaded: boolean;
+  high_risk_countries: string[];
+}
+
+export interface RuntimeSetting {
+  key: string;
+  value: unknown;
+  default: unknown;
+  description: string;
+  source: 'override' | 'default';
+  updated_by: string | null;
+  updated_at?: string | null;
+}
+
+export interface FeatureFlag {
+  key: string;
+  enabled: boolean;
+  default: boolean;
+  description: string;
+  source: 'override' | 'default';
+  updated_by: string | null;
+}
+
+export interface ModelVersion {
+  id: string;
+  label: string;
+  name: string;
+  version: number;
+  kind: string;
+  status: string;
+  metrics: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string | null;
+  activated_at: string | null;
 }
 
 // ── Rules ──
@@ -236,39 +331,37 @@ export interface RuleDefinition {
   parameters: Record<string, unknown>;
   metadata?: { list_size?: number; editable?: boolean };
   is_customized?: boolean;
+  priority?: number;
+  version?: number;
 }
 
-// ── Search ──
-export interface SearchResultTx {
-  id: string;
-  amount: number;
-  currency: string;
-  sender: string;
-  receiver: string;
-  status: string;
-  created_at: string;
+export interface RuleSimulation {
+  rule_id: string;
+  rule_name: string;
+  days_simulated: number;
+  transactions_tested: number;
+  triggered_count: number;
+  would_block: number;
+  would_flag: number;
+  trigger_rate: number;
 }
-export interface SearchResultCase {
-  case_id: string;
-  reason: string;
-  status: string;
-  priority: string;
-  created_at: string;
+
+export interface RuleStats {
+  rule_id: string;
+  hit_count: number;
+  false_positive_count: number;
+  last_hit_at: string | null;
+  false_positive_rate: number;
 }
-export interface SearchResultKey {
-  id: string;
-  name: string;
-  key_prefix: string;
-  is_active: boolean;
-}
+
+// ── Search / notifications ──
 export interface SearchResults {
   query: string;
-  transactions: SearchResultTx[];
-  cases: SearchResultCase[];
-  api_keys: SearchResultKey[];
+  transactions: Array<{ id: string; amount: number; currency: string; sender: string; receiver: string; status: string; created_at: string }>;
+  cases: Array<{ case_id: string; reason: string; status: string; priority: string; created_at: string }>;
+  api_keys: Array<{ id: string; name: string; key_prefix: string; is_active: boolean }>;
 }
 
-// ── Notifications ──
 export interface NotificationData {
   id: string;
   type: string;
@@ -278,10 +371,12 @@ export interface NotificationData {
   link: string | null;
   created_at: string;
 }
+
 export interface NotificationListResponse {
   notifications: NotificationData[];
   unread_count: number;
 }
+
 export interface NotificationPreferences {
   email_blocked_tx: boolean;
   email_new_cases: boolean;
@@ -291,15 +386,7 @@ export interface NotificationPreferences {
   email_credit_alerts: boolean;
 }
 
-// ── Case Comments ──
-export interface CaseComment {
-  id: string;
-  body: string;
-  user_id: string;
-  created_at: string;
-}
-
-// ── Billing ─
+// ── Billing ──
 export interface Plan {
   id: string;
   name: string;
@@ -315,98 +402,134 @@ export interface PlansResponse {
   billing_cycle_end: string | null;
   days_remaining: number | null;
   pending_plan_change: string | null;
+  is_trial: boolean;
+  trial_expires_at: string | null;
+  credit_packs: Array<{ credits: number; price_usd: number }>;
+  /** "simulated": development mode, no real payment is taken. */
+  payments_mode: 'stripe' | 'simulated';
 }
 
 export interface SubscribeResponse {
   plan: string;
-  is_upgrade: boolean;
-  effective: string;
-  proration_usd: number;
+  message: string;
   total_credits: number;
   credits_remaining: number;
   pending_plan_change: string | null;
-  message: string;
 }
 
-export interface PurchaseResponse {
-  credits_added: number;
-  price_usd: number;
-  total_credits: number;
-  credits_remaining: number;
-}
+/** "stripe": send the browser to Stripe Checkout. "simulated": credits were added without payment. */
+export type CheckoutResponse =
+  | { mode: 'stripe'; checkout_url: string; session_id: string }
+  | { mode: 'simulated'; credits_added: number; price_usd: number; total_credits: number; credits_remaining: number; status: string };
 
-export interface CheckoutResponse {
-  credits_added: number;
-  price_usd: number;
-  card_last4: string;
-  total_credits: number;
-  credits_remaining: number;
-  status: string;
-}
-
+// ── API keys ──
 export interface ApiKeyData {
   id: string;
   name: string;
-  key?: string;       // Only present on creation
+  key?: string; // only present on creation
   key_prefix: string;
   is_active: boolean;
   created_at: string;
   last_used_at?: string | null;
 }
 
-// ── Token Management ──
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('finshield_token');
+// ── Webhooks ──
+export interface WebhookSubscription {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  created_by: string | null;
+  created_at: string | null;
 }
 
-function setToken(token: string): void {
-  localStorage.setItem('finshield_token', token);
+export interface CreatedWebhookSubscription extends WebhookSubscription {
+  secret: string;
+  event_types: string[];
 }
 
-function clearToken(): void {
-  localStorage.removeItem('finshield_token');
-  localStorage.removeItem('finshield_user');
+export interface WebhookEvent {
+  id: string;
+  subscription_id: string;
+  event_type: string;
+  payload: unknown;
+  status: string;
+  attempts: number;
+  response_code: number | null;
+  last_error: string | null;
+  next_retry_at: string | null;
+  attempt_log: unknown[];
+  created_at: string | null;
+  delivered_at: string | null;
 }
 
-// ── Core Request Function ──
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options?.headers as Record<string, string> || {}),
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!res.ok) {
-    let errorDetail = '';
-    try {
-      // Read the response body once
-      const text = await res.text();
-      try {
-        // Try to parse as JSON
-        const body = JSON.parse(text);
-        errorDetail = body.detail || body.detail?.message || JSON.stringify(body);
-      } catch {
-        // If not JSON, use the raw text
-        errorDetail = text || res.statusText;
-      }
-    } catch {
-      errorDetail = res.statusText || 'Unknown error';
-    }
-    throw new ApiError(res.status, errorDetail);
-  }
-
-  return res.json();
+// ── Audit ──
+export interface AuditEntry {
+  id: string;
+  seq: number | null;
+  user_id: string | null;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  details: unknown;
+  ip_address: string | null;
+  created_at: string | null;
+  prev_hash: string | null;
+  entry_hash: string | null;
+  sealed: boolean;
 }
 
+export interface AuditVerification {
+  ok: boolean;
+  verified: number;
+  first_break_seq: number | null;
+  head_hash?: string;
+  entry_id?: string;
+  detail?: string;
+  pending: number;
+}
+
+export interface AuditFilters {
+  actor?: string;
+  action?: string;
+  resource_type?: string;
+  resource_id?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+// ── Privacy ──
+export interface PrivacyRequest {
+  id: string;
+  subject_type: 'customer' | 'user';
+  subject_ref_masked: string;
+  request_type: 'access' | 'erasure';
+  status: string;
+  received_at: string;
+  due_at: string;
+  overdue: boolean;
+  completed_at: string | null;
+  handled_by: string | null;
+  legal_basis_notes: string | null;
+  outcome?: unknown;
+}
+
+// ── OpenAPI (only the parts the docs page renders) ──
+export interface OpenAPIOperation {
+  summary?: string;
+  description?: string;
+  tags?: string[];
+  operationId?: string;
+  deprecated?: boolean;
+}
+
+export interface OpenAPIDocument {
+  openapi: string;
+  info: { title: string; version: string; description?: string };
+  paths: Record<string, Record<string, OpenAPIOperation | unknown>>;
+}
+
+// ── Transport ──
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -416,215 +539,218 @@ export class ApiError extends Error {
   }
 }
 
-// ── API Methods ──
+function errorDetail(body: unknown, fallback: string): string {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    // FastAPI 422: [{loc: ['body', 'field'], msg}]
+    return detail
+      .map((e: { loc?: unknown[]; msg?: string }) => [e.loc?.slice(1).join('.'), e.msg].filter(Boolean).join(': '))
+      .join('; ');
+  }
+  return fallback;
+}
+
+let expiring = false;
+
+/** A session that dies mid-use (cookie expired / revoked): clear the cookie, go to login, come back. */
+function sessionExpired() {
+  if (typeof window === 'undefined' || expiring) return;
+  expiring = true;
+  const back = window.location.pathname + window.location.search;
+  fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, keepalive: true })
+    .catch(() => undefined)
+    // Outside React (no router here), and a full load drops the dead session's cached data.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    .finally(() => window.location.assign(`/login?expired=1&redirect=${encodeURIComponent(back)}`));
+}
+
+interface SendOptions {
+  /**
+   * What a 401 means. 'expire' (default): the session ended mid-use. 'throw': the caller handles it
+   * (login with a wrong password, the initial "am I signed in?" probe).
+   */
+  on401?: 'expire' | 'throw';
+}
+
+async function send(path: string, init: RequestInit = {}, { on401 = 'expire' }: SendOptions = {}): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const headers = new Headers(init.headers);
+  if (init.body !== undefined && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (method !== 'GET' && method !== 'HEAD') headers.set('X-Requested-With', 'XMLHttpRequest');
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, method, headers, credentials: 'same-origin' });
+  if (res.ok) return res;
+
+  const text = await res.text().catch(() => '');
+  let body: unknown = null;
+  try { body = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+  const message = errorDetail(body, text || res.statusText || `HTTP ${res.status}`);
+
+  if (res.status === 401 && on401 === 'expire') {
+    sessionExpired();
+    throw new ApiError(401, 'Your session has expired. Redirecting to sign in…');
+  }
+  throw new ApiError(res.status, message);
+}
+
+async function request<T>(path: string, init?: RequestInit, opts?: SendOptions): Promise<T> {
+  const res = await send(path, init, opts);
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+const json = (method: string, body?: unknown): RequestInit => ({
+  method,
+  body: body === undefined ? undefined : JSON.stringify(body),
+});
+
+function query(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') q.set(k, String(v)); });
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+const enc = encodeURIComponent;
+
+// ── Endpoints ──
 export const api = {
-  // Auth
-  register: (data: RegisterRequest) =>
-    request<TokenResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+  // Auth (session cookie is set / cleared by the backend)
+  register: (data: RegisterRequest) => request<unknown>('/auth/register', json('POST', data), { on401: 'throw' }),
+  login: (data: LoginRequest) => request<unknown>('/auth/login', json('POST', data), { on401: 'throw' }),
+  logout: () => request<void>('/auth/logout', json('POST'), { on401: 'throw' }),
+  me: () => request<UserProfile>('/auth/me', undefined, { on401: 'throw' }),
+  updateProfile: (data: { first_name?: string; last_name?: string; company?: string; timezone?: string }) =>
+    request<{ detail: string }>('/auth/me', json('PATCH', data)),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    request<{ detail: string }>('/auth/change-password', json('POST', data)),
 
-  login: (data: LoginRequest) =>
-    request<TokenResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+  // The backend's live OpenAPI document (public, served through the same /api proxy)
+  openapi: () => request<OpenAPIDocument>('/openapi.json'),
 
-  me: () => request<UserProfile>('/auth/me'),
-
-  logout: () => {
-    clearToken();
-  },
-
-  // Health
+  // Health / stats
   health: () => request<HealthData>('/health'),
+  overallHealth: () => request<OverallHealth>('/v1/health/overall'),
+  circuitBreakers: () => request<{ breakers: BreakerState[] }>('/v1/health/circuit-breakers'),
+  resetBreaker: (dependency: string) =>
+    request<{ dependency: string; state: string }>(`/v1/health/circuit-breakers/${enc(dependency)}/reset`, json('POST')),
+  getStats: () => request<StatsData>('/v1/stats'),
+  listsStatus: () => request<ListsStatus>('/v1/lists/status'),
 
   // Transactions
-  screenTransaction: (tx: TransactionRequest) =>
-    request<TransactionResponse>('/v1/transactions', {
-      method: 'POST',
-      body: JSON.stringify(tx),
-    }),
-
-  listTransactions: (limit = 50, offset = 0) =>
-    request<TransactionListItem[]>(`/v1/transactions?limit=${limit}&offset=${offset}`),
+  screenTransaction: (tx: TransactionRequest) => request<TransactionResponse>('/v1/transactions', json('POST', tx)),
+  listTransactions: async (limit: number, offset: number): Promise<Page<TransactionListItem>> => {
+    const res = await send(`/v1/transactions${query({ limit, offset })}`);
+    const items = (await res.json()) as TransactionListItem[];
+    const header = res.headers.get('X-Total-Count');
+    return { items, total: header !== null ? Number(header) : offset + items.length };
+  },
+  getTransaction: (txId: string) => request<TransactionDetail>(`/v1/transactions/${enc(txId)}`),
+  deleteTransaction: (txId: string) => request<{ deleted: string }>(`/v1/transactions/${enc(txId)}`, json('DELETE')),
+  exportTransactionsUrl: (startDate?: string, endDate?: string) =>
+    `${API_BASE}/v1/transactions/export${query({ fmt: 'csv', start_date: startDate, end_date: endDate })}`,
+  behavioralBaseline: (accountId: string) => request<BehavioralBaseline>(`/v1/behavioral/baseline/${enc(accountId)}`),
 
   // Cases
-  createCase: (data: { transaction_id: string; reason: string; priority?: string }) =>
-    request<CaseData>('/v1/cases', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  getCase: (caseId: string) => request<CaseData>(`/v1/cases/${caseId}`),
-
   listCases: () => request<CaseData[]>('/v1/cases'),
+  createCase: (data: { transaction_id: string; reason: string; priority?: string }) =>
+    request<CaseData>('/v1/cases', json('POST', data)),
+  updateCase: (caseId: string, data: { status?: string; assigned_to?: string; priority?: string }) =>
+    request<CaseData>(`/v1/cases/${enc(caseId)}`, json('PATCH', data)),
+  deleteCase: (caseId: string) => request<{ deleted: string }>(`/v1/cases/${enc(caseId)}`, json('DELETE')),
+  listCaseComments: (caseId: string) => request<CaseComment[]>(`/v1/cases/${enc(caseId)}/comments`),
+  addCaseComment: (caseId: string, body: string) =>
+    request<CaseComment>(`/v1/cases/${enc(caseId)}/comments`, json('POST', { body })),
+  listCaseNotes: (caseId: string) => request<CaseNote[]>(`/v1/cases/${enc(caseId)}/notes`),
+  addCaseNote: (caseId: string, note: string) => request<CaseNote>(`/v1/cases/${enc(caseId)}/notes`, json('POST', { note })),
+  checkSla: () => request<SlaSweepResult>('/v1/cases/check-sla', json('POST')),
+  /** Attach to an open case for the same sender, or open a new one (query parameters, not a body). */
+  aggregateCase: (data: { transaction_id: string; reason: string; priority: string }) =>
+    request<{ aggregated: boolean; case_id: string; message: string }>(`/v1/cases/aggregate${query(data)}`, json('POST')),
 
-  // Credits
-  getCredits: () => request<CreditsData>('/v1/credits'),
-
-  purchaseCredits: (credits: number) =>
-    request<PurchaseResponse>('/v1/credits/purchase', {
-      method: 'POST',
-      body: JSON.stringify({ credits }),
-    }),
-
-  // Analytics
-  getStats: () => request<StatsData>('/v1/stats'),
+  // Filings
+  listFilings: (status?: string, filingType?: string) =>
+    request<Filing[]>(`/v1/filings${query({ status, filing_type: filingType })}`),
+  createFiling: (caseId: string, filingType: string, narrative?: string) =>
+    request<Filing>('/v1/filings', json('POST', { case_id: caseId, filing_type: filingType, narrative })),
+  updateFiling: (filingId: string, updates: { status?: string; narrative?: string; reference_number?: string }) =>
+    request<Filing>(`/v1/filings/${enc(filingId)}`, json('PATCH', updates)),
+  deleteFiling: (filingId: string) => request<{ deleted: string }>(`/v1/filings/${enc(filingId)}`, json('DELETE')),
 
   // Rules
   listRules: () => request<RuleDefinition[]>('/v1/rules'),
-
   updateRule: (ruleId: string, data: { enabled?: boolean; custom_parameters?: Record<string, unknown> }) =>
-    request<{ rule_id: string; enabled: boolean; custom_parameters: Record<string, unknown> | null; detail: string }>(`/v1/rules/${ruleId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
+    request<{ rule_id: string; detail: string }>(`/v1/rules/${enc(ruleId)}`, json('PATCH', data)),
+  simulateRule: (ruleId: string, days: number) =>
+    request<RuleSimulation>('/v1/rules/simulate', json('POST', { rule_id: ruleId, days })),
+  ruleStats: (ruleId: string) => request<RuleStats>(`/v1/rules/${enc(ruleId)}/stats`),
 
-  // Search
-  search: (q: string) => request<SearchResults>(`/v1/search?q=${encodeURIComponent(q)}`),
-
-  // Notifications
+  // Search / notifications
+  search: (q: string) => request<SearchResults>(`/v1/search${query({ q })}`),
   listNotifications: (limit = 20, unreadOnly = false) =>
-    request<NotificationListResponse>(`/v1/notifications?limit=${limit}&unread_only=${unreadOnly}`),
-
-  markNotificationRead: (id: string) =>
-    request<{ detail: string }>(`/v1/notifications/${id}/read`, { method: 'PATCH' }),
-
-  markAllNotificationsRead: () =>
-    request<{ detail: string }>('/v1/notifications/read-all', { method: 'POST' }),
-
+    request<NotificationListResponse>(`/v1/notifications${query({ limit, unread_only: unreadOnly })}`),
+  markNotificationRead: (id: string) => request<{ detail: string }>(`/v1/notifications/${enc(id)}/read`, json('PATCH')),
+  markAllNotificationsRead: () => request<{ detail: string }>('/v1/notifications/read-all', json('POST')),
   getNotificationPreferences: () => request<NotificationPreferences>('/v1/notifications/preferences'),
-
   updateNotificationPreferences: (data: Partial<NotificationPreferences>) =>
-    request<{ detail: string }>('/v1/notifications/preferences', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  // Cases (extended)
-  updateCase: (caseId: string, data: { status?: string; assigned_to?: string; priority?: string }) =>
-    request<CaseData>(`/v1/cases/${caseId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  listCaseComments: (caseId: string) => request<CaseComment[]>(`/v1/cases/${caseId}/comments`),
-
-  addCaseComment: (caseId: string, body: string) =>
-    request<CaseComment>(`/v1/cases/${caseId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ body }),
-    }),
-
-  // Profile
-  updateProfile: (data: { first_name?: string; last_name?: string; company?: string; timezone?: string }) =>
-    request<{ detail: string; first_name: string; last_name: string; company: string | null; timezone: string | null }>('/auth/me', {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  changePassword: (data: { current_password: string; new_password: string }) =>
-    request<{ detail: string }>('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  // Billing
-  checkoutCredits: (data: { credits: number; card_last4?: string; card_expiry?: string; card_holder?: string; use_saved_card?: boolean }) =>
-    request<CheckoutResponse>('/v1/credits/checkout', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  savePaymentMethod: (data: { card_last4: string; card_expiry: string; card_holder: string }) =>
-    request<{ detail: string; card_last4: string; card_expiry: string; card_holder: string }>('/v1/billing/saved-card', {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  removePaymentMethod: () =>
-    request<{ detail: string }>('/v1/billing/saved-card', {
-      method: 'DELETE',
-    }),
+    request<{ detail: string }>('/v1/notifications/preferences', json('PUT', data)),
 
   // Billing
   listPlans: () => request<PlansResponse>('/v1/billing/plans'),
+  subscribe: (planId: string) => request<SubscribeResponse>('/v1/billing/subscribe', json('POST', { plan_id: planId })),
+  checkoutCredits: (credits: number) => request<CheckoutResponse>('/v1/credits/checkout', json('POST', { credits })),
 
-  subscribe: (planId: string) =>
-    request<SubscribeResponse>('/v1/billing/subscribe', {
-      method: 'POST',
-      body: JSON.stringify({ plan_id: planId }),
-    }),
-
-  // API Keys
-  createApiKey: (name: string) =>
-    request<ApiKeyData>('/v1/keys', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    }),
-
+  // API keys
   listApiKeys: () => request<ApiKeyData[]>('/v1/keys'),
+  createApiKey: (name: string) => request<ApiKeyData>('/v1/keys', json('POST', { name })),
+  revokeApiKey: (keyId: string) => request<{ detail: string }>(`/v1/keys/${enc(keyId)}`, json('DELETE')),
 
-  revokeApiKey: (keyId: string) =>
-    request<{ detail: string }>(`/v1/keys/${keyId}`, {
-      method: 'DELETE',
-    }),
+  // Admin: users
+  listUsers: () => request<AdminUser[]>('/v1/admin/users'),
+  createUser: (data: { email: string; password: string; first_name: string; last_name: string; role: string }) =>
+    request<AdminUser>('/v1/admin/users', json('POST', data)),
+  updateUser: (userId: string, data: { role?: string; is_active?: boolean }) =>
+    request<AdminUser>(`/v1/admin/users/${enc(userId)}`, json('PATCH', data)),
 
-  // Transaction detail + delete + export
-  getTransaction: (txId: string) =>
-    request<TransactionDetail>(`/v1/transactions/${txId}`),
+  // Webhooks
+  listWebhookSubscriptions: () => request<WebhookSubscription[]>('/v1/webhooks/subscriptions'),
+  createWebhookSubscription: (url: string, events: string[]) =>
+    request<CreatedWebhookSubscription>('/v1/webhooks/subscriptions', json('POST', { url, events })),
+  deleteWebhookSubscription: (id: string) =>
+    request<{ id: string; active: boolean }>(`/v1/webhooks/subscriptions/${enc(id)}`, json('DELETE')),
+  listWebhookEvents: (params: { status?: string; event_type?: string; limit: number; offset: number }) =>
+    request<{ total: number; items: WebhookEvent[] }>(`/v1/webhooks${query(params)}`),
+  retryWebhookEvent: (eventId: string) => request<WebhookEvent>(`/v1/webhooks/${enc(eventId)}/retry`, json('POST')),
 
-  deleteTransaction: (txId: string) =>
-    request<{ deleted: string }>(`/v1/transactions/${txId}`, {
-      method: 'DELETE',
-    }),
+  // Audit
+  listAudit: (filters: AuditFilters & { limit: number; offset: number }) =>
+    request<{ total: number; limit: number; offset: number; items: AuditEntry[] }>(`/v1/audit${query({ ...filters })}`),
+  verifyAudit: () => request<AuditVerification>('/v1/audit/verify'),
+  exportAudit: () => request<Record<string, unknown> & { count: number }>('/v1/audit/export'),
+  auditPublicKey: () => request<{ algorithm: string; public_key: string }>('/v1/audit/public-key'),
 
-  exportTransactions: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams({ fmt: 'csv' });
-    if (startDate) params.set('start_date', startDate);
-    if (endDate) params.set('end_date', endDate);
-    return `${API_BASE}/v1/transactions/export?${params.toString()}`;
-  },
+  // Privacy (data-subject requests)
+  listPrivacyRequests: () => request<PrivacyRequest[]>('/v1/privacy/requests'),
+  getPrivacyRequest: (id: string) => request<PrivacyRequest>(`/v1/privacy/requests/${enc(id)}`),
+  createPrivacyRequest: (data: { subject_type: 'customer' | 'user'; subject_ref: string; request_type: 'access' | 'erasure'; legal_basis_notes?: string }) =>
+    request<PrivacyRequest>('/v1/privacy/requests', json('POST', data)),
+  executePrivacyRequest: (id: string) => request<PrivacyRequest>(`/v1/privacy/requests/${enc(id)}/execute`, json('POST')),
 
-  // Case delete
-  deleteCase: (caseId: string) =>
-    request<{ deleted: string }>(`/v1/cases/${caseId}`, {
-      method: 'DELETE',
-    }),
-
-  // Filings
-  listFilings: (status?: string, filingType?: string) => {
-    const params = new URLSearchParams();
-    if (status) params.set('status', status);
-    if (filingType) params.set('filing_type', filingType);
-    const query = params.toString() ? `?${params.toString()}` : '';
-    return request<Filing[]>(`/v1/filings${query}`);
-  },
-
-  getFiling: (filingId: string) =>
-    request<Filing>(`/v1/filings/${filingId}`),
-
-  createFiling: (caseId: string, filingType: string, narrative?: string) =>
-    request<Filing>('/v1/filings', {
-      method: 'POST',
-      body: JSON.stringify({ case_id: caseId, filing_type: filingType, narrative }),
-    }),
-
-  updateFiling: (filingId: string, updates: { status?: string; narrative?: string; reference_number?: string }) =>
-    request<Filing>(`/v1/filings/${filingId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    }),
-
-  deleteFiling: (filingId: string) =>
-    request<{ deleted: string }>(`/v1/filings/${filingId}`, {
-      method: 'DELETE',
-    }),
-
-  // Token helpers
-  getToken,
-  setToken,
-  clearToken,
+  // Runtime configuration
+  listSettings: () => request<RuntimeSetting[]>('/v1/settings'),
+  updateSetting: (key: string, value: unknown) =>
+    request<{ key: string; value: unknown }>(`/v1/settings/${enc(key)}`, json('PUT', { value })),
+  listFlags: () => request<FeatureFlag[]>('/v1/flags'),
+  updateFlag: (key: string, enabled: boolean) =>
+    request<{ key: string; enabled: boolean }>(`/v1/flags/${enc(key)}`, json('PUT', { enabled })),
+  listModels: () => request<ModelVersion[]>('/v1/models'),
+  promoteModel: (versionId: string) => request<ModelVersion>(`/v1/models/${enc(versionId)}/promote`, json('POST')),
 };
+
+/** Message for a caught error; 403 says which role is missing (the backend's detail names it). */
+export function errorMessage(e: unknown, fallback = 'Something went wrong.'): string {
+  if (e instanceof ApiError) return e.message || fallback;
+  if (e instanceof Error) return e.message || fallback;
+  return fallback;
+}

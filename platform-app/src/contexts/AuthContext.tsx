@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { api, AuthUser, UserProfile, ApiError } from '@/lib/api';
+import { api, UserProfile } from '@/lib/api';
+import { canCall, Route } from '@/lib/permissions';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -9,91 +10,64 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (data: { firstName: string; lastName: string; email: string; company: string; password: string }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Session state is "does GET /api/auth/me succeed": the session itself is an httpOnly cookie the
+ * browser sends automatically and scripts cannot read.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount, check if we have a token and fetch user profile
   useEffect(() => {
-    const token = api.getToken();
-    if (token) {
-      api.me()
-        .then(profile => {
-          setUser(profile);
-        })
-        .catch(() => {
-          // Token expired or invalid
-          api.clearToken();
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    } else {
-      setIsLoading(false);
-    }
+    api.me()
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await api.login({ email, password });
-    api.setToken(response.access_token);
-    // Fetch full profile
-    const profile = await api.me();
-    setUser(profile);
+    await api.login({ email, password });
+    setUser(await api.me());
   }, []);
 
-  const signup = useCallback(async (data: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    company: string;
-    password: string;
-  }) => {
-    const response = await api.register({
+  const signup = useCallback(async (data: { firstName: string; lastName: string; email: string; company: string; password: string }) => {
+    await api.register({
       email: data.email,
       password: data.password,
       first_name: data.firstName,
       last_name: data.lastName,
       company: data.company,
     });
-    api.setToken(response.access_token);
-    // Fetch full profile
-    const profile = await api.me();
-    setUser(profile);
+    setUser(await api.me());
   }, []);
 
-  const logout = useCallback(() => {
-    api.logout();
-    setUser(null);
-    window.location.href = '/login';
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+      // A full page load, not router.push: it drops every cached response of the previous user.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign('/login');
+    }
   }, []);
 
   const refreshUser = useCallback(async () => {
     try {
-      const profile = await api.me();
-      setUser(profile);
+      setUser(await api.me());
     } catch {
-      // Token expired
-      api.clearToken();
       setUser(null);
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated: !!user,
-      isLoading,
-      login,
-      signup,
-      logout,
-      refreshUser,
-    }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, signup, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -103,4 +77,10 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+/** `can(['DELETE', '/api/v1/cases/{case_id}'])` — whether the signed-in role may call that route. */
+export function useCan() {
+  const { user } = useAuth();
+  return useCallback((route: Route) => canCall(user?.role, route), [user?.role]);
 }
