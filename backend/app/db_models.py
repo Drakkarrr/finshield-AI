@@ -408,6 +408,21 @@ class SanctionsEntry(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PEPEntry(Base):
+    """Politically Exposed Persons list entries."""
+    __tablename__ = "pep_entries"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    position = Column(String, nullable=True)  # Current or former position
+    country = Column(String, nullable=True)
+    category = Column(String, nullable=True)  # domestic, foreign, international_org
+    aliases = Column(JSON, nullable=True)
+    source = Column(String, nullable=True)  # e.g., "World-Check", "Dow Jones"
+    embedding = Column(Vector(EMBEDDING_DIM))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class PrecedentDecision(Base):
     """Historical compliance decisions for reference."""
     __tablename__ = "precedent_decisions"

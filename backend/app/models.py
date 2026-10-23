@@ -98,6 +98,7 @@ class RuleResult(BaseModel):
     triggered: bool
     detail: Optional[str] = None
     latency_ms: float
+    provenance: Optional[str] = None  # Source of match (e.g., "sanctions:SDN", "pep:domestic")
 
 
 class ScreeningResult(BaseModel):

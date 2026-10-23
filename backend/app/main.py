@@ -25,6 +25,7 @@ from app.api import (
     filings,
     health,
     keys,
+    lists,
     notifications,
     privacy,
     rag,
@@ -144,5 +145,5 @@ app.add_exception_handler(Exception, global_exception_handler)
 app.middleware("http")(request_logging_middleware)
 
 # Registration order is route-matching order; it follows the original main.py section order.
-for _module in (auth, keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral, breakers, webhooks, privacy, rag, settings, health):
+for _module in (auth, keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral, breakers, webhooks, privacy, rag, settings, lists, health):
     app.include_router(_module.router)

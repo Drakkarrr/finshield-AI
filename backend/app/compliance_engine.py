@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from app.config_service import ScreeningConfig
 from app.domain.behavioral import score_behavioral
+from app.domain.lists import DBListProvider
 from app.models import (
     CreditTier,
     RuleResult,
@@ -22,7 +23,7 @@ from app.models import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-# --- Simulated sanctions / PEP lists ---
+# --- Fallback lists (used when DB not available) ---
 SANCTIONED_ENTITIES = {"globalremit", "darkfund", "terrorfin"}
 PEP_ENTITIES = {"senator xyz", "minister abc", "ambassador qrs"}
 HIGH_RISK_COUNTRIES = {"KP", "IR", "SY", "CU", "RU"}
@@ -112,7 +113,7 @@ class ComplianceEngine:
         stages.append("validation")
 
         # Stage 3: Hard rule engine (respects user rule configs)
-        rule_results, rule_latency = self._run_rules(tx, rule_configs, config)
+        rule_results, rule_latency = self._run_rules(tx, rule_configs, config, db)
         stages.append("rule_engine")
         any_rule_triggered = any(r.triggered for r in rule_results)
 
@@ -168,6 +169,7 @@ class ComplianceEngine:
         tx: TransactionRequest,
         rule_configs: dict[str, dict] | None = None,
         config: ScreeningConfig | None = None,
+        db: Session | None = None,
     ) -> tuple[list[RuleResult], float]:
         rule_configs = rule_configs or {}
         config = config or ScreeningConfig.defaults()
@@ -178,24 +180,111 @@ class ComplianceEngine:
             return cp.get(key, default)
 
         def sanctions() -> RuleResult:
-            sender_sanctioned = tx.sender_name.lower() in SANCTIONED_ENTITIES
+            # Use DB-backed list provider if available and has data, otherwise fallback to hardcoded set
+            if db is not None:
+                from app.db_models import SanctionsEntry
+                sanctions_count = db.query(SanctionsEntry).count()
+                if sanctions_count > 0:
+                    provider = DBListProvider(db)
+                    matches = provider.check_sanctions(tx.sender_name, tx.destination_country)
+                    if matches:
+                        best_match = max(matches, key=lambda m: m.confidence)
+                        return RuleResult(
+                            rule_id="RULE-001",
+                            rule_type=RuleType.SANCTIONS,
+                            rule_name="OFAC Sanctions List Match",
+                            triggered=True,
+                            detail=f"Sender '{tx.sender_name}' matched sanctions list: {best_match.entity_name} ({best_match.match_type.value})",
+                            latency_ms=0.0,
+                            provenance=best_match.source_provenance,
+                        )
+                else:
+                    # DB is empty, fall back to hardcoded list
+                    sender_sanctioned = tx.sender_name.lower() in SANCTIONED_ENTITIES
+                    if sender_sanctioned:
+                        return RuleResult(
+                            rule_id="RULE-001",
+                            rule_type=RuleType.SANCTIONS,
+                            rule_name="OFAC Sanctions List Match",
+                            triggered=True,
+                            detail=f"Sender '{tx.sender_name}' matched OFAC list",
+                            latency_ms=0.0,
+                            provenance="fallback:hardcoded",
+                        )
+            else:
+                # No DB session, use hardcoded list
+                sender_sanctioned = tx.sender_name.lower() in SANCTIONED_ENTITIES
+                if sender_sanctioned:
+                    return RuleResult(
+                        rule_id="RULE-001",
+                        rule_type=RuleType.SANCTIONS,
+                        rule_name="OFAC Sanctions List Match",
+                        triggered=True,
+                        detail=f"Sender '{tx.sender_name}' matched OFAC list",
+                        latency_ms=0.0,
+                        provenance="fallback:hardcoded",
+                    )
             return RuleResult(
                 rule_id="RULE-001",
                 rule_type=RuleType.SANCTIONS,
                 rule_name="OFAC Sanctions List Match",
-                triggered=sender_sanctioned,
-                detail=f"Sender '{tx.sender_name}' matched OFAC list" if sender_sanctioned else None,
+                triggered=False,
                 latency_ms=0.0,
             )
 
         def pep() -> RuleResult:
-            pep_match = tx.sender_name.lower() in PEP_ENTITIES or tx.receiver_name.lower() in PEP_ENTITIES
+            # Use DB-backed list provider if available and has data, otherwise fallback to hardcoded set
+            if db is not None:
+                from app.db_models import PEPEntry
+                pep_count = db.query(PEPEntry).count()
+                if pep_count > 0:
+                    provider = DBListProvider(db)
+                    sender_matches = provider.check_pep(tx.sender_name, tx.destination_country)
+                    receiver_matches = provider.check_pep(tx.receiver_name, tx.destination_country)
+                    all_matches = sender_matches + receiver_matches
+                    if all_matches:
+                        best_match = max(all_matches, key=lambda m: m.confidence)
+                        matched_name = tx.sender_name if best_match in sender_matches else tx.receiver_name
+                        return RuleResult(
+                            rule_id="RULE-002",
+                            rule_type=RuleType.PEP,
+                            rule_name="Politically Exposed Person Check",
+                            triggered=True,
+                            detail=f"PEP match found: {matched_name} → {best_match.entity_name} ({best_match.match_type.value})",
+                            latency_ms=0.0,
+                            provenance=best_match.source_provenance,
+                        )
+                else:
+                    # DB is empty, fall back to hardcoded list
+                    pep_match = tx.sender_name.lower() in PEP_ENTITIES or tx.receiver_name.lower() in PEP_ENTITIES
+                    if pep_match:
+                        return RuleResult(
+                            rule_id="RULE-002",
+                            rule_type=RuleType.PEP,
+                            rule_name="Politically Exposed Person Check",
+                            triggered=True,
+                            detail="PEP match found",
+                            latency_ms=0.0,
+                            provenance="fallback:hardcoded",
+                        )
+            else:
+                # No DB session, use hardcoded list
+                pep_match = tx.sender_name.lower() in PEP_ENTITIES or tx.receiver_name.lower() in PEP_ENTITIES
+                if pep_match:
+                    return RuleResult(
+                        rule_id="RULE-002",
+                        rule_type=RuleType.PEP,
+                        rule_name="Politically Exposed Person Check",
+                        triggered=True,
+                        detail="PEP match found",
+                        latency_ms=0.0,
+                        provenance="fallback:hardcoded",
+                    )
             return RuleResult(
                 rule_id="RULE-002",
                 rule_type=RuleType.PEP,
                 rule_name="Politically Exposed Person Check",
-                triggered=pep_match,
-                detail="PEP match found" if pep_match else None,
+                triggered=False,
                 latency_ms=0.0,
             )
 
