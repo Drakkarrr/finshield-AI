@@ -11,7 +11,7 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-import app.main as main_module
+from app.core import engine as screening_engine
 from app.main import app
 
 N = 50
@@ -31,13 +31,13 @@ def _payload() -> dict:
 
 @pytest.mark.asyncio
 async def test_concurrent_screening_is_not_serialised(monkeypatch):
-    real_screen = main_module.engine.screen
+    real_screen = screening_engine.screen
 
     def slow_screen(*args, **kwargs):
         time.sleep(LATENCY_S)  # stands in for blocking I/O (DB, list lookups)
         return real_screen(*args, **kwargs)
 
-    monkeypatch.setattr(main_module.engine, "screen", slow_screen)
+    monkeypatch.setattr(screening_engine, "screen", slow_screen)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", timeout=60) as ac:

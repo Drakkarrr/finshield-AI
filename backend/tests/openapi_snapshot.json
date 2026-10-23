@@ -1,0 +1,4460 @@
+{
+ "components": {
+  "schemas": {
+   "ApiKeyCreateRequest": {
+    "properties": {
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "ApiKeyCreateRequest",
+    "type": "object"
+   },
+   "ApiKeyResponse": {
+    "properties": {
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "is_active": {
+      "title": "Is Active",
+      "type": "boolean"
+     },
+     "key_prefix": {
+      "title": "Key Prefix",
+      "type": "string"
+     },
+     "last_used_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Used At"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "key_prefix",
+     "is_active",
+     "created_at",
+     "last_used_at"
+    ],
+    "title": "ApiKeyResponse",
+    "type": "object"
+   },
+   "BehavioralScoreRequest": {
+    "properties": {
+     "account_id": {
+      "title": "Account Id",
+      "type": "string"
+     },
+     "amount": {
+      "title": "Amount",
+      "type": "number"
+     },
+     "destination_country": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Destination Country"
+     },
+     "receiver_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Receiver Name"
+     },
+     "transaction_type": {
+      "title": "Transaction Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "account_id",
+     "amount",
+     "transaction_type"
+    ],
+    "title": "BehavioralScoreRequest",
+    "type": "object"
+   },
+   "CaseCommentRequest": {
+    "properties": {
+     "body": {
+      "title": "Body",
+      "type": "string"
+     }
+    },
+    "required": [
+     "body"
+    ],
+    "title": "CaseCommentRequest",
+    "type": "object"
+   },
+   "CaseCreateRequest": {
+    "description": "Request to create a compliance case.",
+    "properties": {
+     "assigned_to": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Assigned To"
+     },
+     "priority": {
+      "$ref": "#/components/schemas/CasePriority",
+      "default": "medium"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "transaction_id": {
+      "title": "Transaction Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "transaction_id",
+     "reason"
+    ],
+    "title": "CaseCreateRequest",
+    "type": "object"
+   },
+   "CaseNoteRequest": {
+    "properties": {
+     "note": {
+      "title": "Note",
+      "type": "string"
+     }
+    },
+    "required": [
+     "note"
+    ],
+    "title": "CaseNoteRequest",
+    "type": "object"
+   },
+   "CasePriority": {
+    "enum": [
+     "low",
+     "medium",
+     "high",
+     "critical"
+    ],
+    "title": "CasePriority",
+    "type": "string"
+   },
+   "CaseResponse": {
+    "properties": {
+     "assigned_to": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Assigned To"
+     },
+     "case_id": {
+      "title": "Case Id",
+      "type": "string"
+     },
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "priority": {
+      "$ref": "#/components/schemas/CasePriority"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "status": {
+      "$ref": "#/components/schemas/CaseStatus"
+     },
+     "transaction_id": {
+      "title": "Transaction Id",
+      "type": "string"
+     },
+     "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+     }
+    },
+    "required": [
+     "case_id",
+     "transaction_id",
+     "status",
+     "priority",
+     "reason",
+     "assigned_to",
+     "created_at",
+     "updated_at"
+    ],
+    "title": "CaseResponse",
+    "type": "object"
+   },
+   "CaseStatus": {
+    "enum": [
+     "created",
+     "open",
+     "under_review",
+     "escalated",
+     "resolved",
+     "closed"
+    ],
+    "title": "CaseStatus",
+    "type": "string"
+   },
+   "CaseUpdateRequest": {
+    "properties": {
+     "assigned_to": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Assigned To"
+     },
+     "priority": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Priority"
+     },
+     "resolution": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resolution"
+     },
+     "resolution_summary": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resolution Summary"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     }
+    },
+    "title": "CaseUpdateRequest",
+    "type": "object"
+   },
+   "CheckoutRequest": {
+    "properties": {
+     "card_expiry": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Card Expiry"
+     },
+     "card_holder": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Card Holder"
+     },
+     "card_last4": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Card Last4"
+     },
+     "credits": {
+      "title": "Credits",
+      "type": "integer"
+     },
+     "use_saved_card": {
+      "default": false,
+      "title": "Use Saved Card",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "credits"
+    ],
+    "title": "CheckoutRequest",
+    "type": "object"
+   },
+   "CreditTier": {
+    "enum": [
+     "rule_only",
+     "behavioral",
+     "full_ml"
+    ],
+    "title": "CreditTier",
+    "type": "string"
+   },
+   "CreditsResponse": {
+    "properties": {
+     "plan": {
+      "title": "Plan",
+      "type": "string"
+     },
+     "remaining_credits": {
+      "title": "Remaining Credits",
+      "type": "integer"
+     },
+     "total_credits": {
+      "title": "Total Credits",
+      "type": "integer"
+     },
+     "used_credits": {
+      "title": "Used Credits",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "total_credits",
+     "used_credits",
+     "remaining_credits",
+     "plan"
+    ],
+    "title": "CreditsResponse",
+    "type": "object"
+   },
+   "DSARRequest": {
+    "properties": {
+     "request_type": {
+      "title": "Request Type",
+      "type": "string"
+     },
+     "subject_email": {
+      "title": "Subject Email",
+      "type": "string"
+     }
+    },
+    "required": [
+     "subject_email",
+     "request_type"
+    ],
+    "title": "DSARRequest",
+    "type": "object"
+   },
+   "FilingCreate": {
+    "properties": {
+     "case_id": {
+      "title": "Case Id",
+      "type": "string"
+     },
+     "filing_type": {
+      "title": "Filing Type",
+      "type": "string"
+     },
+     "narrative": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Narrative"
+     }
+    },
+    "required": [
+     "case_id",
+     "filing_type"
+    ],
+    "title": "FilingCreate",
+    "type": "object"
+   },
+   "FilingResponse": {
+    "properties": {
+     "case_id": {
+      "title": "Case Id",
+      "type": "string"
+     },
+     "confirmed_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmed At"
+     },
+     "confirmed_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmed By"
+     },
+     "created_at": {
+      "title": "Created At",
+      "type": "string"
+     },
+     "deadline": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deadline"
+     },
+     "filing_type": {
+      "title": "Filing Type",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "narrative": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Narrative"
+     },
+     "reference_number": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reference Number"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     },
+     "structured_data": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Structured Data"
+     },
+     "submitted_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Submitted At"
+     },
+     "submitted_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Submitted By"
+     },
+     "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "case_id",
+     "filing_type",
+     "status",
+     "deadline",
+     "narrative",
+     "structured_data",
+     "reference_number",
+     "submitted_at",
+     "submitted_by",
+     "confirmed_at",
+     "confirmed_by",
+     "created_at",
+     "updated_at"
+    ],
+    "title": "FilingResponse",
+    "type": "object"
+   },
+   "FilingUpdate": {
+    "properties": {
+     "narrative": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Narrative"
+     },
+     "reference_number": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reference Number"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     }
+    },
+    "title": "FilingUpdate",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "HealthResponse": {
+    "properties": {
+     "services": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Services",
+      "type": "object"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     },
+     "uptime_seconds": {
+      "title": "Uptime Seconds",
+      "type": "number"
+     },
+     "version": {
+      "title": "Version",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status",
+     "version",
+     "services",
+     "uptime_seconds"
+    ],
+    "title": "HealthResponse",
+    "type": "object"
+   },
+   "LoginRequest": {
+    "properties": {
+     "email": {
+      "title": "Email",
+      "type": "string"
+     },
+     "password": {
+      "title": "Password",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "password"
+    ],
+    "title": "LoginRequest",
+    "type": "object"
+   },
+   "NotificationPreferencesUpdate": {
+    "properties": {
+     "email_blocked_tx": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email Blocked Tx"
+     },
+     "email_credit_alerts": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email Credit Alerts"
+     },
+     "email_daily_summary": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email Daily Summary"
+     },
+     "email_new_cases": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email New Cases"
+     },
+     "email_system_downtime": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email System Downtime"
+     },
+     "email_weekly_report": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email Weekly Report"
+     }
+    },
+    "title": "NotificationPreferencesUpdate",
+    "type": "object"
+   },
+   "PasswordChangeRequest": {
+    "properties": {
+     "current_password": {
+      "title": "Current Password",
+      "type": "string"
+     },
+     "new_password": {
+      "title": "New Password",
+      "type": "string"
+     }
+    },
+    "required": [
+     "current_password",
+     "new_password"
+    ],
+    "title": "PasswordChangeRequest",
+    "type": "object"
+   },
+   "ProfileUpdateRequest": {
+    "properties": {
+     "company": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Company"
+     },
+     "first_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Name"
+     },
+     "last_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Name"
+     },
+     "timezone": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Timezone"
+     }
+    },
+    "title": "ProfileUpdateRequest",
+    "type": "object"
+   },
+   "PurchaseRequest": {
+    "properties": {
+     "credits": {
+      "title": "Credits",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "credits"
+    ],
+    "title": "PurchaseRequest",
+    "type": "object"
+   },
+   "RAGMultiHopRequest": {
+    "properties": {
+     "destination_country": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Destination Country"
+     },
+     "receiver_name": {
+      "title": "Receiver Name",
+      "type": "string"
+     },
+     "sender_name": {
+      "title": "Sender Name",
+      "type": "string"
+     },
+     "transaction_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Transaction Type"
+     }
+    },
+    "required": [
+     "sender_name",
+     "receiver_name"
+    ],
+    "title": "RAGMultiHopRequest",
+    "type": "object"
+   },
+   "RAGPrecedentSearchRequest": {
+    "properties": {
+     "decision_filter": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision Filter"
+     },
+     "query": {
+      "title": "Query",
+      "type": "string"
+     },
+     "top_k": {
+      "default": 5,
+      "title": "Top K",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "title": "RAGPrecedentSearchRequest",
+    "type": "object"
+   },
+   "RAGSanctionsSearchRequest": {
+    "properties": {
+     "query": {
+      "title": "Query",
+      "type": "string"
+     },
+     "threshold": {
+      "default": 0.8,
+      "title": "Threshold",
+      "type": "number"
+     },
+     "top_k": {
+      "default": 10,
+      "title": "Top K",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "title": "RAGSanctionsSearchRequest",
+    "type": "object"
+   },
+   "RAGSearchRequest": {
+    "properties": {
+     "category": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Category"
+     },
+     "jurisdiction": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Jurisdiction"
+     },
+     "query": {
+      "title": "Query",
+      "type": "string"
+     },
+     "top_k": {
+      "default": 5,
+      "title": "Top K",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "title": "RAGSearchRequest",
+    "type": "object"
+   },
+   "RegisterRequest": {
+    "properties": {
+     "company": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Company"
+     },
+     "email": {
+      "title": "Email",
+      "type": "string"
+     },
+     "first_name": {
+      "minLength": 1,
+      "title": "First Name",
+      "type": "string"
+     },
+     "last_name": {
+      "minLength": 1,
+      "title": "Last Name",
+      "type": "string"
+     },
+     "password": {
+      "description": "Password must be at least 8 characters",
+      "minLength": 8,
+      "title": "Password",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "password",
+     "first_name",
+     "last_name"
+    ],
+    "title": "RegisterRequest",
+    "type": "object"
+   },
+   "RuleResult": {
+    "properties": {
+     "detail": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     },
+     "latency_ms": {
+      "title": "Latency Ms",
+      "type": "number"
+     },
+     "rule_id": {
+      "title": "Rule Id",
+      "type": "string"
+     },
+     "rule_name": {
+      "title": "Rule Name",
+      "type": "string"
+     },
+     "rule_type": {
+      "$ref": "#/components/schemas/RuleType"
+     },
+     "triggered": {
+      "title": "Triggered",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "rule_id",
+     "rule_type",
+     "rule_name",
+     "triggered",
+     "latency_ms"
+    ],
+    "title": "RuleResult",
+    "type": "object"
+   },
+   "RuleSimulateRequest": {
+    "properties": {
+     "days": {
+      "default": 30,
+      "title": "Days",
+      "type": "integer"
+     },
+     "rule_id": {
+      "title": "Rule Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rule_id"
+    ],
+    "title": "RuleSimulateRequest",
+    "type": "object"
+   },
+   "RuleType": {
+    "enum": [
+     "sanctions",
+     "pep",
+     "threshold",
+     "velocity",
+     "geography",
+     "behavioral"
+    ],
+    "title": "RuleType",
+    "type": "string"
+   },
+   "RuleUpdateRequest": {
+    "properties": {
+     "custom_parameters": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Parameters"
+     },
+     "enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enabled"
+     }
+    },
+    "title": "RuleUpdateRequest",
+    "type": "object"
+   },
+   "SavedCardRequest": {
+    "description": "Save or update the user's payment method on file.",
+    "properties": {
+     "card_expiry": {
+      "title": "Card Expiry",
+      "type": "string"
+     },
+     "card_holder": {
+      "title": "Card Holder",
+      "type": "string"
+     },
+     "card_last4": {
+      "title": "Card Last4",
+      "type": "string"
+     }
+    },
+    "required": [
+     "card_last4",
+     "card_expiry",
+     "card_holder"
+    ],
+    "title": "SavedCardRequest",
+    "type": "object"
+   },
+   "ScreeningResult": {
+    "description": "Result of the full compliance pipeline.",
+    "properties": {
+     "behavioral_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Behavioral Score"
+     },
+     "credit_tier": {
+      "$ref": "#/components/schemas/CreditTier"
+     },
+     "credits_consumed": {
+      "title": "Credits Consumed",
+      "type": "number"
+     },
+     "idempotency_key": {
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "ml_classification": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ml Classification"
+     },
+     "ml_confidence": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ml Confidence"
+     },
+     "pipeline_stages": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Pipeline Stages",
+      "type": "array"
+     },
+     "rag_context": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rag Context"
+     },
+     "risk_score": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Risk Score",
+      "type": "number"
+     },
+     "rule_results": {
+      "items": {
+       "$ref": "#/components/schemas/RuleResult"
+      },
+      "title": "Rule Results",
+      "type": "array"
+     },
+     "status": {
+      "$ref": "#/components/schemas/ScreeningStatus"
+     },
+     "timestamp": {
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+     },
+     "total_latency_ms": {
+      "title": "Total Latency Ms",
+      "type": "number"
+     },
+     "transaction_id": {
+      "title": "Transaction Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "transaction_id",
+     "idempotency_key",
+     "status",
+     "risk_score",
+     "credit_tier",
+     "credits_consumed",
+     "rule_results",
+     "total_latency_ms",
+     "pipeline_stages"
+    ],
+    "title": "ScreeningResult",
+    "type": "object"
+   },
+   "ScreeningStatus": {
+    "enum": [
+     "approved",
+     "flagged",
+     "blocked",
+     "in_review",
+     "pending"
+    ],
+    "title": "ScreeningStatus",
+    "type": "string"
+   },
+   "SubscribeRequest": {
+    "properties": {
+     "plan_id": {
+      "title": "Plan Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "plan_id"
+    ],
+    "title": "SubscribeRequest",
+    "type": "object"
+   },
+   "TokenResponse": {
+    "properties": {
+     "access_token": {
+      "title": "Access Token",
+      "type": "string"
+     },
+     "token_type": {
+      "default": "bearer",
+      "title": "Token Type",
+      "type": "string"
+     },
+     "user": {
+      "title": "User",
+      "type": "object"
+     }
+    },
+    "required": [
+     "access_token",
+     "user"
+    ],
+    "title": "TokenResponse",
+    "type": "object"
+   },
+   "TransactionRequest": {
+    "description": "Incoming transaction to screen.",
+    "properties": {
+     "amount": {
+      "description": "Transaction amount",
+      "exclusiveMinimum": 0.0,
+      "title": "Amount",
+      "type": "number"
+     },
+     "currency": {
+      "default": "USD",
+      "maxLength": 3,
+      "title": "Currency",
+      "type": "string"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "destination_country": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Destination Country"
+     },
+     "idempotency_key": {
+      "description": "Idempotency key for deduplication",
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "metadata": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Metadata"
+     },
+     "receiver_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Receiver Id"
+     },
+     "receiver_name": {
+      "title": "Receiver Name",
+      "type": "string"
+     },
+     "sender_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sender Id"
+     },
+     "sender_name": {
+      "title": "Sender Name",
+      "type": "string"
+     },
+     "transaction_type": {
+      "$ref": "#/components/schemas/TransactionType"
+     }
+    },
+    "required": [
+     "amount",
+     "transaction_type",
+     "sender_name",
+     "receiver_name"
+    ],
+    "title": "TransactionRequest",
+    "type": "object"
+   },
+   "TransactionResponse": {
+    "description": "API response wrapper.",
+    "properties": {
+     "data": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ScreeningResult"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "success": {
+      "title": "Success",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "success"
+    ],
+    "title": "TransactionResponse",
+    "type": "object"
+   },
+   "TransactionType": {
+    "enum": [
+     "wire",
+     "ach",
+     "card",
+     "international",
+     "crypto",
+     "p2p"
+    ],
+    "title": "TransactionType",
+    "type": "string"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "WebhookRequest": {
+    "properties": {
+     "event_type": {
+      "title": "Event Type",
+      "type": "string"
+     },
+     "payload": {
+      "title": "Payload",
+      "type": "object"
+     }
+    },
+    "required": [
+     "event_type",
+     "payload"
+    ],
+    "title": "WebhookRequest",
+    "type": "object"
+   }
+  },
+  "securitySchemes": {
+   "HTTPBearer": {
+    "scheme": "bearer",
+    "type": "http"
+   }
+  }
+ },
+ "info": {
+  "description": "Transaction Compliance Engine \u2014 Production API with auth, DB, and rate limiting",
+  "title": "FinShield AI",
+  "version": "2.4.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/": {
+   "get": {
+    "operationId": "root__get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Root",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/auth/change-password": {
+   "post": {
+    "description": "Change the current user's password.",
+    "operationId": "change_password_api_auth_change_password_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PasswordChangeRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Change Password",
+    "tags": [
+     "Auth"
+    ]
+   }
+  },
+  "/api/auth/login": {
+   "post": {
+    "description": "Authenticate and receive a JWT token.",
+    "operationId": "login_api_auth_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TokenResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Login",
+    "tags": [
+     "Auth"
+    ]
+   }
+  },
+  "/api/auth/me": {
+   "get": {
+    "description": "Get current user profile.",
+    "operationId": "get_me_api_auth_me_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Me",
+    "tags": [
+     "Auth"
+    ]
+   },
+   "patch": {
+    "description": "Update the current user's profile information.",
+    "operationId": "update_profile_api_auth_me_patch",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProfileUpdateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Profile",
+    "tags": [
+     "Auth"
+    ]
+   }
+  },
+  "/api/auth/register": {
+   "post": {
+    "description": "Register a new account with 14-day free trial (Starter plan, 1,000 credits).",
+    "operationId": "register_api_auth_register_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RegisterRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TokenResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register",
+    "tags": [
+     "Auth"
+    ]
+   }
+  },
+  "/api/health": {
+   "get": {
+    "description": "System health: same shape as before, but every service entry is a real probe result.",
+    "operationId": "health_check_api_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health Check",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/health/live": {
+   "get": {
+    "description": "Liveness probe \u2014 200 while the process is up. Deliberately checks no dependencies.",
+    "operationId": "liveness_probe_api_health_live_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Liveness Probe",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/health/ready": {
+   "get": {
+    "description": "Readiness probe \u2014 503 with a per-dependency body when any probe fails.",
+    "operationId": "readiness_probe_api_health_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Readiness Probe",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/v1/behavioral/baseline/{account_id}": {
+   "get": {
+    "description": "Get behavioral baseline for an account.",
+    "operationId": "get_account_baseline_api_v1_behavioral_baseline__account_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "account_id",
+      "required": true,
+      "schema": {
+       "title": "Account Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Account Baseline",
+    "tags": [
+     "Behavioral"
+    ]
+   }
+  },
+  "/api/v1/behavioral/score": {
+   "post": {
+    "description": "Score a transaction against account's behavioral baseline.",
+    "operationId": "score_transaction_behavior_api_v1_behavioral_score_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BehavioralScoreRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Score Transaction Behavior",
+    "tags": [
+     "Behavioral"
+    ]
+   }
+  },
+  "/api/v1/behavioral/update-baseline": {
+   "post": {
+    "description": "Recompute behavioral baseline for an account from transaction history.",
+    "operationId": "update_account_baseline_api_v1_behavioral_update_baseline_post",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "account_id",
+      "required": true,
+      "schema": {
+       "title": "Account Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Account Baseline",
+    "tags": [
+     "Behavioral"
+    ]
+   }
+  },
+  "/api/v1/billing/plans": {
+   "get": {
+    "description": "List available subscription plans.",
+    "operationId": "list_plans_api_v1_billing_plans_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Plans",
+    "tags": [
+     "Billing"
+    ]
+   }
+  },
+  "/api/v1/billing/saved-card": {
+   "delete": {
+    "description": "Remove the saved payment method.",
+    "operationId": "remove_saved_card_api_v1_billing_saved_card_delete",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Remove Saved Card",
+    "tags": [
+     "Billing"
+    ]
+   },
+   "patch": {
+    "description": "Save or update the user's payment method on file.",
+    "operationId": "update_saved_card_api_v1_billing_saved_card_patch",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SavedCardRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Saved Card",
+    "tags": [
+     "Billing"
+    ]
+   }
+  },
+  "/api/v1/billing/subscribe": {
+   "post": {
+    "description": "Change the account's subscription plan with real-world constraints.",
+    "operationId": "subscribe_api_v1_billing_subscribe_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SubscribeRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Subscribe",
+    "tags": [
+     "Billing"
+    ]
+   }
+  },
+  "/api/v1/cases": {
+   "get": {
+    "description": "List all cases for the current user.",
+    "operationId": "list_cases_api_v1_cases_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/CaseResponse"
+         },
+         "title": "Response List Cases Api V1 Cases Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Cases",
+    "tags": [
+     "Cases"
+    ]
+   },
+   "post": {
+    "description": "Create a new compliance case.",
+    "operationId": "create_case_api_v1_cases_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CaseCreateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CaseResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create Case",
+    "tags": [
+     "Cases"
+    ]
+   }
+  },
+  "/api/v1/cases/aggregate": {
+   "post": {
+    "description": "Create a case or attach to existing open case for the same transaction account.",
+    "operationId": "aggregate_case_api_v1_cases_aggregate_post",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "transaction_id",
+      "required": true,
+      "schema": {
+       "title": "Transaction Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "reason",
+      "required": true,
+      "schema": {
+       "title": "Reason",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "priority",
+      "required": false,
+      "schema": {
+       "default": "medium",
+       "title": "Priority",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Aggregate Case",
+    "tags": [
+     "Cases"
+    ]
+   }
+  },
+  "/api/v1/cases/check-sla": {
+   "post": {
+    "description": "Check all open cases for SLA breaches and auto-escalate if needed.",
+    "operationId": "check_sla_escalation_api_v1_cases_check_sla_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Check Sla Escalation",
+    "tags": [
+     "Cases"
+    ]
+   }
+  },
+  "/api/v1/cases/{case_id}": {
+   "delete": {
+    "description": "Delete a case and its comments.",
+    "operationId": "delete_case_api_v1_cases__case_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete Case",
+    "tags": [
+     "Cases"
+    ]
+   },
+   "get": {
+    "description": "Get a specific case.",
+    "operationId": "get_case_api_v1_cases__case_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CaseResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Case",
+    "tags": [
+     "Cases"
+    ]
+   },
+   "patch": {
+    "description": "Update case status, assignment, or priority.",
+    "operationId": "update_case_api_v1_cases__case_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CaseUpdateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Case",
+    "tags": [
+     "Cases"
+    ]
+   }
+  },
+  "/api/v1/cases/{case_id}/comments": {
+   "get": {
+    "description": "List comments on a case.",
+    "operationId": "list_case_comments_api_v1_cases__case_id__comments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Case Comments",
+    "tags": [
+     "Cases"
+    ]
+   },
+   "post": {
+    "description": "Add a comment to a case.",
+    "operationId": "add_case_comment_api_v1_cases__case_id__comments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CaseCommentRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Add Case Comment",
+    "tags": [
+     "Cases"
+    ]
+   }
+  },
+  "/api/v1/cases/{case_id}/notes": {
+   "get": {
+    "description": "List investigator notes on a case (ephemeral, not audit-logged).",
+    "operationId": "list_case_notes_api_v1_cases__case_id__notes_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Case Notes",
+    "tags": [
+     "Cases"
+    ]
+   },
+   "post": {
+    "description": "Add an investigator note to a case (ephemeral, not audit-logged).",
+    "operationId": "add_case_note_api_v1_cases__case_id__notes_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "case_id",
+      "required": true,
+      "schema": {
+       "title": "Case Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CaseNoteRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Add Case Note",
+    "tags": [
+     "Cases"
+    ]
+   }
+  },
+  "/api/v1/credits": {
+   "get": {
+    "description": "Get current credit balance.",
+    "operationId": "get_credits_api_v1_credits_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CreditsResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Credits",
+    "tags": [
+     "Account"
+    ]
+   }
+  },
+  "/api/v1/credits/checkout": {
+   "post": {
+    "description": "Simulated payment checkout for credit purchase. Supports saved card (Qoder-like flow).",
+    "operationId": "checkout_credits_api_v1_credits_checkout_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckoutRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Checkout Credits",
+    "tags": [
+     "Billing"
+    ]
+   }
+  },
+  "/api/v1/credits/purchase": {
+   "post": {
+    "description": "Purchase an additional credit pack (legacy \u2014 use /checkout for payment verification).",
+    "operationId": "purchase_credits_api_v1_credits_purchase_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PurchaseRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Purchase Credits",
+    "tags": [
+     "Billing"
+    ]
+   }
+  },
+  "/api/v1/filings": {
+   "get": {
+    "description": "List all filings for the current user.",
+    "operationId": "list_filings_api_v1_filings_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "filing_type",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Filing Type"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/FilingResponse"
+         },
+         "title": "Response List Filings Api V1 Filings Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Filings",
+    "tags": [
+     "Filings"
+    ]
+   },
+   "post": {
+    "description": "Create a new SAR/STR filing draft for a case.",
+    "operationId": "create_filing_api_v1_filings_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FilingCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FilingResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create Filing",
+    "tags": [
+     "Filings"
+    ]
+   }
+  },
+  "/api/v1/filings/{filing_id}": {
+   "delete": {
+    "description": "Delete a draft filing.",
+    "operationId": "delete_filing_api_v1_filings__filing_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "filing_id",
+      "required": true,
+      "schema": {
+       "title": "Filing Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete Filing",
+    "tags": [
+     "Filings"
+    ]
+   },
+   "get": {
+    "description": "Get a specific filing by ID.",
+    "operationId": "get_filing_api_v1_filings__filing_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "filing_id",
+      "required": true,
+      "schema": {
+       "title": "Filing Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FilingResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Filing",
+    "tags": [
+     "Filings"
+    ]
+   },
+   "patch": {
+    "description": "Update a filing (narrative, status, reference number).",
+    "operationId": "update_filing_api_v1_filings__filing_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "filing_id",
+      "required": true,
+      "schema": {
+       "title": "Filing Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FilingUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FilingResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Filing",
+    "tags": [
+     "Filings"
+    ]
+   }
+  },
+  "/api/v1/health/circuit-breakers": {
+   "get": {
+    "description": "Get circuit breaker status for all dependencies.",
+    "operationId": "get_circuit_breaker_status_api_v1_health_circuit_breakers_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Circuit Breaker Status",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/v1/health/circuit-breakers/{dependency}/check-half-open": {
+   "post": {
+    "description": "Check if an open circuit breaker should transition to half-open.",
+    "operationId": "check_half_open_transition_api_v1_health_circuit_breakers__dependency__check_half_open_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "dependency",
+      "required": true,
+      "schema": {
+       "title": "Dependency",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Check Half Open Transition",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/v1/health/circuit-breakers/{dependency}/record-failure": {
+   "post": {
+    "description": "Record a failure for a circuit breaker.",
+    "operationId": "record_circuit_breaker_failure_api_v1_health_circuit_breakers__dependency__record_failure_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "dependency",
+      "required": true,
+      "schema": {
+       "title": "Dependency",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Record Circuit Breaker Failure",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/v1/health/circuit-breakers/{dependency}/record-success": {
+   "post": {
+    "description": "Record a success for a circuit breaker.",
+    "operationId": "record_circuit_breaker_success_api_v1_health_circuit_breakers__dependency__record_success_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "dependency",
+      "required": true,
+      "schema": {
+       "title": "Dependency",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Record Circuit Breaker Success",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/v1/health/overall": {
+   "get": {
+    "description": "Get overall system health status for dashboard.",
+    "operationId": "get_overall_health_status_api_v1_health_overall_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Overall Health Status",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/v1/keys": {
+   "get": {
+    "description": "List all API keys for the current user.",
+    "operationId": "list_api_keys_api_v1_keys_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/ApiKeyResponse"
+         },
+         "title": "Response List Api Keys Api V1 Keys Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Api Keys",
+    "tags": [
+     "API Keys"
+    ]
+   },
+   "post": {
+    "description": "Create a new API key for programmatic access.",
+    "operationId": "create_api_key_api_v1_keys_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApiKeyCreateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Create Api Key Api V1 Keys Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create Api Key",
+    "tags": [
+     "API Keys"
+    ]
+   }
+  },
+  "/api/v1/keys/{key_id}": {
+   "delete": {
+    "description": "Revoke an API key.",
+    "operationId": "revoke_api_key_api_v1_keys__key_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "key_id",
+      "required": true,
+      "schema": {
+       "title": "Key Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Revoke Api Key",
+    "tags": [
+     "API Keys"
+    ]
+   }
+  },
+  "/api/v1/notifications": {
+   "get": {
+    "description": "List notifications for the current user.",
+    "operationId": "list_notifications_api_v1_notifications_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 20,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "unread_only",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Unread Only",
+       "type": "boolean"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Notifications",
+    "tags": [
+     "Notifications"
+    ]
+   }
+  },
+  "/api/v1/notifications/preferences": {
+   "get": {
+    "description": "Get notification preferences.",
+    "operationId": "get_notification_preferences_api_v1_notifications_preferences_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Notification Preferences",
+    "tags": [
+     "Notifications"
+    ]
+   },
+   "put": {
+    "description": "Update notification preferences.",
+    "operationId": "update_notification_preferences_api_v1_notifications_preferences_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NotificationPreferencesUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Notification Preferences",
+    "tags": [
+     "Notifications"
+    ]
+   }
+  },
+  "/api/v1/notifications/read-all": {
+   "post": {
+    "description": "Mark all notifications as read.",
+    "operationId": "mark_all_notifications_read_api_v1_notifications_read_all_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mark All Notifications Read",
+    "tags": [
+     "Notifications"
+    ]
+   }
+  },
+  "/api/v1/notifications/{notif_id}/read": {
+   "patch": {
+    "description": "Mark a notification as read.",
+    "operationId": "mark_notification_read_api_v1_notifications__notif_id__read_patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "notif_id",
+      "required": true,
+      "schema": {
+       "title": "Notif Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mark Notification Read",
+    "tags": [
+     "Notifications"
+    ]
+   }
+  },
+  "/api/v1/privacy/dsar": {
+   "post": {
+    "description": "Create a Data Subject Access Request.",
+    "operationId": "create_dsar_request_api_v1_privacy_dsar_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DSARRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create Dsar Request",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/pii-classification": {
+   "get": {
+    "description": "Get PII field classification.",
+    "operationId": "get_pii_classification_api_v1_privacy_pii_classification_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Pii Classification",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/rag/multi-hop-retrieval": {
+   "post": {
+    "description": "Perform multi-hop retrieval for transaction context.",
+    "operationId": "multi_hop_retrieval_api_v1_rag_multi_hop_retrieval_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RAGMultiHopRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Multi Hop Retrieval",
+    "tags": [
+     "RAG"
+    ]
+   }
+  },
+  "/api/v1/rag/search-documents": {
+   "post": {
+    "description": "Search for similar compliance documents.",
+    "operationId": "search_compliance_documents_api_v1_rag_search_documents_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RAGSearchRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Search Compliance Documents",
+    "tags": [
+     "RAG"
+    ]
+   }
+  },
+  "/api/v1/rag/search-precedents": {
+   "post": {
+    "description": "Search for similar historical decisions.",
+    "operationId": "search_precedents_api_v1_rag_search_precedents_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RAGPrecedentSearchRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Search Precedents",
+    "tags": [
+     "RAG"
+    ]
+   }
+  },
+  "/api/v1/rag/search-sanctions": {
+   "post": {
+    "description": "Search for potential sanctions matches.",
+    "operationId": "search_sanctions_api_v1_rag_search_sanctions_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RAGSanctionsSearchRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Search Sanctions",
+    "tags": [
+     "RAG"
+    ]
+   }
+  },
+  "/api/v1/rules": {
+   "get": {
+    "description": "List rules with user-specific overrides applied.",
+    "operationId": "list_rules_api_v1_rules_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Rules",
+    "tags": [
+     "Rules"
+    ]
+   }
+  },
+  "/api/v1/rules/simulate": {
+   "post": {
+    "description": "Simulate a rule against historical transaction data.",
+    "operationId": "simulate_rule_api_v1_rules_simulate_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RuleSimulateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Simulate Rule",
+    "tags": [
+     "Rules"
+    ]
+   }
+  },
+  "/api/v1/rules/{rule_id}": {
+   "patch": {
+    "description": "Toggle or customize a compliance rule for the current user.",
+    "operationId": "update_rule_api_v1_rules__rule_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rule_id",
+      "required": true,
+      "schema": {
+       "title": "Rule Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RuleUpdateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Rule",
+    "tags": [
+     "Rules"
+    ]
+   }
+  },
+  "/api/v1/rules/{rule_id}/record-false-positive": {
+   "post": {
+    "description": "Record a false positive for a rule.",
+    "operationId": "record_false_positive_api_v1_rules__rule_id__record_false_positive_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rule_id",
+      "required": true,
+      "schema": {
+       "title": "Rule Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Record False Positive",
+    "tags": [
+     "Rules"
+    ]
+   }
+  },
+  "/api/v1/rules/{rule_id}/record-hit": {
+   "post": {
+    "description": "Record a rule hit (called by compliance engine).",
+    "operationId": "record_rule_hit_api_v1_rules__rule_id__record_hit_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rule_id",
+      "required": true,
+      "schema": {
+       "title": "Rule Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Record Rule Hit",
+    "tags": [
+     "Rules"
+    ]
+   }
+  },
+  "/api/v1/rules/{rule_id}/stats": {
+   "get": {
+    "description": "Get hit statistics for a specific rule.",
+    "operationId": "get_rule_stats_api_v1_rules__rule_id__stats_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rule_id",
+      "required": true,
+      "schema": {
+       "title": "Rule Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Rule Stats",
+    "tags": [
+     "Rules"
+    ]
+   }
+  },
+  "/api/v1/search": {
+   "get": {
+    "description": "Global search across transactions, cases, and API keys.",
+    "operationId": "global_search_api_v1_search_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": true,
+      "schema": {
+       "title": "Q",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Global Search",
+    "tags": [
+     "Search"
+    ]
+   }
+  },
+  "/api/v1/stats": {
+   "get": {
+    "description": "Aggregate dashboard metrics computed from the user's real data.",
+    "operationId": "get_stats_api_v1_stats_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Stats",
+    "tags": [
+     "Analytics"
+    ]
+   }
+  },
+  "/api/v1/transactions": {
+   "get": {
+    "description": "List recent transactions for the current user.",
+    "operationId": "list_transactions_api_v1_transactions_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Transactions",
+    "tags": [
+     "Compliance"
+    ]
+   },
+   "post": {
+    "description": "Screen a transaction through the full compliance pipeline.",
+    "operationId": "screen_transaction_api_v1_transactions_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TransactionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TransactionResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Screen Transaction",
+    "tags": [
+     "Compliance"
+    ]
+   }
+  },
+  "/api/v1/transactions/export": {
+   "get": {
+    "description": "Export transactions as CSV with optional date range filter.",
+    "operationId": "export_transactions_api_v1_transactions_export_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "fmt",
+      "required": false,
+      "schema": {
+       "default": "csv",
+       "title": "Fmt",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "start_date",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Start Date"
+      }
+     },
+     {
+      "in": "query",
+      "name": "end_date",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "End Date"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Export Transactions",
+    "tags": [
+     "Compliance"
+    ]
+   }
+  },
+  "/api/v1/transactions/{tx_id}": {
+   "delete": {
+    "description": "Delete a transaction and its associated cases.",
+    "operationId": "delete_transaction_api_v1_transactions__tx_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "tx_id",
+      "required": true,
+      "schema": {
+       "title": "Tx Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete Transaction",
+    "tags": [
+     "Compliance"
+    ]
+   },
+   "get": {
+    "description": "Get full transaction detail including rule results and ML scores (for explainability).",
+    "operationId": "get_transaction_api_v1_transactions__tx_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "tx_id",
+      "required": true,
+      "schema": {
+       "title": "Tx Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Transaction",
+    "tags": [
+     "Compliance"
+    ]
+   }
+  },
+  "/api/v1/webhooks": {
+   "get": {
+    "description": "List webhook events for the current user.",
+    "operationId": "list_webhook_events_api_v1_webhooks_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Webhook Events",
+    "tags": [
+     "Webhooks"
+    ]
+   }
+  },
+  "/api/v1/webhooks/dispatch": {
+   "post": {
+    "description": "Dispatch a webhook event (queued for delivery).",
+    "operationId": "dispatch_webhook_event_api_v1_webhooks_dispatch_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WebhookRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Dispatch Webhook Event",
+    "tags": [
+     "Webhooks"
+    ]
+   }
+  },
+  "/api/v1/webhooks/{event_id}/retry": {
+   "post": {
+    "description": "Retry a failed webhook event.",
+    "operationId": "retry_webhook_event_api_v1_webhooks__event_id__retry_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "event_id",
+      "required": true,
+      "schema": {
+       "title": "Event Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Retry Webhook Event",
+    "tags": [
+     "Webhooks"
+    ]
+   }
+  }
+ }
+}
