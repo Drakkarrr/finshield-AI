@@ -1885,6 +1885,297 @@
     ]
    }
   },
+  "/api/v1/admin/permissions": {
+   "get": {
+    "description": "Get the permission matrix (admin only).",
+    "operationId": "get_permission_matrix_api_v1_admin_permissions_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Permission Matrix",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
+  "/api/v1/admin/users": {
+   "get": {
+    "description": "List all users (admin only).",
+    "operationId": "list_users_api_v1_admin_users_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "role",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Role"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Users",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
+  "/api/v1/admin/users/{user_id}": {
+   "get": {
+    "description": "Get user details (admin only).",
+    "operationId": "get_user_api_v1_admin_users__user_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get User",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
+  "/api/v1/admin/users/{user_id}/activate": {
+   "post": {
+    "description": "Activate a user account (admin only).",
+    "operationId": "activate_user_api_v1_admin_users__user_id__activate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Activate User",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
+  "/api/v1/admin/users/{user_id}/deactivate": {
+   "post": {
+    "description": "Deactivate a user account (admin only).",
+    "operationId": "deactivate_user_api_v1_admin_users__user_id__deactivate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Deactivate User",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
+  "/api/v1/admin/users/{user_id}/role": {
+   "put": {
+    "description": "Update user role (super_admin only).",
+    "operationId": "update_user_role_api_v1_admin_users__user_id__role_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "role",
+      "required": true,
+      "schema": {
+       "title": "Role",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update User Role",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
   "/api/v1/behavioral/baseline/{account_id}": {
    "get": {
     "description": "Get behavioral baseline for an account.",

@@ -123,3 +123,134 @@ def generate_api_key() -> tuple[str, str, str]:
     key_hash = hash_password(raw_key)
     key_prefix = raw_key[:12] + "..."
     return raw_key, key_hash, key_prefix
+
+
+# --- RBAC (S3.1) ---
+
+# Permission matrix: role -> set of permissions
+PERMISSION_MATRIX = {
+    "user": {
+        "transactions:create",
+        "transactions:read_own",
+        "cases:read_own",
+        "cases:create",
+    },
+    "analyst": {
+        "transactions:create",
+        "transactions:read_own",
+        "transactions:read_all",
+        "cases:read_own",
+        "cases:read_all",
+        "cases:create",
+        "cases:update",
+        "filings:create",
+        "filings:update",
+        "lists:read",
+    },
+    "admin": {
+        "transactions:create",
+        "transactions:read_own",
+        "transactions:read_all",
+        "cases:read_own",
+        "cases:read_all",
+        "cases:create",
+        "cases:update",
+        "cases:assign",
+        "filings:create",
+        "filings:update",
+        "filings:submit",
+        "lists:read",
+        "lists:write",
+        "users:read",
+        "users:update",
+        "settings:read",
+        "settings:update",
+        "models:read",
+        "models:update",
+    },
+    "super_admin": {
+        "transactions:create",
+        "transactions:read_own",
+        "transactions:read_all",
+        "cases:read_own",
+        "cases:read_all",
+        "cases:create",
+        "cases:update",
+        "cases:assign",
+        "cases:delete",
+        "filings:create",
+        "filings:update",
+        "filings:submit",
+        "filings:delete",
+        "lists:read",
+        "lists:write",
+        "users:read",
+        "users:create",
+        "users:update",
+        "users:delete",
+        "settings:read",
+        "settings:update",
+        "models:read",
+        "models:create",
+        "models:update",
+        "models:delete",
+        "system:admin",
+    },
+}
+
+
+def has_permission(user: User, permission: str) -> bool:
+    """Check if user has a specific permission."""
+    user_role = user.role or "user"
+    role_permissions = PERMISSION_MATRIX.get(user_role, set())
+    return permission in role_permissions
+
+
+def require_role(*roles: str):
+    """Decorator to require specific roles for an endpoint.
+
+    Usage:
+        @router.get("/admin/only")
+        @require_role("admin", "super_admin")
+        def admin_only_endpoint(current_user: User = Depends(get_current_user)):
+            ...
+    """
+    def decorator(func):
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args, current_user: User, **kwargs):
+            if current_user.role not in roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Requires one of roles: {', '.join(roles)}",
+                )
+            return func(*args, current_user=current_user, **kwargs)
+
+        return wrapper
+    return decorator
+
+
+def require_permission(permission: str):
+    """Decorator to require a specific permission for an endpoint.
+
+    Usage:
+        @router.post("/transactions")
+        @require_permission("transactions:create")
+        def create_transaction(current_user: User = Depends(get_current_user)):
+            ...
+    """
+    def decorator(func):
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args, current_user: User, **kwargs):
+            if not has_permission(current_user, permission):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Requires permission: {permission}",
+                )
+            return func(*args, current_user=current_user, **kwargs)
+
+        return wrapper
+    return decorator
