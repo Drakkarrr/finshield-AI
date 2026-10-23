@@ -511,6 +511,32 @@ class RiskModelVersion(Base):
     deprecated_at = Column(DateTime, nullable=True)
 
 
+class DSARRequest(Base):
+    """Data Subject Access Request tracking (S3.3 Privacy)."""
+    __tablename__ = "dsar_requests"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    request_type = Column(String, nullable=False)  # access, erasure, rectification, portability
+    status = Column(String, default="pending")  # pending, processing, completed, denied
+    reason = Column(Text, nullable=True)
+    
+    # Request details
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    processed_at = Column(DateTime, nullable=True)
+    processed_by = Column(String, nullable=True)
+    
+    # Export/erasure results
+    data_export_path = Column(String, nullable=True)  # Path to exported data file
+    records_affected = Column(Integer, default=0)
+    retention_preserved = Column(Boolean, default=False)  # True if legal retention kept
+    
+    # Audit
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class PrecedentDecision(Base):
     """Historical compliance decisions for reference."""
     __tablename__ = "precedent_decisions"

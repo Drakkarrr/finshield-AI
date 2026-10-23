@@ -420,22 +420,28 @@
     "title": "CreditsResponse",
     "type": "object"
    },
-   "DSARRequest": {
+   "DSARRequestCreate": {
     "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
      "request_type": {
       "title": "Request Type",
-      "type": "string"
-     },
-     "subject_email": {
-      "title": "Subject Email",
       "type": "string"
      }
     },
     "required": [
-     "subject_email",
      "request_type"
     ],
-    "title": "DSARRequest",
+    "title": "DSARRequestCreate",
     "type": "object"
    },
    "FilingCreate": {
@@ -4755,6 +4761,29 @@
    }
   },
   "/api/v1/privacy/dsar": {
+   "get": {
+    "description": "List DSAR requests for the current user.",
+    "operationId": "list_dsar_requests_api_v1_privacy_dsar_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Dsar Requests",
+    "tags": [
+     "Privacy"
+    ]
+   },
    "post": {
     "description": "Create a Data Subject Access Request.",
     "operationId": "create_dsar_request_api_v1_privacy_dsar_post",
@@ -4762,7 +4791,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/DSARRequest"
+        "$ref": "#/components/schemas/DSARRequestCreate"
        }
       }
      },
@@ -4794,6 +4823,169 @@
      }
     ],
     "summary": "Create Dsar Request",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/dsar/{dsar_id}": {
+   "get": {
+    "description": "Get a specific DSAR request.",
+    "operationId": "get_dsar_request_api_v1_privacy_dsar__dsar_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "dsar_id",
+      "required": true,
+      "schema": {
+       "title": "Dsar Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Dsar Request",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/dsar/{dsar_id}/process": {
+   "post": {
+    "description": "Process a DSAR request (admin only).",
+    "operationId": "process_dsar_request_api_v1_privacy_dsar__dsar_id__process_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "dsar_id",
+      "required": true,
+      "schema": {
+       "title": "Dsar Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Process Dsar Request",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/export": {
+   "get": {
+    "description": "Export all personal data for the current user.",
+    "operationId": "export_my_data_api_v1_privacy_export_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Export My Data",
+    "tags": [
+     "Privacy"
+    ]
+   }
+  },
+  "/api/v1/privacy/mask": {
+   "post": {
+    "description": "Mask PII fields in provided data (admin only).",
+    "operationId": "mask_pii_in_data_api_v1_privacy_mask_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "title": "Data",
+        "type": "object"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mask Pii In Data",
     "tags": [
      "Privacy"
     ]
