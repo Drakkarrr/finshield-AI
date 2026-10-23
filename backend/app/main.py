@@ -203,7 +203,7 @@ class TokenResponse(BaseModel):
 
 @app.post("/api/auth/register", response_model=TokenResponse, status_code=201, tags=["Auth"])
 @limiter.limit("5/minute")
-async def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
+def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new account with 14-day free trial (Starter plan, 1,000 credits)."""
     existing = db.query(User).filter(User.email == req.email).first()
     if existing:
@@ -264,7 +264,7 @@ async def register(request: Request, req: RegisterRequest, db: Session = Depends
 
 @app.post("/api/auth/login", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("10/minute")
-async def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate and receive a JWT token."""
     user = db.query(User).filter(User.email == req.email).first()
     if not user or not verify_password(req.password, user.hashed_password):
@@ -295,7 +295,7 @@ async def login(request: Request, req: LoginRequest, db: Session = Depends(get_d
 
 
 @app.get("/api/auth/me", tags=["Auth"])
-async def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user)):
     """Get current user profile."""
     return {
         "id": current_user.id,
@@ -333,7 +333,7 @@ class PasswordChangeRequest(BaseModel):
 
 
 @app.patch("/api/auth/me", tags=["Auth"])
-async def update_profile(
+def update_profile(
     req: ProfileUpdateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -357,7 +357,7 @@ async def update_profile(
 
 
 @app.post("/api/auth/change-password", tags=["Auth"])
-async def change_password(
+def change_password(
     req: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -392,7 +392,7 @@ class ApiKeyResponse(BaseModel):
 
 
 @app.post("/api/v1/keys", response_model=dict, status_code=201, tags=["API Keys"])
-async def create_api_key(
+def create_api_key(
     req: ApiKeyCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -422,7 +422,7 @@ async def create_api_key(
 
 
 @app.get("/api/v1/keys", response_model=list[ApiKeyResponse], tags=["API Keys"])
-async def list_api_keys(
+def list_api_keys(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -438,7 +438,7 @@ async def list_api_keys(
 
 
 @app.delete("/api/v1/keys/{key_id}", tags=["API Keys"])
-async def revoke_api_key(
+def revoke_api_key(
     key_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -461,7 +461,7 @@ async def revoke_api_key(
 
 @app.post("/api/v1/transactions", response_model=TransactionResponse, tags=["Compliance"])
 @limiter.limit("60/minute")
-async def screen_transaction(
+def screen_transaction(
     request: Request,
     tx: TransactionRequest,
     current_user: User = Depends(get_current_user),
@@ -599,7 +599,7 @@ async def screen_transaction(
 
 
 @app.get("/api/v1/transactions", tags=["Compliance"])
-async def list_transactions(
+def list_transactions(
     limit: int = 50,
     offset: int = 0,
     current_user: User = Depends(get_current_user),
@@ -632,7 +632,7 @@ async def list_transactions(
 
 
 @app.get("/api/v1/transactions/export", tags=["Compliance"])
-async def export_transactions(
+def export_transactions(
     fmt: str = "csv",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -687,7 +687,7 @@ async def export_transactions(
 
 
 @app.get("/api/v1/transactions/{tx_id}", tags=["Compliance"])
-async def get_transaction(
+def get_transaction(
     tx_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -723,7 +723,7 @@ async def get_transaction(
 
 
 @app.delete("/api/v1/transactions/{tx_id}", tags=["Compliance"])
-async def delete_transaction(
+def delete_transaction(
     tx_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -751,7 +751,7 @@ async def delete_transaction(
 # ============================================================
 
 @app.post("/api/v1/cases", response_model=CaseResponse, status_code=201, tags=["Cases"])
-async def create_case(
+def create_case(
     req: CaseCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -804,7 +804,7 @@ async def create_case(
 
 
 @app.get("/api/v1/cases/{case_id}", response_model=CaseResponse, tags=["Cases"])
-async def get_case(
+def get_case(
     case_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -823,7 +823,7 @@ async def get_case(
 
 
 @app.get("/api/v1/cases", response_model=list[CaseResponse], tags=["Cases"])
-async def list_cases(
+def list_cases(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -844,7 +844,7 @@ async def list_cases(
 # ============================================================
 
 @app.get("/api/v1/credits", response_model=CreditsResponse, tags=["Account"])
-async def get_credits(current_user: User = Depends(get_current_user)):
+def get_credits(current_user: User = Depends(get_current_user)):
     """Get current credit balance."""
     return CreditsResponse(
         total_credits=current_user.total_credits,
@@ -859,7 +859,7 @@ async def get_credits(current_user: User = Depends(get_current_user)):
 # ============================================================
 
 @app.get("/api/v1/stats", tags=["Analytics"])
-async def get_stats(
+def get_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -966,7 +966,7 @@ class RemoveSavedCardRequest(BaseModel):
 
 
 @app.get("/api/v1/billing/plans", tags=["Billing"])
-async def list_plans(current_user: User = Depends(get_current_user)):
+def list_plans(current_user: User = Depends(get_current_user)):
     """List available subscription plans."""
     # Calculate days remaining: billing cycle if paid, else trial expiry
     days_remaining = None
@@ -988,7 +988,7 @@ async def list_plans(current_user: User = Depends(get_current_user)):
 
 
 @app.post("/api/v1/billing/subscribe", tags=["Billing"])
-async def subscribe(
+def subscribe(
     req: SubscribeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1070,7 +1070,7 @@ async def subscribe(
 
 
 @app.post("/api/v1/credits/checkout", tags=["Billing"])
-async def checkout_credits(
+def checkout_credits(
     req: CheckoutRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1142,7 +1142,7 @@ async def checkout_credits(
 
 
 @app.patch("/api/v1/billing/saved-card", tags=["Billing"])
-async def update_saved_card(
+def update_saved_card(
     req: SavedCardRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1164,7 +1164,7 @@ async def update_saved_card(
 
 
 @app.delete("/api/v1/billing/saved-card", tags=["Billing"])
-async def remove_saved_card(
+def remove_saved_card(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1177,7 +1177,7 @@ async def remove_saved_card(
 
 
 @app.post("/api/v1/credits/purchase", tags=["Billing"])
-async def purchase_credits(
+def purchase_credits(
     req: PurchaseRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1209,7 +1209,7 @@ async def purchase_credits(
 # ============================================================
 
 @app.get("/api/v1/search", tags=["Search"])
-async def global_search(
+def global_search(
     q: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1287,7 +1287,7 @@ async def global_search(
 # ============================================================
 
 @app.get("/api/v1/notifications", tags=["Notifications"])
-async def list_notifications(
+def list_notifications(
     limit: int = 20,
     unread_only: bool = False,
     current_user: User = Depends(get_current_user),
@@ -1311,7 +1311,7 @@ async def list_notifications(
 
 
 @app.patch("/api/v1/notifications/{notif_id}/read", tags=["Notifications"])
-async def mark_notification_read(
+def mark_notification_read(
     notif_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1328,7 +1328,7 @@ async def mark_notification_read(
 
 
 @app.post("/api/v1/notifications/read-all", tags=["Notifications"])
-async def mark_all_notifications_read(
+def mark_all_notifications_read(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1345,7 +1345,7 @@ async def mark_all_notifications_read(
 # ============================================================
 
 @app.get("/api/v1/notifications/preferences", tags=["Notifications"])
-async def get_notification_preferences(
+def get_notification_preferences(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1377,7 +1377,7 @@ class NotificationPreferencesUpdate(BaseModel):
 
 
 @app.put("/api/v1/notifications/preferences", tags=["Notifications"])
-async def update_notification_preferences(
+def update_notification_preferences(
     req: NotificationPreferencesUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1403,7 +1403,7 @@ class RuleUpdateRequest(BaseModel):
 
 
 @app.patch("/api/v1/rules/{rule_id}", tags=["Rules"])
-async def update_rule(
+def update_rule(
     rule_id: str,
     req: RuleUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -1447,7 +1447,7 @@ async def update_rule(
 
 
 @app.get("/api/v1/rules", tags=["Rules"])
-async def list_rules(
+def list_rules(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1480,7 +1480,7 @@ class RuleSimulateRequest(BaseModel):
 
 
 @app.post("/api/v1/rules/simulate", tags=["Rules"])
-async def simulate_rule(
+def simulate_rule(
     req: RuleSimulateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1538,7 +1538,7 @@ async def simulate_rule(
 
 # Rule Hit Reporting
 @app.get("/api/v1/rules/{rule_id}/stats", tags=["Rules"])
-async def get_rule_stats(
+def get_rule_stats(
     rule_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1573,7 +1573,7 @@ async def get_rule_stats(
 
 
 @app.post("/api/v1/rules/{rule_id}/record-hit", tags=["Rules"])
-async def record_rule_hit(
+def record_rule_hit(
     rule_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1602,7 +1602,7 @@ async def record_rule_hit(
 
 
 @app.post("/api/v1/rules/{rule_id}/record-false-positive", tags=["Rules"])
-async def record_false_positive(
+def record_false_positive(
     rule_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1639,7 +1639,7 @@ class CaseCommentRequest(BaseModel):
 
 
 @app.patch("/api/v1/cases/{case_id}", tags=["Cases"])
-async def update_case(
+def update_case(
     case_id: str,
     req: CaseUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -1682,7 +1682,7 @@ async def update_case(
 
 
 @app.get("/api/v1/cases/{case_id}/comments", tags=["Cases"])
-async def list_case_comments(
+def list_case_comments(
     case_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1699,7 +1699,7 @@ async def list_case_comments(
 
 
 @app.post("/api/v1/cases/{case_id}/comments", tags=["Cases"])
-async def add_case_comment(
+def add_case_comment(
     case_id: str,
     req: CaseCommentRequest,
     current_user: User = Depends(get_current_user),
@@ -1725,7 +1725,7 @@ class CaseNoteRequest(BaseModel):
 
 
 @app.get("/api/v1/cases/{case_id}/notes", tags=["Cases"])
-async def list_case_notes(
+def list_case_notes(
     case_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1748,7 +1748,7 @@ async def list_case_notes(
 
 
 @app.post("/api/v1/cases/{case_id}/notes", tags=["Cases"])
-async def add_case_note(
+def add_case_note(
     case_id: str,
     req: CaseNoteRequest,
     current_user: User = Depends(get_current_user),
@@ -1775,7 +1775,7 @@ async def add_case_note(
 
 # SLA Escalation
 @app.post("/api/v1/cases/check-sla", tags=["Cases"])
-async def check_sla_escalation(
+def check_sla_escalation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1824,7 +1824,7 @@ async def check_sla_escalation(
 
 # Case Aggregation
 @app.post("/api/v1/cases/aggregate", tags=["Cases"])
-async def aggregate_case(
+def aggregate_case(
     transaction_id: str,
     reason: str,
     priority: str = "medium",
@@ -1898,7 +1898,7 @@ async def aggregate_case(
 
 
 @app.delete("/api/v1/cases/{case_id}", tags=["Cases"])
-async def delete_case(
+def delete_case(
     case_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1949,7 +1949,7 @@ class FilingResponse(BaseModel):
 
 
 @app.post("/api/v1/filings", response_model=FilingResponse, status_code=201, tags=["Filings"])
-async def create_filing(
+def create_filing(
     filing: FilingCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2023,7 +2023,7 @@ async def create_filing(
 
 
 @app.get("/api/v1/filings", response_model=list[FilingResponse], tags=["Filings"])
-async def list_filings(
+def list_filings(
     status: Optional[str] = None,
     filing_type: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -2061,7 +2061,7 @@ async def list_filings(
 
 
 @app.get("/api/v1/filings/{filing_id}", response_model=FilingResponse, tags=["Filings"])
-async def get_filing(
+def get_filing(
     filing_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2090,7 +2090,7 @@ async def get_filing(
 
 
 @app.patch("/api/v1/filings/{filing_id}", response_model=FilingResponse, tags=["Filings"])
-async def update_filing(
+def update_filing(
     filing_id: str,
     update: FilingUpdate,
     current_user: User = Depends(get_current_user),
@@ -2155,7 +2155,7 @@ async def update_filing(
 
 
 @app.delete("/api/v1/filings/{filing_id}", tags=["Filings"])
-async def delete_filing(
+def delete_filing(
     filing_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2193,7 +2193,7 @@ class BehavioralScoreRequest(BaseModel):
 
 
 @app.post("/api/v1/behavioral/score", tags=["Behavioral"])
-async def score_transaction_behavior(
+def score_transaction_behavior(
     req: BehavioralScoreRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2260,7 +2260,7 @@ async def score_transaction_behavior(
 
 
 @app.post("/api/v1/behavioral/update-baseline", tags=["Behavioral"])
-async def update_account_baseline(
+def update_account_baseline(
     account_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2350,7 +2350,7 @@ async def update_account_baseline(
 
 
 @app.get("/api/v1/behavioral/baseline/{account_id}", tags=["Behavioral"])
-async def get_account_baseline(
+def get_account_baseline(
     account_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2403,7 +2403,7 @@ def get_or_create_breaker(db: Session, dependency: str) -> CircuitBreaker:
 
 
 @app.get("/api/v1/health/circuit-breakers", tags=["System"])
-async def get_circuit_breaker_status(
+def get_circuit_breaker_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2451,7 +2451,7 @@ def get_overall_health(breakers: list) -> str:
 
 
 @app.post("/api/v1/health/circuit-breakers/{dependency}/record-failure", tags=["System"])
-async def record_circuit_breaker_failure(
+def record_circuit_breaker_failure(
     dependency: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2491,7 +2491,7 @@ async def record_circuit_breaker_failure(
 
 
 @app.post("/api/v1/health/circuit-breakers/{dependency}/record-success", tags=["System"])
-async def record_circuit_breaker_success(
+def record_circuit_breaker_success(
     dependency: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2532,7 +2532,7 @@ async def record_circuit_breaker_success(
 
 
 @app.post("/api/v1/health/circuit-breakers/{dependency}/check-half-open", tags=["System"])
-async def check_half_open_transition(
+def check_half_open_transition(
     dependency: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2568,7 +2568,7 @@ async def check_half_open_transition(
 
 
 @app.get("/api/v1/health/overall", tags=["System"])
-async def get_overall_health_status(
+def get_overall_health_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2611,7 +2611,7 @@ class WebhookRequest(BaseModel):
 
 
 @app.post("/api/v1/webhooks/dispatch", tags=["Webhooks"])
-async def dispatch_webhook_event(
+def dispatch_webhook_event(
     req: WebhookRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2639,7 +2639,7 @@ async def dispatch_webhook_event(
 
 
 @app.get("/api/v1/webhooks", tags=["Webhooks"])
-async def list_webhook_events(
+def list_webhook_events(
     status: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2668,7 +2668,7 @@ async def list_webhook_events(
 
 
 @app.post("/api/v1/webhooks/{event_id}/retry", tags=["Webhooks"])
-async def retry_webhook_event(
+def retry_webhook_event(
     event_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2704,7 +2704,7 @@ class DSARRequest(BaseModel):
 
 
 @app.post("/api/v1/privacy/dsar", tags=["Privacy"])
-async def create_dsar_request(
+def create_dsar_request(
     req: DSARRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2730,7 +2730,7 @@ async def create_dsar_request(
 
 
 @app.get("/api/v1/privacy/pii-classification", tags=["Privacy"])
-async def get_pii_classification(
+def get_pii_classification(
     current_user: User = Depends(get_current_user),
 ):
     """Get PII field classification."""
@@ -2775,7 +2775,7 @@ class RAGMultiHopRequest(BaseModel):
     destination_country: Optional[str] = None
 
 @app.post("/api/v1/rag/search-documents", tags=["RAG"])
-async def search_compliance_documents(
+def search_compliance_documents(
     req: RAGSearchRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -2793,7 +2793,7 @@ async def search_compliance_documents(
     return {"results": results, "count": len(results)}
 
 @app.post("/api/v1/rag/search-sanctions", tags=["RAG"])
-async def search_sanctions(
+def search_sanctions(
     req: RAGSanctionsSearchRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -2810,7 +2810,7 @@ async def search_sanctions(
     return {"results": results, "count": len(results), "threshold": req.threshold}
 
 @app.post("/api/v1/rag/search-precedents", tags=["RAG"])
-async def search_precedents(
+def search_precedents(
     req: RAGPrecedentSearchRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -2827,7 +2827,7 @@ async def search_precedents(
     return {"results": results, "count": len(results)}
 
 @app.post("/api/v1/rag/multi-hop-retrieval", tags=["RAG"])
-async def multi_hop_retrieval(
+def multi_hop_retrieval(
     req: RAGMultiHopRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -2884,13 +2884,13 @@ def _probe_dependencies(db: Session) -> tuple[dict[str, str], bool]:
 
 
 @app.get("/api/health/live", tags=["System"])
-async def liveness_probe():
+def liveness_probe():
     """Liveness probe — 200 while the process is up. Deliberately checks no dependencies."""
     return {"status": "alive"}
 
 
 @app.get("/api/health/ready", tags=["System"])
-async def readiness_probe(db: Session = Depends(get_db)):
+def readiness_probe(db: Session = Depends(get_db)):
     """Readiness probe — 503 with a per-dependency body when any probe fails."""
     services, all_ok = _probe_dependencies(db)
     return JSONResponse(
@@ -2904,7 +2904,7 @@ async def readiness_probe(db: Session = Depends(get_db)):
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
-async def health_check(db: Session = Depends(get_db)):
+def health_check(db: Session = Depends(get_db)):
     """System health: same shape as before, but every service entry is a real probe result."""
     services, all_ok = _probe_dependencies(db)
     body = HealthResponse(
@@ -2917,7 +2917,7 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 @app.get("/", tags=["System"])
-async def root():
+def root():
     return {
         "service": "FinShield AI",
         "version": "2.4.0",

@@ -60,7 +60,7 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
-async def get_current_user(
+def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
