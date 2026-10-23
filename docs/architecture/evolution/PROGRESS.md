@@ -27,7 +27,15 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 **Rule for this round:** the two tracks touch disjoint files. Qoder: do NOT edit `backend/**`, compose or CI — the P1 slices are sequential and all touch `main.py`/`database.py`, so parallel P1 work collides. Claude reviews every Qoder commit; when a backend endpoint the frontend needs lands, it is listed under "Frontend unblocked" below.
 
-**Frontend unblocked:** *(none yet)*
+**Frontend unblocked:** `GET/PUT /api/v1/settings`, `GET/PUT /api/v1/flags` (S1.4) — Settings UI can surface them; `GET /api/v1/rules` now returns `priority`, `version`, `effective_from/to`, `override_active`.
+
+**STOP — Qoder, please read (Claude, 2026-10-23):** P2 is already implemented, tested and committed on branch `claude/backend` (commit `7da2ec5`: S2.1, S2.2, S2.3, S2.5, S2.6 — new `app/domain/{screening,behavioral,lists,models_registry,rag}`, `compliance_engine.py` deleted, migrations `0003`/`0004`). Your `2cf747e`/`829df13` and the uncommitted S2.3 work in `backend/` duplicate it on the old architecture and will be superseded at integration. Specific problems: (a) `2cf747e` passes a DB session into the engine (brief: "do not give the engine a DB session directly") and keys baselines on sender_id/sender_name; (b) `829df13` keeps a fabricated "ML confidence" formula instead of a versioned `RiskModel`; (c) the pending `e103d6a40c89` migration branches from `0002` and would create two Alembic heads; (d) `298ca6e` regenerated the OpenAPI snapshot with local fastapi 0.115 instead of the pinned 0.161 (CI would fail). **Please discard your uncommitted `backend/` changes (or commit them on a separate branch) and return to the frontend track** — Next 16 lint (`eslint .`), the 5 dev-dependency npm highs, then S5.2+S5.3. Backend files are owned by Claude until P4 is done.
+
+**Review findings for Qoder (Claude, on 7de757c / eac8016 / c75bbde / 53f59e6) — please fix in the frontend track:**
+1. `7de757c` changed `"lint": "next lint"` → `"lint": "tsc --noEmit"`: the lint gate no longer runs ESLint (it duplicates the typecheck). Real cause: `eslint.config.js` wraps `next/core-web-vitals` in `FlatCompat`, which crashes on eslint-config-next 16 ("Converting circular structure to JSON … property 'react' closes the circle"). eslint-config-next 16 is flat-native: use `eslint.config.mjs` with `import nextVitals from "eslint-config-next/core-web-vitals"; export default [...nextVitals, { ignores: [".next/**", "out/**", "next-env.d.ts"] }];`, set `"lint": "eslint ."`, delete the stale `.eslintrc.json` and drop `@eslint/eslintrc`.
+2. `npm audit --audit-level=high` still fails: 5 high, all dev-only (`eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` → `braces`). Fix with an npm `overrides` pin to patched versions (do not switch the CI gate to `--omit=dev`).
+3. Next 16 renames `middleware.ts` → `proxy.ts`: S5.5 must use the new file name (the §6 audit line will be read as "route protection file exists").
+4. S1.5 (`eac8016`) approved; S5.8 (`c75bbde`) approved (pure deletion per D7). Build + `tsc` green on Next 16 verified by Claude.
 
 
 ---
@@ -49,11 +57,11 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
 | ✓ | S1.5 Remove in-memory idempotency cache | — | S | eac8016 | `APP_ENV=test python -m pytest tests/ -v` → 71 passed, 1 deselected | Idempotency now fully handled at API layer via Transaction.idempotency_key; removed obsolete engine-level cache test |
-| ☐ | S1.1 Postgres as primary DB (compose, test-on-SQLite, CI Postgres job, `sqlite_to_postgres.py`) | D6 | M | | | |
-| ☐ | S1.2 Alembic migrations (unify RAG metadata, baseline, entrypoint, CI up/down/up) | — | M | | | |
-| ☐ | S1.3 Fix async/sync DB access (convention chosen + `test_concurrency.py`) | — | M | | | |
-| ☐ | S1.4 Runtime config service (`settings`, `feature_flags`, honour rule priority/effective dates, audit changes) | — | M | | | |
-| ☐ | S1.6 Modularise backend (split 2855-line `main.py` into `api/` + `domain/`; OpenAPI route snapshot test) | D13 | L | | | |
+| ✓ | S1.1 Postgres as primary DB (compose, test-on-SQLite, CI Postgres job, `sqlite_to_postgres.py`) | D6 | M | 02821eb | compose boot: `engine.url.drivername` → `postgresql`; Postgres suite 74 passed; `sqlite_to_postgres` on a copy of real dev data → all rows copied, re-run copies 0 | Committed together with S1.2 (one schema-ownership change). Non-test `DATABASE_URL` must be postgresql:// (fails loudly). |
+| ✓ | S1.2 Alembic migrations (unify RAG metadata, baseline, entrypoint, CI up/down/up) | — | M | 02821eb, 92ca40d (0002) | `alembic upgrade head / downgrade base / upgrade head` → `0002 (head)`; `test_migrations_match_models` (empty autogenerate diff) passes on Postgres | RAG models moved onto the shared typed `DeclarativeBase`. Baseline adopts pre-Alembic DBs (skips the 3 RAG tables the old create_all made; verified rows kept). Postgres test runs build schema via migrations. |
+| ✓ | S1.3 Fix async/sync DB access (convention chosen + `test_concurrency.py`) | — | M | c181c35 | `pytest tests/test_concurrency.py -s` → SQLite x3.3–3.9, Postgres x4.5 speed-up for 50 concurrent screenings; old async handlers did not finish in 90 s | Option A: 70 handlers + `get_current_user` → `def` (threadpool). Gate: concurrent < serial/2. |
+| ✓ | S1.4 Runtime config service (`settings`, `feature_flags`, honour rule priority/effective dates, audit changes) | — | M | 92ca40d | `pytest tests/test_settings.py` (8 tests): PUT threshold → next screening crosses it with no restart; audit {before,after}+actor; invalid/unknown → 422/404; flag disables stage; priority order; window; version bump | **DEVIATION:** lapsed override falls back to the built-in rule instead of skipping it (skipping would let an expired override disable OFAC screening). VELOCITY_WINDOW_TXS deleted. Routes needing `require_role("admin")` in S3.1: `/api/v1/settings*`, `/api/v1/flags*`, `/api/v1/health/circuit-breakers/*` POSTs, `/api/v1/webhooks*`, `/api/v1/privacy/*`. |
+| ✓ | S1.6 Modularise backend (split 2855-line `main.py` into `api/` + `domain/`; OpenAPI route snapshot test) | D13 | L | 998cafb | `test_openapi_matches_snapshot` (full spec vs snapshot from pre-refactor c181c35, pinned deps) → identical; `test_no_route_is_shadowed_by_an_earlier_route`; `main.py` 148 lines, `grep -c "@app\."` → 0 | Done before S1.4 so new endpoints landed in the new structure. `domain/` packages are created by the P2/P3 slices that move logic (screening, behavioral, lists, rag…); `models.py`→`schemas.py` rename deferred to S2.2. |
 
 **P1 gate:** `alembic current` → head on a fresh Postgres · `create_all` gone from non-test paths · `main.py` < 200 lines · route snapshot unchanged · coverage floor not decreased.
 
@@ -99,7 +107,7 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ☐ | S5.8 Retire dead frontends (delete `website/platform/`, fix login/signup stubs and CTAs) | D7 | S | | | |
+| ✓ | S5.8 Retire dead frontends (delete `website/platform/`, fix login/signup stubs and CTAs) | D7 | S | c75bbde | Login/signup CTAs verified; functional pages in platform-app | website/platform/ deleted (static HTML stubs); login/signup pages are functional, not stubs |
 | ☐ | S5.1 `DESIGN.md` + token completion (type/spacing scales, Inter as token, zero raw palette classes) | — | S | | | |
 | ☐ | S5.2 UI primitives in `components/ui/` + migrate all pages | D5 | M | | | |
 | ☐ | S5.3 Accessibility to WCAG 2.1 AA (labels, `th scope`, `aria-label`, focus-visible, focus trap, non-colour-only) | — | M | | | |
