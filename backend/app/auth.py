@@ -11,6 +11,7 @@ from typing import Optional
 
 import bcrypt
 import jwt
+import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -82,6 +83,7 @@ def get_current_user(
         user = _resolve(token, db)
         tenant_id = user.tenant_id
     bind_tenant(db, tenant_id)
+    structlog.contextvars.bind_contextvars(tenant_id=tenant_id, user_id=user.id)
     return user
 
 

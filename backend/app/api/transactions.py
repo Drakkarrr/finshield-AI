@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app import crypto, screening_service
+from app import crypto, metrics, screening_service
 from app.auth import (
     get_current_user,
 )
@@ -19,7 +19,7 @@ from app.db_models import (
     Transaction,
     User,
 )
-from app.domain import privacy
+from app.domain import privacy, webhooks
 from app.models import (
     CreditTier,
     RuleResult,
@@ -35,6 +35,21 @@ router = APIRouter()
 # ============================================================
 # COMPLIANCE ROUTES (authenticated + persisted)
 # ============================================================
+
+def _record_metrics(result: ScreeningResult) -> None:
+    metrics.PIPELINE_TRANSACTIONS.labels(outcome=result.status.value).inc()
+    for dep in result.degraded_dependencies:
+        metrics.PIPELINE_DEGRADED.labels(dependency=dep).inc()
+    for r in result.rule_results:
+        if r.triggered:
+            metrics.RULE_HITS.labels(rule=r.rule_id).inc()
+    if result.ml_confidence is not None:
+        metrics.CLASSIFIER_CONFIDENCE.observe(result.ml_confidence)
+        fired = any(r.triggered for r in result.rule_results)
+        if (result.ml_classification == "high_risk" and result.status == ScreeningStatus.APPROVED) or (
+                result.ml_classification == "low_risk" and result.status == ScreeningStatus.BLOCKED and not fired):
+            metrics.GATE_DISAGREEMENT.inc()
+
 
 @router.post("/api/v1/transactions", response_model=TransactionResponse, tags=["Compliance"])
 @limiter.limit("60/minute")
@@ -82,6 +97,7 @@ def screen_transaction(
     # Pure pipeline over inputs resolved through circuit breakers (lists, history, RAG, model)
     outcome = screening_service.run(db, current_user.tenant_id, tx, getattr(request.app.state, "rag_service", None))
     result = outcome.result
+    _record_metrics(result)
 
     # Update user credits
     current_user.used_credits += result.credits_consumed
@@ -139,6 +155,11 @@ def screen_transaction(
         screening_service.refresh_baseline(db, current_user.tenant_id, current_user.id, result.account_key)
     db.commit()
     db.refresh(db_tx)
+
+    if result.status.value in ("flagged", "blocked"):
+        webhooks.emit(db, current_user.tenant_id, f"transaction.{result.status.value}", {
+            "transaction_id": db_tx.id, "status": result.status.value, "risk_score": result.risk_score,
+            "model_version": result.model_version, "degraded": result.degraded}, user_id=current_user.id)
 
     # Generate notifications for important events
     if result.status.value == "blocked":

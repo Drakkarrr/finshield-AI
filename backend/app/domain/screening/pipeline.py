@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+from app import metrics
 from app.config_service import ScreeningConfig
 from app.domain import behavioral
 from app.domain.lists import WatchlistSnapshot
@@ -19,6 +20,7 @@ from app.domain.models_registry import ModelResult, RiskModel
 from app.domain.screening import gating
 from app.domain.screening.rules import country_set, run_rules, wire_threshold
 from app.models import CreditTier, Reason, ScreeningResult, TransactionRequest
+from app.observability import stage
 
 TYPE_RISK = {"crypto": 1.0, "international": 0.6, "wire": 0.4, "p2p": 0.3, "ach": 0.1, "card": 0.1}
 BEHAVIORAL_TIER_AMOUNT = 5000.0
@@ -88,78 +90,88 @@ def screen(tx: TransactionRequest, ctx: ScreeningContext) -> ScreeningOutcome:
     reasons: list[Reason] = []
     degraded = list(ctx.failed_dependencies)
 
-    rule_results, _hits, rule_reasons, unavailable = run_rules(
-        tx, ctx.rule_configs, cfg, ctx.watchlist, ctx.high_risk_countries)
-    stages.append("rule_engine")
-    reasons += rule_reasons
-    degraded += [d for d in unavailable if d not in degraded]
-    rules_triggered = any(r.triggered for r in rule_results)
+    with stage("rules") as span:
+        rule_results, _hits, rule_reasons, unavailable = run_rules(
+            tx, ctx.rule_configs, cfg, ctx.watchlist, ctx.high_risk_countries)
+        stages.append("rule_engine")
+        reasons += rule_reasons
+        degraded += [d for d in unavailable if d not in degraded]
+        rules_triggered = any(r.triggered for r in rule_results)
+        span.set_attribute("rules.fired", [r.rule_id for r in rule_results if r.triggered])
 
     tier = _tier(tx, rules_triggered, ctx)
     credits = float(cfg.credit_cost[tier.value])
 
-    beh: Optional[behavioral.BehavioralResult] = None
-    if cfg.behavioral_enabled and tier in (CreditTier.BEHAVIORAL, CreditTier.FULL_ML):
-        beh = behavioral.score(
-            tx.amount, tx.destination_country, tx.receiver_name, ctx.baseline, ctx.population,
-            behavioral.BehavioralConfig(trigger_warm=cfg.behavioral_trigger_warm,
-                                        trigger_cold_start=cfg.behavioral_trigger_cold_start,
-                                        cold_start_days=cfg.cold_start_days, min_history_txs=cfg.min_history_txs))
-        stages.append("behavioral_analysis")
-        reasons += beh.reasons
+    with stage("behavioral"):
+        beh: Optional[behavioral.BehavioralResult] = None
+        if cfg.behavioral_enabled and tier in (CreditTier.BEHAVIORAL, CreditTier.FULL_ML):
+            beh = behavioral.score(
+                tx.amount, tx.destination_country, tx.receiver_name, ctx.baseline, ctx.population,
+                behavioral.BehavioralConfig(trigger_warm=cfg.behavioral_trigger_warm,
+                                            trigger_cold_start=cfg.behavioral_trigger_cold_start,
+                                            cold_start_days=cfg.cold_start_days, min_history_txs=cfg.min_history_txs))
+            stages.append("behavioral_analysis")
+            reasons += beh.reasons
 
-    rag_match = False
-    rag_used = ctx.rag_status in RAG_USABLE and ctx.rag_context is not None
-    if rag_used:
-        assert ctx.rag_context is not None
-        stages.append("rag_retrieval")
-        lexical = ctx.rag_status == "lexical_fallback"
-        for m in ctx.rag_context.get("sanctions_matches") or []:
-            rag_match = True
-            reasons.append(Reason(source="rag", feature="sanctions_similarity", value=m.get("matched_party"),
-                                  contribution=0.0, entry_id=m.get("id"), name=m.get("name"),
-                                  similarity=m.get("similarity_score"), degraded=lexical))
-        for feature, key, label in (("policy_match", "policies", "title"), ("precedent_match", "similar_precedents",
-                                                                              "decision")):
-            top = (ctx.rag_context.get(key) or [None])[0]
-            if top:
-                reasons.append(Reason(source="rag", feature=feature, value=top.get(label), contribution=0.0,
-                                      doc_id=top.get("id"), similarity=top.get("score"), degraded=lexical))
-        if lexical:
-            reasons.append(Reason(source="rag", feature="embedder", value="lexical_fallback", degraded=True,
-                                  detail="semantic embedder unavailable; RAG evidence is lexical only"))
-    else:
-        reasons.append(Reason(source="rag", feature="retrieval", value=ctx.rag_status, degraded=True,
-                              detail="RAG retrieval not used for this decision"))
+    with stage("rag", rag_status=ctx.rag_status):
+        rag_match = False
+        rag_used = ctx.rag_status in RAG_USABLE and ctx.rag_context is not None
+        if rag_used:
+            assert ctx.rag_context is not None
+            stages.append("rag_retrieval")
+            lexical = ctx.rag_status == "lexical_fallback"
+            for m in ctx.rag_context.get("sanctions_matches") or []:
+                rag_match = True
+                reasons.append(Reason(source="rag", feature="sanctions_similarity", value=m.get("matched_party"),
+                                      contribution=0.0, entry_id=m.get("id"), name=m.get("name"),
+                                      similarity=m.get("similarity_score"), degraded=lexical))
+            for feature, key, label in (("policy_match", "policies", "title"), ("precedent_match", "similar_precedents",
+                                                                                  "decision")):
+                top = (ctx.rag_context.get(key) or [None])[0]
+                if top:
+                    reasons.append(Reason(source="rag", feature=feature, value=top.get(label), contribution=0.0,
+                                          doc_id=top.get("id"), similarity=top.get("score"), degraded=lexical))
+            if lexical:
+                reasons.append(Reason(source="rag", feature="embedder", value="lexical_fallback", degraded=True,
+                                      detail="semantic embedder unavailable; RAG evidence is lexical only"))
+        else:
+            reasons.append(Reason(source="rag", feature="retrieval", value=ctx.rag_status, degraded=True,
+                                  detail="RAG retrieval not used for this decision"))
 
-    model_result: Optional[ModelResult] = None
-    shadow: Optional[dict] = None
-    if cfg.ml_enabled and tier == CreditTier.FULL_ML:
-        features = model_features(tx, ctx)
-        model_result = ctx.model.score(features)
-        stages.append("ml_classification")
-        reasons += model_result.reasons
-        if ctx.shadow_model is not None:
-            s = ctx.shadow_model.score(features)
-            shadow = {"model_version": s.model_version, "label": s.label, "score": s.score,
-                      "reasons": [r.model_dump() for r in s.reasons]}
+    with stage("model", model_version=ctx.model.version):
+        model_result: Optional[ModelResult] = None
+        shadow: Optional[dict] = None
+        if cfg.ml_enabled and tier == CreditTier.FULL_ML:
+            features = model_features(tx, ctx)
+            with metrics.MODEL_LATENCY.time():
+                model_result = ctx.model.score(features)
+            stages.append("ml_classification")
+            reasons += model_result.reasons
+            if ctx.shadow_model is not None:
+                s = ctx.shadow_model.score(features)
+                shadow = {"model_version": s.model_version, "label": s.label, "score": s.score,
+                          "reasons": [r.model_dump() for r in s.reasons]}
 
-    w = cfg.weights
-    rule_risk = min(1.0, sum(1 for r in rule_results if r.triggered) * RULE_RISK_PER_HIT)
-    parts = {"rules": rule_risk, "behavioral": beh.score if beh else 0.0,
-             "model": model_result.score if model_result else 0.0}
-    risk = round(min(1.0, sum(w[k] * v for k, v in parts.items())), 4)
-    stages.append("risk_scoring")
-    reasons += [Reason(source="score", feature=k, value=round(v, 4), contribution=round(w[k] * v, 4), weight=w[k])
-                for k, v in parts.items()]
+    with stage("scoring"):
+        w = cfg.weights
+        rule_risk = min(1.0, sum(1 for r in rule_results if r.triggered) * RULE_RISK_PER_HIT)
+        parts = {"rules": rule_risk, "behavioral": beh.score if beh else 0.0,
+                 "model": model_result.score if model_result else 0.0}
+        risk = round(min(1.0, sum(w[k] * v for k, v in parts.items())), 4)
+        stages.append("risk_scoring")
+        reasons += [Reason(source="score", feature=k, value=round(v, 4), contribution=round(w[k] * v, 4), weight=w[k])
+                    for k, v in parts.items()]
 
-    status, gate_reasons = gating.decide(risk, rule_results, cfg.bands, bool(beh and beh.triggered), rag_match,
-                                         degraded)
-    stages.append("decision")
-    reasons += gate_reasons
-    if degraded:
-        reasons.append(Reason(source="resilience", feature="degraded", value=degraded, degraded=True,
-                              detail="a configured dependency was unavailable; decision held for human review"))
+    with stage("gate") as span:
+        status, gate_reasons = gating.decide(risk, rule_results, cfg.bands, bool(beh and beh.triggered), rag_match,
+                                             degraded)
+        stages.append("decision")
+        span.set_attribute("decision", status.value)
+        span.set_attribute("degraded", bool(degraded))
+        reasons += gate_reasons
+        if degraded:
+            reasons.append(Reason(source="resilience", feature="degraded", value=degraded, degraded=True,
+                                  detail="a configured dependency was unavailable; decision held for human review"))
 
     result = ScreeningResult(
         transaction_id="",  # assigned when persisted

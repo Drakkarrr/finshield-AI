@@ -18,6 +18,7 @@ from app.db_models import (
     Transaction,
     User,
 )
+from app.domain import webhooks
 
 router = APIRouter()
 
@@ -222,6 +223,9 @@ def update_filing(
         if update.status == "submitted" and old_status != "submitted":
             filing.submitted_at = datetime.utcnow()
             filing.submitted_by = current_user.id
+            webhooks.emit(db, current_user.tenant_id, "filing.submitted",
+                          {"filing_id": filing.id, "case_id": filing.case_id, "filing_type": filing.filing_type},
+                          user_id=current_user.id)
 
         # Track confirmation
         if update.status == "confirmed" and old_status != "confirmed":

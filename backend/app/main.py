@@ -4,9 +4,12 @@ Routes live in app/api/ (one module per domain); shared singletons in app/core.p
 """
 import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 
+import structlog
 from dotenv import load_dotenv
+from opentelemetry.trace import SpanKind
 
 load_dotenv()
 
@@ -16,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app import crypto
+from app import crypto, metrics, observability
 from app.api import (
     admin,
     audit,
@@ -101,6 +104,9 @@ async def validation_exception_handler(request: Request, exc: Exception) -> JSON
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    observability.capture_exception(exc)
+    if request.method == "POST" and request.url.path == "/api/v1/transactions":
+        metrics.PIPELINE_ERRORS.inc()
     logger.error(f"Unhandled exception: {request.method} {request.url.path} — {type(exc).__name__}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
@@ -110,11 +116,27 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 # --- Middleware ---
 async def request_logging_middleware(request: Request, call_next):
+    """Request id (propagated or new), root span, HTTP metrics by route template."""
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id=request_id)
     start = time.monotonic()
-    response = await call_next(request)
-    duration_ms = round((time.monotonic() - start) * 1000, 2)
-    logger.debug(f"{request.method} {request.url.path} → {response.status_code} ({duration_ms}ms)")
-    response.headers["X-Process-Time-Ms"] = str(duration_ms)
+    status = 500  # an exception escaping call_next is answered as 500 by the outermost handler
+    with observability.tracer.start_as_current_span(f"HTTP {request.method}", kind=SpanKind.SERVER) as span:
+        span.set_attribute("http.request_id", request_id)
+        try:
+            response = await call_next(request)
+            status = response.status_code
+        finally:
+            route = getattr(request.scope.get("route"), "path", "unmatched")
+            span.update_name(f"{request.method} {route}")
+            span.set_attribute("http.route", route)
+            span.set_attribute("http.status_code", status)
+            elapsed = time.monotonic() - start
+            metrics.HTTP_REQUESTS.labels(method=request.method, route=route, status=str(status)).inc()
+            metrics.HTTP_LATENCY.labels(method=request.method, route=route).observe(elapsed)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time-Ms"] = str(round(elapsed * 1000, 2))
     return response
 
 

@@ -1,0 +1,69 @@
+# FinShield alerting rules (S4.4). Implements FinShield-AI-Wiki.md §13.4; metric names follow §13.2.
+# "Behavioral monitor drift" (eval AUC) is not a runtime metric: the nightly evaluation job
+# (.github/workflows/ci.yml, job `eval`) fails when it drops below tests/eval/baseline.json.
+# Validate: promtool check rules deploy/prometheus/alerts.yml
+groups:
+  - name: finshield-wiki-13.4
+    rules:
+      - alert: QueueBacklog
+        expr: pipeline_queue_depth > 1000
+        for: 5m
+        labels: {severity: high}
+        annotations:
+          summary: "Worker queue backlog above 1000 for 5 minutes"
+          description: "Deliveries and sweeps are falling behind. Scale workers or check the broker."
+
+      - alert: ModelLatencySpike
+        expr: histogram_quantile(0.95, sum by (le) (rate(model_inference_latency_seconds_bucket[5m]))) > 10
+        for: 5m
+        labels: {severity: high}
+        annotations:
+          summary: "Risk model p95 latency above 10s"
+
+      - alert: CircuitBreakerOpen
+        expr: max by (dependency) (circuit_breaker_state) == 2
+        labels: {severity: critical}
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.dependency }}"
+          description: "Affected decisions are held for human review (never auto-approved). Restore the dependency."
+
+      - alert: HighErrorRate
+        expr: >
+          sum(rate(pipeline_errors_total[2m]))
+          / clamp_min(sum(rate(http_requests_total{method="POST", route="/api/v1/transactions"}[2m])), 1e-9)
+          > 0.05
+        for: 2m
+        labels: {severity: high}
+        annotations:
+          summary: "More than 5% of screening requests are failing"
+
+      - alert: SLABreachImminent
+        expr: cases_sla_approaching > 0
+        labels: {severity: medium}
+        annotations:
+          summary: "{{ $value }} case(s) within the SLA warning window"
+
+      - alert: ClassifierDrift
+        expr: >
+          sum(increase(gate_disagreement_total[1h]))
+          / clamp_min(sum(increase(pipeline_transactions_total[1h])), 1)
+          > 0.2
+        labels: {severity: medium}
+        annotations:
+          summary: "Model and final decisions disagree on more than 20% of transactions over 1h"
+
+  - name: finshield-compliance
+    rules:
+      - alert: AuditChainBroken
+        expr: increase(audit_chain_breaks_total[1h]) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Audit hash-chain verification failed"
+          description: "Treat as a security incident: preserve the database, run GET /api/v1/audit/verify per tenant."
+
+      - alert: SanctionsListStale
+        expr: max(sanctions_list_age_hours) > 48
+        for: 1h
+        labels: {severity: high}
+        annotations:
+          summary: "Sanctions list not refreshed for more than 48 hours"

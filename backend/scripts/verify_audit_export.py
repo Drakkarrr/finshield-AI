@@ -16,6 +16,7 @@ import json
 import sys
 
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 GENESIS = "0" * 64
@@ -40,7 +41,10 @@ def check_chain(entries: list[dict]) -> tuple[bool, str]:
 def check_signature(bundle: dict, pem: str) -> tuple[bool, str]:
     body = {k: v for k, v in bundle.items() if k != "signature"}
     try:
-        load_pem_public_key(pem.encode("ascii")).verify(base64.b64decode(bundle["signature"]), canonical(body))
+        key = load_pem_public_key(pem.encode("ascii"))
+        if not isinstance(key, Ed25519PublicKey):
+            return False, f"public key is {type(key).__name__}, expected Ed25519"
+        key.verify(base64.b64decode(bundle["signature"]), canonical(body))
     except (InvalidSignature, KeyError, ValueError) as e:
         return False, f"signature invalid ({type(e).__name__})"
     return True, "signature valid"

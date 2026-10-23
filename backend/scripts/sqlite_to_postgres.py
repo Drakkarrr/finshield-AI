@@ -53,7 +53,7 @@ def copy(sqlite_path: str) -> dict[str, int]:
                     dst.execute(insert(tenants).values(new_tenants).on_conflict_do_nothing())
             elif needs_tenant:
                 for r in rows:
-                    r["tenant_id"] = tenant_of_user.get(r.get("user_id"), SYSTEM_TENANT)
+                    r["tenant_id"] = tenant_of_user.get(r.get("user_id") or "", SYSTEM_TENANT)
                 if any(r["tenant_id"] == SYSTEM_TENANT for r in rows):
                     dst.execute(insert(tenants).values(id=SYSTEM_TENANT, name=SYSTEM_TENANT,
                                                        created_at=datetime.utcnow()).on_conflict_do_nothing())

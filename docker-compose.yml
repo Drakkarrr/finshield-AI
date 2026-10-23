@@ -19,6 +19,21 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: finshield-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - finshield-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -38,11 +53,18 @@ services:
       # First-run list data (see backend/scripts/bootstrap.py). The demo fixtures are FICTIONAL.
       - LISTS_AUTO_DOWNLOAD=${LISTS_AUTO_DOWNLOAD:-true}
       - LISTS_DEMO_FIXTURES=${LISTS_DEMO_FIXTURES:-true}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      # Optional: set to expose /metrics (bearer token); unset keeps the endpoint disabled.
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       - DEBUG=${DEBUG:-false}
     volumes:
       - backend-data:/app/data
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -53,6 +75,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Background worker + beat (S4.1/S4.3): deliveries, sweeps, refreshes. No screening decisions.
+  # Same image as the backend; its own entrypoint, so it never runs migrations concurrently.
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: finshield-worker
+    entrypoint: ["celery", "-A", "app.worker.celery_app"]
+    command: ["worker", "-B", "--loglevel=INFO", "--concurrency=2", "--schedule=/tmp/celerybeat-schedule"]
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-finshield}
+      - RAG_DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-finshield}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY must be set}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - RAG_EMBEDDER=${RAG_EMBEDDER:-minilm}
+      - LISTS_AUTO_DOWNLOAD=${LISTS_AUTO_DOWNLOAD:-true}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - finshield-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker.celery_app inspect ping -d celery@$$HOSTNAME --timeout 10"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 60s
 
   frontend:
     build:
@@ -72,6 +128,8 @@ services:
       - finshield-network
 
 volumes:
+  redis-data:
+    driver: local
   backend-data:
     driver: local
   postgres-data:

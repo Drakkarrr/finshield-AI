@@ -1,6 +1,6 @@
 """FinShield AI — Case lifecycle, comments, notes, SLA escalation and aggregation."""
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,6 +21,8 @@ from app.db_models import (
     Transaction,
     User,
 )
+from app.domain import cases as case_sla
+from app.domain import webhooks
 from app.models import (
     CaseCreateRequest,
     CaseResponse,
@@ -55,10 +57,16 @@ def create_case(
         transaction_id=req.transaction_id,
         status=CaseStatus.CREATED,
         priority=req.priority.value,
+        severity=req.priority.value,
+        sla_deadline=case_sla.sla_deadline(db, req.priority.value),
         reason=req.reason,
         assigned_to=req.assigned_to,
     )
     db.add(case)
+    db.flush()
+    webhooks.emit(db, current_user.tenant_id, "case.created",
+                  {"case_id": case.id, "transaction_id": case.transaction_id, "priority": case.priority},
+                  user_id=current_user.id)
     db.commit()
     db.refresh(case)
 
@@ -166,14 +174,14 @@ def update_case(
     if req.resolution_summary is not None:
         case.resolution_summary = req.resolution_summary
 
+    db.add(AuditLog(user_id=current_user.id, action="case_updated", resource_type="case", resource_id=case_id,
+                    details={"status": case.status, "assigned_to": case.assigned_to}))
+    event = {"case_id": case.id, "status": case.status, "resolution": case.resolution}
+    webhooks.emit(db, current_user.tenant_id, "case.updated", event, user_id=current_user.id)
+    if req.status in ("resolved", "closed"):
+        webhooks.emit(db, current_user.tenant_id, "case.resolved", event, user_id=current_user.id)
     db.commit()
     db.refresh(case)
-
-    audit = AuditLog(user_id=current_user.id, action="case_updated",
-                     resource_type="case", resource_id=case_id,
-                     details={"status": case.status, "assigned_to": case.assigned_to})
-    db.add(audit)
-    db.commit()
 
     return CaseResponse(
         case_id=case.id, transaction_id=case.transaction_id,
@@ -280,47 +288,8 @@ def check_sla_escalation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Check all open cases for SLA breaches and auto-escalate if needed."""
-    now = datetime.utcnow()
-
-    # Find cases approaching SLA (within 15 minutes of deadline)
-    approaching_sla = db.query(Case).filter(
-        Case.tenant_id == current_user.tenant_id,
-        Case.status.in_(["open", "under_review"]),
-        Case.sla_deadline.isnot(None),
-        Case.sla_deadline <= now + timedelta(minutes=15),
-        Case.sla_deadline > now,
-        Case.escalated_at.is_(None),  # Not already escalated
-    ).all()
-
-    # Find cases that have breached SLA
-    breached_sla = db.query(Case).filter(
-        Case.tenant_id == current_user.tenant_id,
-        Case.status.in_(["open", "under_review"]),
-        Case.sla_deadline.isnot(None),
-        Case.sla_deadline <= now,
-        Case.escalated_at.is_(None),
-    ).all()
-
-    escalated_count = 0
-
-    # Escalate breached cases
-    for case in breached_sla:
-        case.status = "escalated"
-        case.escalated_at = now
-        case.escalated_by = "system"
-        case.escalation_reason = f"SLA breached. Deadline was {case.sla_deadline.isoformat()}"
-        escalated_count += 1
-
-    # Approaching-SLA notifications are not sent yet (scheduled jobs, slice S4.3).
-
-    db.commit()
-
-    return {
-        "escalated": escalated_count,
-        "approaching": len(approaching_sla),
-        "breached": len(breached_sla),
-    }
+    """Run the SLA sweep for the caller's tenant now (the worker also runs it every 5 minutes)."""
+    return case_sla.sla_sweep(db, current_user.tenant_id)
 
 
 # Case Aggregation
@@ -382,12 +351,12 @@ def aggregate_case(
             reason=reason,
         )
 
-        # Calculate SLA deadline based on severity
-        sla_hours = {"low": 72, "medium": 24, "high": 4, "critical": 1}
-        hours = sla_hours.get(priority, 24)
-        new_case.sla_deadline = datetime.utcnow() + timedelta(hours=hours)
+        new_case.sla_deadline = case_sla.sla_deadline(db, priority)
 
         db.add(new_case)
+        db.flush()
+        webhooks.emit(db, current_user.tenant_id, "case.created",
+                      {"case_id": new_case.id, "transaction_id": tx.id, "priority": priority}, user_id=current_user.id)
         db.commit()
         db.refresh(new_case)
 

@@ -6,10 +6,9 @@ import time
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-logging.basicConfig(
-    level=logging.DEBUG if os.getenv("DEBUG") == "true" else logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+from app import observability
+
+observability.configure()
 logger = logging.getLogger("finshield")
 
 limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("APP_ENV") != "test")

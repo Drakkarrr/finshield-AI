@@ -46,6 +46,14 @@ def _credit_packs(v: Any) -> bool:
     return isinstance(v, dict) and bool(v) and all(k.isdigit() and _number(p) for k, p in v.items())
 
 
+def _sla_hours(v: Any) -> bool:
+    return isinstance(v, dict) and set(v) == {"low", "medium", "high", "critical"} and all(_number(x) and x > 0 for x in v.values())
+
+
+def _bool(v: Any) -> bool:
+    return isinstance(v, bool)
+
+
 def _pii_fields(v: Any) -> bool:
     return isinstance(v, dict) and all(isinstance(k, str) and isinstance(f, list) for k, f in v.items())
 
@@ -117,6 +125,15 @@ SETTINGS: dict[str, tuple[Any, Callable[[Any], bool], str]] = {
     "privacy.mask_roles": (["analyst"], _roles, "Roles that see party names and account ids masked"),
     "privacy.dsar_due_days": (30, _number, "Days to answer a data-subject request (GDPR Art. 12(3))"),
     "privacy.retention_years": (5, _number, "AML record-keeping window; erasure retains newer records"),
+    "webhooks.max_attempts": (6, _number, "Delivery attempts before an event moves to the dead-letter queue"),
+    "webhooks.backoff_base_seconds": (30, _number, "First retry delay; doubles per attempt, plus jitter"),
+    "webhooks.timeout_seconds": (10, _number, "Per-attempt HTTP timeout"),
+    "webhooks.allow_http": (False, _bool, "Permit plain-http subscriber URLs (development only)"),
+    "webhooks.allow_private_targets": (False, _bool, "Permit private/loopback subscriber addresses (SSRF guard off)"),
+    "sla.approaching_minutes": (60, _number, "Notify when a case is this close to its SLA deadline"),
+    "cases.sla_hours": ({"low": 72, "medium": 24, "high": 4, "critical": 1}, _sla_hours,
+                        "Case SLA deadline in hours, by severity"),
+    "filings.reminder_days": (7, _number, "Remind about filings due within this many days"),
 }
 
 FLAGS: dict[str, tuple[bool, str]] = {

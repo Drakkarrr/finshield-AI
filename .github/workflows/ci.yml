@@ -41,7 +41,7 @@ jobs:
         run: ruff check .
 
       - name: Typecheck (mypy)
-        run: mypy app
+        run: mypy app scripts
 
       - name: Run tests with coverage
         env:

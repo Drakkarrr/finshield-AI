@@ -141,29 +141,29 @@ class Transaction(Base):
 class Case(Base):
     __tablename__ = "cases"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    transaction_id = Column(String, ForeignKey("transactions.id"), nullable=False)
-    status = Column(String, default="open")  # open, under_review, escalated, resolved, closed
-    priority = Column(String, default="medium")  # low, medium, high, critical
-    severity = Column(String, default="medium")  # low, medium, high, critical (for SLA)
-    reason = Column(Text, nullable=False)
-    assigned_to = Column(String, nullable=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    transaction_id: Mapped[str] = mapped_column(String, ForeignKey("transactions.id"), nullable=False)
+    status: Mapped[Optional[str]] = mapped_column(String, default="open")  # open, under_review, escalated, resolved, closed
+    priority: Mapped[Optional[str]] = mapped_column(String, default="medium")  # low, medium, high, critical
+    severity: Mapped[Optional[str]] = mapped_column(String, default="medium")  # low, medium, high, critical (for SLA)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # SLA tracking
-    sla_deadline = Column(DateTime, nullable=True)  # Auto-calculated from severity
-    escalated_at = Column(DateTime, nullable=True)
-    escalated_by = Column(String, nullable=True)
-    escalation_reason = Column(Text, nullable=True)
+    sla_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # Auto-calculated from severity
+    escalated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    escalated_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    escalation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Resolution
-    resolution = Column(String, nullable=True)  # confirmed_suspicious, false_positive, filed_sar, closed_no_action
-    resolution_summary = Column(Text, nullable=True)
-    resolved_at = Column(DateTime, nullable=True)
+    resolution: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # confirmed_suspicious, false_positive, filed_sar, closed_no_action
+    resolution_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     user = relationship("User", back_populates="cases")
@@ -303,32 +303,32 @@ class Filing(Base):
     """SAR/STR regulatory filings for confirmed suspicious cases."""
     __tablename__ = "filings"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    case_id = Column(String, ForeignKey("cases.id"), nullable=False)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    case_id: Mapped[str] = mapped_column(String, ForeignKey("cases.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
 
     # Filing type and status
-    filing_type = Column(String, nullable=False)  # SAR (Suspicious Activity Report), STR (Suspicious Transaction Report)
-    status = Column(String, default="draft")  # draft, under_review, submitted, confirmed, rejected
+    filing_type: Mapped[str] = mapped_column(String, nullable=False)  # SAR (Suspicious Activity Report), STR (Suspicious Transaction Report)
+    status: Mapped[Optional[str]] = mapped_column(String, default="draft")  # draft, under_review, submitted, confirmed, rejected
 
     # Deadline tracking
-    deadline = Column(DateTime, nullable=True)  # 30 days from detection (FinCEN SAR)
+    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # 30 days from detection (FinCEN SAR)
 
     # Filing content
-    narrative = Column(Text, nullable=True)  # Free-text description of suspicious activity
-    structured_data = Column(JSON, nullable=True)  # Auto-populated from case (tx details, parties, amounts)
+    narrative: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Free-text description of suspicious activity
+    structured_data: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # Auto-populated from case (tx details, parties, amounts)
 
     # Submission tracking
-    reference_number = Column(String, nullable=True)  # Regulator-assigned reference
-    submitted_at = Column(DateTime, nullable=True)
-    submitted_by = Column(String, nullable=True)  # User ID who submitted
-    confirmed_at = Column(DateTime, nullable=True)
-    confirmed_by = Column(String, nullable=True)
+    reference_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Regulator-assigned reference
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    submitted_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # User ID who submitted
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    confirmed_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     case = relationship("Case", back_populates="filings")
@@ -356,27 +356,60 @@ class CircuitBreaker(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class WebhookSubscription(Base):
+    """An integrator endpoint (S4.2). The signing secret is Fernet-encrypted at rest (S3.5)."""
+    __tablename__ = "webhook_subscriptions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
+    url: Mapped[str] = mapped_column(String)
+    secret_enc: Mapped[str] = mapped_column(Text)
+    events: Mapped[Any] = mapped_column(JSON)  # event types, or ["*"]
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class WebhookEvent(Base):
-    """Webhook event delivery tracking."""
+    """One delivery of one lifecycle event to one subscription (transactional outbox)."""
     __tablename__ = "webhook_events"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    event_type = Column(String, nullable=False)  # transaction.flagged, case.created, etc.
-    payload = Column(JSON, nullable=False)
+    user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)  # None: system
+    subscription_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("webhook_subscriptions.id"),
+                                                           nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String)  # transaction.flagged, case.created, ...
+    payload: Mapped[Any] = mapped_column(JSON)
 
-    # Delivery tracking
-    status = Column(String, default="pending")  # pending, delivered, failed, dead_letter
-    attempts = Column(Integer, default=0)
-    last_attempt_at = Column(DateTime, nullable=True)
-    last_error = Column(Text, nullable=True)
-    next_retry_at = Column(DateTime, nullable=True)
+    # Delivery tracking: pending -> delivered | failed (retry scheduled) -> ... -> dead_letter
+    status: Mapped[Optional[str]] = mapped_column(String, default="pending", index=True)
+    attempts: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    last_attempt_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    response_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    next_retry_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    attempt_log: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # readable by the integrator
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    delivered_at = Column(DateTime, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     user = relationship("User")
+
+
+class JobRun(Base):
+    """Ledger of background task executions (S4.1); dead_letter rows are the operator's queue."""
+    __tablename__ = "job_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # Celery task id
+    task: Mapped[str] = mapped_column(String, index=True)
+    args: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # ids only, never personal data
+    status: Mapped[str] = mapped_column(String, index=True)  # started | retrying | succeeded | dead_letter
+    attempts: Mapped[int] = mapped_column(Integer, default=1)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    result: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class AccountBaseline(Base):

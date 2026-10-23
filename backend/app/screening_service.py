@@ -12,13 +12,14 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app import config_service, resilience
+from app import config_service, metrics, resilience
 from app.db_models import AccountBaseline, Transaction
 from app.domain import behavioral
 from app.domain.lists import provider as lists
 from app.domain.models_registry import registry
 from app.domain.screening import ScreeningContext, ScreeningOutcome, screen
 from app.models import TransactionRequest
+from app.observability import tracer
 
 logger = logging.getLogger("finshield.screening")
 
@@ -58,7 +59,8 @@ def build_context(db: Session, tenant_id: str, tx: TransactionRequest, rag_servi
 
     watchlist = None
     try:
-        watchlist = resilience.call("watchlist", lambda: lists.snapshot(db))
+        with tracer.start_as_current_span("screening.lists.snapshot"):
+            watchlist = resilience.call("watchlist", lambda: lists.snapshot(db))
     except resilience.DependencyUnavailable as e:
         logger.warning("%s", e)
         failed.append("watchlist")
@@ -75,13 +77,15 @@ def build_context(db: Session, tenant_id: str, tx: TransactionRequest, rag_servi
     rag_context, rag_status = None, "disabled"
     if rag_service is not None and config_service.get_flag(db, "screening.rag"):
         try:
-            rag_context = resilience.call("rag", lambda: rag_service.multi_hop_retrieval({
-                "sender_name": tx.sender_name,
-                "receiver_name": tx.receiver_name,
-                "transaction_type": tx.transaction_type.value,
-                "destination_country": tx.destination_country,
-                "description": tx.description,
-            }))
+            with tracer.start_as_current_span("screening.rag.retrieve"), \
+                    metrics.RAG_LATENCY.time():
+                rag_context = resilience.call("rag", lambda: rag_service.multi_hop_retrieval({
+                    "sender_name": tx.sender_name,
+                    "receiver_name": tx.receiver_name,
+                    "transaction_type": tx.transaction_type.value,
+                    "destination_country": tx.destination_country,
+                    "description": tx.description,
+                }))
             rag_status = "ok" if rag_service.embedder.semantic else "lexical_fallback"
         except resilience.DependencyUnavailable as e:
             logger.warning("%s", e)

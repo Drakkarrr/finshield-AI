@@ -1,14 +1,20 @@
 """FinShield AI — Liveness, readiness, health and service root."""
+import hmac
+import os
 import time
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app import config_service, resilience
+from app import config_service, metrics, resilience
 from app.core import logger, start_time
 from app.database import get_db
+from app.db_models import Case
+from app.domain.cases import OPEN_STATUSES
 from app.domain.lists import provider as lists
 from app.models import (
     HealthResponse,
@@ -120,3 +126,38 @@ def root():
         "docs": "/api/docs",
         "health": "/api/health",
     }
+
+
+def _refresh_gauges(db: Session) -> None:
+    for dep, st in resilience.states().items():
+        metrics.CIRCUIT_BREAKER_STATE.labels(dependency=dep).set(metrics.BREAKER_VALUE.get(st["state"], 0))
+    try:
+        for src in lists.status(db, float(config_service.get_setting(db, "lists.max_age_hours"))):
+            metrics.LIST_AGE_HOURS.labels(source=src["source"]).set(src["age_hours"])
+        soon = datetime.utcnow() + timedelta(minutes=float(config_service.get_setting(db, "sla.approaching_minutes")))
+        metrics.CASES_SLA_APPROACHING.set(db.query(Case).filter(
+            Case.status.in_(OPEN_STATUSES), Case.escalated_at.is_(None), Case.sla_deadline.isnot(None),
+            Case.sla_deadline <= soon).count())
+    except Exception:
+        logger.exception("metrics gauge refresh failed")
+    broker = os.getenv("CELERY_BROKER_URL", "")
+    if broker.startswith("redis"):
+        try:
+            import redis
+
+            metrics.PIPELINE_QUEUE_DEPTH.set(redis.Redis.from_url(broker, socket_timeout=1).llen("celery"))
+        except Exception:
+            logger.warning("queue depth unavailable", exc_info=True)
+
+
+@router.get("/metrics", include_in_schema=False)
+def prometheus_metrics(request: Request, db: Session = Depends(get_db)):
+    """Prometheus scrape endpoint. Disabled unless METRICS_TOKEN is set; then requires it as a bearer
+    token (the API port is public, operational metrics are not)."""
+    token = os.getenv("METRICS_TOKEN")
+    if not token or not hmac.compare_digest(request.headers.get("Authorization", ""), f"Bearer {token}"):
+        raise HTTPException(status_code=404)
+    db.info["rls_bypass"] = True  # aggregate gauges across tenants
+    db.commit()
+    _refresh_gauges(db)
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

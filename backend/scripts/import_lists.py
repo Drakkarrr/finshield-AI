@@ -94,8 +94,9 @@ def main(argv: list[str] | None = None) -> int:
                 db.close()
         read = lambda n: (FIXTURES / n).read_text(encoding="utf-8")  # noqa: E731
         if not args.pep_only:
-            sdn, sdn_version = parse_ofac_sdn(read("sdn.csv"), read("alt.csv"), read("add.csv"), source="FIXTURE-OFAC")
-            _store(sdn, "FIXTURE-OFAC", "sanctions", sdn_version, False, is_fixture=True)
+            fixture_sdn, sdn_version = parse_ofac_sdn(read("sdn.csv"), read("alt.csv"), read("add.csv"),
+                                                      source="FIXTURE-OFAC")
+            _store(fixture_sdn, "FIXTURE-OFAC", "sanctions", sdn_version, False, is_fixture=True)
         pep, pep_version = parse_pep_csv(read("pep.csv"), source="FIXTURE-PEP")
         _store(pep, "FIXTURE-PEP", "pep", pep_version, False, is_fixture=True)
         print("WARNING: fixture entries are fictional test data, not real list data")
