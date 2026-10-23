@@ -1,0 +1,250 @@
+"""Runtime configuration: settings and feature flags, editable without a redeploy (S1.4).
+
+Defaults live here, typed. The `settings` / `feature_flags` tables hold overrides (seeded by
+migration 0002 with these same values). Reads go through a 30 s per-process TTL cache, cleared on
+every write in this process; other replicas pick a change up within the TTL.
+"""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Callable
+
+from sqlalchemy.orm import Session
+
+from app.db_models import AuditLog, FeatureFlag, RuleConfig, Setting
+
+CACHE_TTL_S = 30.0
+GLOBAL = "global"
+
+
+def _number(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
+
+
+def _unit(v: Any) -> bool:
+    return _number(v) and v <= 1
+
+
+def _weights(v: Any) -> bool:
+    return (isinstance(v, dict) and set(v) == {"rules", "behavioral", "model"}
+            and all(_unit(x) for x in v.values()) and abs(sum(v.values()) - 1.0) < 1e-6)
+
+
+def _bands(v: Any) -> bool:
+    keys = ("block", "block_if_rule", "flag", "review")
+    return (isinstance(v, dict) and set(v) == set(keys) and all(_unit(v[k]) for k in keys)
+            and v["block"] >= v["block_if_rule"] and v["block"] >= v["flag"] >= v["review"])
+
+
+def _credit_cost(v: Any) -> bool:
+    return isinstance(v, dict) and set(v) == {"rule_only", "behavioral", "full_ml"} and all(_number(x) for x in v.values())
+
+
+def _credit_packs(v: Any) -> bool:
+    return isinstance(v, dict) and bool(v) and all(k.isdigit() and _number(p) for k, p in v.items())
+
+
+def _plans(v: Any) -> bool:
+    return isinstance(v, list) and bool(v) and all(isinstance(p, dict) and {"id", "name", "price_monthly", "included_credits"} <= set(p) for p in v)
+
+
+PLANS_DEFAULT = [
+    {
+        "id": "starter",
+        "name": "Starter",
+        "price_monthly": 29,
+        "included_credits": 15000,
+        "features": ["Up to 15,000 credits/mo", "Rule + behavioral screening", "Email support", "1 API key"],
+    },
+    {
+        "id": "growth",
+        "name": "Growth",
+        "price_monthly": 99,
+        "included_credits": 60000,
+        "features": ["Up to 60,000 credits/mo", "Full ML pipeline", "Case management", "Priority support"],
+    },
+    {
+        "id": "pro",
+        "name": "Pro",
+        "price_monthly": 299,
+        "included_credits": 250000,
+        "features": ["Up to 250,000 credits/mo", "Everything in Growth", "SAR/STR filing", "Dedicated CSM"],
+    },
+    {
+        "id": "enterprise",
+        "name": "Enterprise",
+        "price_monthly": None,
+        "included_credits": None,
+        "features": ["Unlimited credits", "On-premise / VPC", "SSO + audit export", "99.9% uptime SLA"],
+    },
+]
+
+# key -> (default, validator, description)
+SETTINGS: dict[str, tuple[Any, Callable[[Any], bool], str]] = {
+    "rules.threshold.wire": (10000.0, _number, "RULE-003 review threshold for wire transfers"),
+    "rules.threshold.international": (50000.0, _number, "RULE-003 review threshold for other types"),
+    "behavioral.trigger.cold_start": (0.5, _unit, "Anomaly score that triggers review for accounts < 30 days old"),
+    "behavioral.trigger.warm": (0.65, _unit, "Anomaly score that triggers review for established accounts"),
+    "risk.weights": ({"rules": 0.5, "behavioral": 0.3, "model": 0.2}, _weights, "Risk blend weights (sum to 1)"),
+    "decision.bands": ({"block": 0.8, "block_if_rule": 0.6, "flag": 0.5, "review": 0.3}, _bands,
+                       "Score-based decision bands, used only when no rule action fired"),
+    "billing.credit_cost": ({"rule_only": 0.2, "behavioral": 0.5, "full_ml": 1.0}, _credit_cost,
+                            "Credits consumed per screening, by pipeline depth"),
+    "billing.credit_packs": ({"10000": 9, "50000": 39, "200000": 129}, _credit_packs,
+                             "One-off credit packs: credits -> price in USD"),
+    "billing.plans": (PLANS_DEFAULT, _plans, "Subscription plans"),
+}
+
+FLAGS: dict[str, tuple[bool, str]] = {
+    "screening.behavioral": (True, "Run the behavioral stage"),
+    "screening.ml": (True, "Run the model stage"),
+    "screening.rag": (True, "Run RAG retrieval when the RAG service is configured"),
+}
+
+_cache: dict[tuple[str, str], tuple[float, Any]] = {}
+
+
+class UnknownKey(KeyError):
+    pass
+
+
+class InvalidValue(ValueError):
+    pass
+
+
+def invalidate() -> None:
+    _cache.clear()
+
+
+def _cached(kind: str, key: str, load: Callable[[], Any]) -> Any:
+    hit = _cache.get((kind, key))
+    now = time.monotonic()
+    if hit and hit[0] > now:
+        return hit[1]
+    value = load()
+    _cache[(kind, key)] = (now + CACHE_TTL_S, value)
+    return value
+
+
+def get_setting(db: Session, key: str) -> Any:
+    if key not in SETTINGS:
+        raise UnknownKey(key)
+
+    def load() -> Any:
+        row = db.query(Setting).filter(Setting.key == key, Setting.scope == GLOBAL).first()
+        return row.value if row is not None else SETTINGS[key][0]
+
+    return _cached("setting", key, load)
+
+
+def get_flag(db: Session, key: str) -> bool:
+    if key not in FLAGS:
+        raise UnknownKey(key)
+
+    def load() -> bool:
+        row = db.query(FeatureFlag).filter(FeatureFlag.key == key, FeatureFlag.scope == GLOBAL).first()
+        return bool(row.enabled) if row is not None else FLAGS[key][0]
+
+    return _cached("flag", key, load)
+
+
+def set_setting(db: Session, key: str, value: Any, actor_id: str) -> Any:
+    if key not in SETTINGS:
+        raise UnknownKey(key)
+    if not SETTINGS[key][1](value):
+        raise InvalidValue(f"invalid value for {key}: {SETTINGS[key][2]}")
+    before = get_setting(db, key)
+    row = db.query(Setting).filter(Setting.key == key, Setting.scope == GLOBAL).first()
+    if row is None:
+        row = Setting(key=key, scope=GLOBAL)
+        db.add(row)
+    row.value = value
+    row.updated_by = actor_id
+    row.updated_at = datetime.utcnow()
+    db.add(AuditLog(user_id=actor_id, action="setting_changed", resource_type="setting", resource_id=key,
+                    details={"before": before, "after": value}))
+    db.commit()
+    invalidate()
+    return value
+
+
+def set_flag(db: Session, key: str, enabled: bool, actor_id: str) -> bool:
+    if key not in FLAGS:
+        raise UnknownKey(key)
+    before = get_flag(db, key)
+    row = db.query(FeatureFlag).filter(FeatureFlag.key == key, FeatureFlag.scope == GLOBAL).first()
+    if row is None:
+        row = FeatureFlag(key=key, scope=GLOBAL)
+        db.add(row)
+    row.enabled = enabled
+    row.updated_by = actor_id
+    row.updated_at = datetime.utcnow()
+    db.add(AuditLog(user_id=actor_id, action="flag_changed", resource_type="feature_flag", resource_id=key,
+                    details={"before": before, "after": enabled}))
+    db.commit()
+    invalidate()
+    return enabled
+
+
+@dataclass(frozen=True)
+class ScreeningConfig:
+    """Everything the engine needs from runtime config, resolved once per request."""
+    threshold_wire: float
+    threshold_international: float
+    weights: dict
+    bands: dict
+    credit_cost: dict
+    behavioral_enabled: bool
+    ml_enabled: bool
+
+    @classmethod
+    def defaults(cls) -> "ScreeningConfig":
+        return cls(
+            threshold_wire=SETTINGS["rules.threshold.wire"][0],
+            threshold_international=SETTINGS["rules.threshold.international"][0],
+            weights=SETTINGS["risk.weights"][0],
+            bands=SETTINGS["decision.bands"][0],
+            credit_cost=SETTINGS["billing.credit_cost"][0],
+            behavioral_enabled=True,
+            ml_enabled=True,
+        )
+
+
+def screening_config(db: Session) -> ScreeningConfig:
+    return ScreeningConfig(
+        threshold_wire=float(get_setting(db, "rules.threshold.wire")),
+        threshold_international=float(get_setting(db, "rules.threshold.international")),
+        weights=get_setting(db, "risk.weights"),
+        bands=get_setting(db, "decision.bands"),
+        credit_cost=get_setting(db, "billing.credit_cost"),
+        behavioral_enabled=get_flag(db, "screening.behavioral"),
+        ml_enabled=get_flag(db, "screening.ml"),
+    )
+
+
+def override_is_active(rc: RuleConfig, now: datetime) -> bool:
+    """A rule override applies only inside its effective window. Outside it the built-in rule
+    runs with defaults; the rule itself is never skipped, so a lapsed override cannot silently
+    switch off sanctions screening."""
+    if rc.effective_from is not None and now < rc.effective_from:
+        return False
+    if rc.effective_to is not None and now >= rc.effective_to:
+        return False
+    return True
+
+
+def rule_overrides(db: Session, user_id: str, now: datetime | None = None) -> dict[str, dict]:
+    """The user's rule overrides that are in effect at `now`, in the shape the engine expects."""
+    now = now or datetime.utcnow()
+    return {
+        rc.rule_id: {
+            "enabled": rc.enabled,
+            "custom_parameters": rc.custom_parameters,
+            "priority": rc.priority if rc.priority is not None else 100,
+            "version": rc.version,
+        }
+        for rc in db.query(RuleConfig).filter(RuleConfig.user_id == user_id).all()
+        if override_is_active(rc, now)
+    }

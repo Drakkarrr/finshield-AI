@@ -3,9 +3,10 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app import config_service
 from app.auth import (
     get_current_user,
 )
@@ -28,6 +29,20 @@ router = APIRouter()
 class RuleUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
     custom_parameters: Optional[dict] = None
+    priority: Optional[int] = Field(default=None, ge=0, le=10000)  # lower runs first
+    effective_from: Optional[datetime] = None
+    effective_to: Optional[datetime] = None
+
+
+def _config_snapshot(config: RuleConfig) -> dict:
+    return {
+        "enabled": config.enabled,
+        "custom_parameters": config.custom_parameters,
+        "priority": config.priority,
+        "version": config.version,
+        "effective_from": config.effective_from.isoformat() if config.effective_from else None,
+        "effective_to": config.effective_to.isoformat() if config.effective_to else None,
+    }
 
 
 @router.patch("/api/v1/rules/{rule_id}", tags=["Rules"])
@@ -37,39 +52,45 @@ def update_rule(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Toggle or customize a compliance rule for the current user."""
-    # Verify rule exists
-    definitions = engine.rule_definitions()
-    rule_def = next((r for r in definitions if r["rule_id"] == rule_id), None)
-    if not rule_def:
+    """Toggle or customize a compliance rule for the current user. Every change bumps the
+    override's version and is audit-logged with before/after values."""
+    definitions = engine.rule_definitions(config_service.screening_config(db))
+    if not any(r["rule_id"] == rule_id for r in definitions):
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    # Get or create user-specific config
     config = db.query(RuleConfig).filter(
         RuleConfig.user_id == current_user.id, RuleConfig.rule_id == rule_id
     ).first()
     if not config:
-        config = RuleConfig(user_id=current_user.id, rule_id=rule_id)
+        config = RuleConfig(user_id=current_user.id, rule_id=rule_id, enabled=True, priority=100, version=0)
         db.add(config)
+        before = None
+    else:
+        before = _config_snapshot(config)
 
-    if req.enabled is not None:
-        config.enabled = req.enabled
-    if req.custom_parameters is not None:
-        config.custom_parameters = req.custom_parameters
+    changes = req.model_dump(exclude_unset=True)
+    window_from = changes.get("effective_from", config.effective_from)
+    window_to = changes.get("effective_to", config.effective_to)
+    if window_from and window_to and window_to <= window_from:
+        raise HTTPException(status_code=422, detail="effective_to must be after effective_from")
+    for field, value in changes.items():
+        setattr(config, field, value)
+    config.version = (config.version or 0) + 1
 
+    db.add(AuditLog(user_id=current_user.id, action="rule_updated",
+                    resource_type="rule", resource_id=rule_id,
+                    details={"before": before, "after": _config_snapshot(config)}))
     db.commit()
     db.refresh(config)
-
-    audit = AuditLog(user_id=current_user.id, action="rule_updated",
-                     resource_type="rule", resource_id=rule_id,
-                     details={"enabled": config.enabled, "custom_parameters": config.custom_parameters})
-    db.add(audit)
-    db.commit()
 
     return {
         "rule_id": rule_id,
         "enabled": config.enabled,
         "custom_parameters": config.custom_parameters,
+        "priority": config.priority,
+        "version": config.version,
+        "effective_from": config.effective_from.isoformat() if config.effective_from else None,
+        "effective_to": config.effective_to.isoformat() if config.effective_to else None,
         "detail": f"Rule {rule_id} updated",
     }
 
@@ -79,26 +100,27 @@ def list_rules(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List rules with user-specific overrides applied."""
-    definitions = engine.rule_definitions()
-    # Apply user-specific overrides
-    user_configs = db.query(RuleConfig).filter(RuleConfig.user_id == current_user.id).all()
-    config_map = {c.rule_id: c for c in user_configs}
+    """List rules with the user's overrides applied, in execution (priority) order."""
+    definitions = engine.rule_definitions(config_service.screening_config(db))
+    now = datetime.utcnow()
+    config_map = {c.rule_id: c for c in db.query(RuleConfig).filter(RuleConfig.user_id == current_user.id).all()}
 
     for rule in definitions:
         config = config_map.get(rule["rule_id"])
-        if config:
+        active = config is not None and config_service.override_is_active(config, now)
+        rule["priority"] = config.priority if config is not None and config.priority is not None else 100
+        rule["version"] = config.version if config is not None else 0
+        rule["effective_from"] = config.effective_from.isoformat() if config and config.effective_from else None
+        rule["effective_to"] = config.effective_to.isoformat() if config and config.effective_to else None
+        rule["override_active"] = active
+        # is_customized only when parameters were actually changed (not just an on/off toggle)
+        rule["is_customized"] = bool(active and config.custom_parameters)
+        if active:
             rule["enabled"] = config.enabled
-            # is_customized only when parameters were actually changed (not just an on/off toggle)
             if config.custom_parameters:
                 rule["parameters"] = {**rule["parameters"], **config.custom_parameters}
-                rule["is_customized"] = True
-            else:
-                rule["is_customized"] = False
-        else:
-            rule["is_customized"] = False
 
-    return definitions
+    return sorted(definitions, key=lambda r: (r["priority"], r["rule_id"]))
 
 
 # Rule Simulation
@@ -115,7 +137,8 @@ def simulate_rule(
 ):
     """Simulate a rule against historical transaction data."""
     # Get rule definition
-    definitions = engine.rule_definitions()
+    screening_cfg = config_service.screening_config(db)
+    definitions = engine.rule_definitions(screening_cfg)
     rule_def = next((r for r in definitions if r["rule_id"] == req.rule_id), None)
     if not rule_def:
         raise HTTPException(404, "Rule not found")
@@ -144,7 +167,7 @@ def simulate_rule(
             "description": tx.description,
         }
 
-        result = engine.evaluate_rule(rule_def, tx_data)
+        result = engine.evaluate_rule(rule_def, tx_data, screening_cfg)
         if result["triggered"]:
             triggered_count += 1
             if rule_def["action"] == "block":

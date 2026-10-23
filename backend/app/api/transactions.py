@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app import config_service
 from app.auth import (
     get_current_user,
 )
@@ -14,7 +15,6 @@ from app.db_models import (
     Case,
     CaseComment,
     Notification,
-    RuleConfig,
     Transaction,
     User,
 )
@@ -75,19 +75,16 @@ def screen_transaction(
             timestamp=existing_tx.created_at,
         ))
 
-    # Load the user's rule config overrides and pass them to the engine
-    user_rule_configs = {
-        rc.rule_id: {"enabled": rc.enabled, "custom_parameters": rc.custom_parameters}
-        for rc in db.query(RuleConfig).filter(RuleConfig.user_id == current_user.id).all()
-    }
+    # Runtime config (settings + flags) and the user's in-effect rule overrides
+    screening_cfg = config_service.screening_config(db)
+    user_rule_configs = config_service.rule_overrides(db, current_user.id)
 
-    # Run compliance engine (respects user rule configs)
-    result = engine.screen(tx, rule_configs=user_rule_configs)
+    result = engine.screen(tx, rule_configs=user_rule_configs, config=screening_cfg)
 
     # RAG enrichment: retrieve relevant compliance context (policies, sanctions, precedents).
     # Non-blocking — if RAG is unavailable, screening still completes normally.
     rag_service = getattr(request.app.state, "rag_service", None)
-    if rag_service is not None:
+    if rag_service is not None and config_service.get_flag(db, "screening.rag"):
         try:
             rag_context = rag_service.multi_hop_retrieval({
                 "sender_name": tx.sender_name,

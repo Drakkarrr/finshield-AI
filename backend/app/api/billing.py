@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import config_service
 from app.auth import (
     get_current_user,
 )
@@ -42,42 +43,13 @@ def get_credits(current_user: User = Depends(get_current_user)):
 # BILLING & SUBSCRIPTION
 # ============================================================
 
-PLANS = [
-    {
-        "id": "starter",
-        "name": "Starter",
-        "price_monthly": 29,
-        "included_credits": 15000,
-        "features": ["Up to 15,000 credits/mo", "Rule + behavioral screening", "Email support", "1 API key"],
-    },
-    {
-        "id": "growth",
-        "name": "Growth",
-        "price_monthly": 99,
-        "included_credits": 60000,
-        "features": ["Up to 60,000 credits/mo", "Full ML pipeline", "Case management", "Priority support"],
-    },
-    {
-        "id": "pro",
-        "name": "Pro",
-        "price_monthly": 299,
-        "included_credits": 250000,
-        "features": ["Up to 250,000 credits/mo", "Everything in Growth", "SAR/STR filing", "Dedicated CSM"],
-    },
-    {
-        "id": "enterprise",
-        "name": "Enterprise",
-        "price_monthly": None,
-        "included_credits": None,
-        "features": ["Unlimited credits", "On-premise / VPC", "SSO + audit export", "99.9% uptime SLA"],
-    },
-]
+def _plans(db: Session) -> list[dict]:
+    return config_service.get_setting(db, "billing.plans")
 
-CREDIT_PACKS = {
-    10000: 9,
-    50000: 39,
-    200000: 129,
-}
+
+def _credit_packs(db: Session) -> dict[int, float]:
+    """Runtime setting stores JSON (string keys); callers look packs up by credit count."""
+    return {int(k): v for k, v in config_service.get_setting(db, "billing.credit_packs").items()}
 
 
 class SubscribeRequest(BaseModel):
@@ -109,7 +81,7 @@ class RemoveSavedCardRequest(BaseModel):
 
 
 @router.get("/api/v1/billing/plans", tags=["Billing"])
-def list_plans(current_user: User = Depends(get_current_user)):
+def list_plans(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List available subscription plans."""
     # Calculate days remaining: billing cycle if paid, else trial expiry
     days_remaining = None
@@ -119,7 +91,7 @@ def list_plans(current_user: User = Depends(get_current_user)):
     elif current_user.is_trial and current_user.trial_expires_at:
         days_remaining = max(0, (current_user.trial_expires_at - datetime.utcnow()).days)
     return {
-        "plans": PLANS,
+        "plans": _plans(db),
         "current_plan": current_user.plan,
         "billing_cycle_start": current_user.billing_cycle_start.isoformat() if current_user.billing_cycle_start else None,
         "billing_cycle_end": cycle_end.isoformat() if cycle_end else None,
@@ -137,7 +109,7 @@ def subscribe(
     db: Session = Depends(get_db),
 ):
     """Change the account's subscription plan with real-world constraints."""
-    plan = next((p for p in PLANS if p["id"] == req.plan_id), None)
+    plan = next((p for p in _plans(db) if p["id"] == req.plan_id), None)
     if not plan:
         raise HTTPException(status_code=400, detail="Unknown plan")
     if plan["included_credits"] is None:
@@ -145,7 +117,7 @@ def subscribe(
     if plan["id"] == current_user.plan:
         raise HTTPException(status_code=400, detail="Already on this plan")
 
-    current_plan = next((p for p in PLANS if p["id"] == current_user.plan), None)
+    current_plan = next((p for p in _plans(db) if p["id"] == current_user.plan), None)
     current_price = current_plan["price_monthly"] if current_plan else 0
     new_price = plan["price_monthly"]
     is_upgrade = new_price > (current_price or 0)
@@ -219,7 +191,8 @@ def checkout_credits(
     db: Session = Depends(get_db),
 ):
     """Simulated payment checkout for credit purchase. Supports saved card (Qoder-like flow)."""
-    if req.credits not in CREDIT_PACKS:
+    credit_packs = _credit_packs(db)
+    if req.credits not in credit_packs:
         raise HTTPException(status_code=400, detail="Invalid credit pack")
 
     # Determine card details: use saved card or validate new card
@@ -241,7 +214,7 @@ def checkout_credits(
         card_expiry = req.card_expiry
         card_holder = req.card_holder
 
-    price = CREDIT_PACKS[req.credits]
+    price = credit_packs[req.credits]
 
     # Simulate payment processing (in production, this would call Stripe/PayPal)
     # Simulate decline for card ending in 0000
@@ -326,9 +299,10 @@ def purchase_credits(
     db: Session = Depends(get_db),
 ):
     """Purchase an additional credit pack (legacy — use /checkout for payment verification)."""
-    if req.credits not in CREDIT_PACKS:
+    credit_packs = _credit_packs(db)
+    if req.credits not in credit_packs:
         raise HTTPException(status_code=400, detail="Invalid credit pack")
-    price = CREDIT_PACKS[req.credits]
+    price = credit_packs[req.credits]
 
     current_user.total_credits += req.credits
     audit = AuditLog(user_id=current_user.id, action="credits_purchased",

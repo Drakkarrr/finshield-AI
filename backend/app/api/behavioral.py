@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import config_service
 from app.auth import (
     get_current_user,
 )
@@ -79,7 +80,8 @@ def score_transaction_behavior(
 
     # Cold-start adjustment (if < 30 days history, use stricter threshold)
     is_cold_start = baseline.is_cold_start or baseline.history_days < 30
-    trigger_threshold = 0.5 if is_cold_start else 0.65
+    trigger_threshold = float(config_service.get_setting(
+        db, "behavioral.trigger.cold_start" if is_cold_start else "behavioral.trigger.warm"))
 
     triggered = anomaly_score >= trigger_threshold
 

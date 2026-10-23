@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -184,26 +185,26 @@ class RuleConfig(Base):
     """User-customizable rule configuration with priority and versioning."""
     __tablename__ = "rule_configs"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    rule_id = Column(String, nullable=False)  # e.g. RULE-001
-    enabled = Column(Boolean, default=True)
-    custom_parameters = Column(JSON, nullable=True)  # User overrides
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    rule_id: Mapped[str] = mapped_column(String)  # e.g. RULE-001
+    enabled: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+    custom_parameters: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # User overrides
 
-    # Priority and versioning
-    priority = Column(Integer, default=100)  # Lower number = higher priority
-    version = Column(Integer, default=1)
-    effective_from = Column(DateTime, nullable=True)
-    effective_to = Column(DateTime, nullable=True)
+    # Priority (lower runs first), version (bumped on every change) and effective window
+    priority: Mapped[Optional[int]] = mapped_column(Integer, default=100)
+    version: Mapped[Optional[int]] = mapped_column(Integer, default=1)
+    effective_from: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    effective_to: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Hit tracking
-    hit_count = Column(Integer, default=0)
-    last_hit_at = Column(DateTime, nullable=True)
-    false_positive_count = Column(Integer, default=0)
+    hit_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    last_hit_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    false_positive_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User")
 
@@ -350,6 +351,28 @@ class AccountBaseline(Base):
 
     user = relationship("User")
 
+
+
+class Setting(Base):
+    """Runtime setting override (S1.4). Defaults and validation live in app.config_service."""
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    scope: Mapped[str] = mapped_column(String, primary_key=True, default="global")  # "global" until tenants (S3.4)
+    value: Mapped[Any] = mapped_column(JSON)
+    updated_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FeatureFlag(Base):
+    """Runtime feature flag (S1.4)."""
+    __tablename__ = "feature_flags"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    scope: Mapped[str] = mapped_column(String, primary_key=True, default="global")
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    updated_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
 
 # --- RAG corpora (pgvector). 384-dim matches both the hashing embedder and all-MiniLM-L6-v2. ---
 EMBEDDING_DIM = 384

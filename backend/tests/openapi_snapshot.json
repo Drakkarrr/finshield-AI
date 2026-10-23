@@ -612,6 +612,19 @@
     "title": "FilingUpdate",
     "type": "object"
    },
+   "FlagUpdate": {
+    "properties": {
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "enabled"
+    ],
+    "title": "FlagUpdate",
+    "type": "object"
+   },
    "HTTPValidationError": {
     "properties": {
      "detail": {
@@ -1088,6 +1101,30 @@
       ],
       "title": "Custom Parameters"
      },
+     "effective_from": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective From"
+     },
+     "effective_to": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective To"
+     },
      "enabled": {
       "anyOf": [
        {
@@ -1098,6 +1135,19 @@
        }
       ],
       "title": "Enabled"
+     },
+     "priority": {
+      "anyOf": [
+       {
+        "maximum": 10000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Priority"
      }
     },
     "title": "RuleUpdateRequest",
@@ -1246,6 +1296,18 @@
     ],
     "title": "ScreeningStatus",
     "type": "string"
+   },
+   "SettingUpdate": {
+    "properties": {
+     "value": {
+      "title": "Value"
+     }
+    },
+    "required": [
+     "value"
+    ],
+    "title": "SettingUpdate",
+    "type": "object"
    },
    "SubscribeRequest": {
     "properties": {
@@ -2949,6 +3011,87 @@
     ]
    }
   },
+  "/api/v1/flags": {
+   "get": {
+    "description": "Every feature flag with its effective state and provenance.",
+    "operationId": "list_flags_api_v1_flags_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Flags",
+    "tags": [
+     "Settings"
+    ]
+   }
+  },
+  "/api/v1/flags/{key}": {
+   "put": {
+    "description": "Toggle a feature flag at runtime; audit-logged with before/after and actor.",
+    "operationId": "update_flag_api_v1_flags__key__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "key",
+      "required": true,
+      "schema": {
+       "title": "Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FlagUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Flag",
+    "tags": [
+     "Settings"
+    ]
+   }
+  },
   "/api/v1/health/circuit-breakers": {
    "get": {
     "description": "Get circuit breaker status for all dependencies.",
@@ -3708,7 +3851,7 @@
   },
   "/api/v1/rules": {
    "get": {
-    "description": "List rules with user-specific overrides applied.",
+    "description": "List rules with the user's overrides applied, in execution (priority) order.",
     "operationId": "list_rules_api_v1_rules_get",
     "responses": {
      "200": {
@@ -3778,7 +3921,7 @@
   },
   "/api/v1/rules/{rule_id}": {
    "patch": {
-    "description": "Toggle or customize a compliance rule for the current user.",
+    "description": "Toggle or customize a compliance rule for the current user. Every change bumps the\noverride's version and is audit-logged with before/after values.",
     "operationId": "update_rule_api_v1_rules__rule_id__patch",
     "parameters": [
      {
@@ -4013,6 +4156,87 @@
     "summary": "Global Search",
     "tags": [
      "Search"
+    ]
+   }
+  },
+  "/api/v1/settings": {
+   "get": {
+    "description": "Every runtime setting with its effective value, default and provenance.",
+    "operationId": "list_settings_api_v1_settings_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Settings",
+    "tags": [
+     "Settings"
+    ]
+   }
+  },
+  "/api/v1/settings/{key}": {
+   "put": {
+    "description": "Change a setting at runtime. Validated per key; audit-logged with before/after and actor.",
+    "operationId": "update_setting_api_v1_settings__key__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "key",
+      "required": true,
+      "schema": {
+       "title": "Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update Setting",
+    "tags": [
+     "Settings"
     ]
    }
   },
