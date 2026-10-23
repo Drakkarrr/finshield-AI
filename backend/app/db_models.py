@@ -423,6 +423,39 @@ class PEPEntry(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class RiskModelVersion(Base):
+    """Versioned risk models with shadow mode support."""
+    __tablename__ = "risk_model_versions"
+
+    id = Column(String, primary_key=True)
+    version = Column(String, nullable=False, unique=True)  # e.g., "1.0.0", "2.0.0-beta"
+    name = Column(String, nullable=False)  # Human-readable name
+    description = Column(Text, nullable=True)
+    
+    # Model configuration
+    model_type = Column(String, nullable=False)  # "rule_based", "ml_classifier", "ensemble"
+    config = Column(JSON, nullable=True)  # Model-specific parameters
+    
+    # Status and deployment
+    status = Column(String, default="development")  # development, shadow, production, deprecated
+    is_active = Column(Boolean, default=False)  # Currently serving traffic
+    
+    # Shadow mode support
+    shadow_of = Column(String, ForeignKey("risk_model_versions.version"), nullable=True)
+    shadow_percentage = Column(Float, default=0.0)  # % of traffic to shadow (0-100)
+    
+    # Model card metadata
+    training_data_summary = Column(Text, nullable=True)
+    performance_metrics = Column(JSON, nullable=True)  # precision, recall, FPR, etc.
+    limitations = Column(Text, nullable=True)
+    created_by = Column(String, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    activated_at = Column(DateTime, nullable=True)
+    deprecated_at = Column(DateTime, nullable=True)
+
+
 class PrecedentDecision(Base):
     """Historical compliance decisions for reference."""
     __tablename__ = "precedent_decisions"

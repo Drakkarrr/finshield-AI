@@ -106,6 +106,34 @@
     "title": "BehavioralScoreRequest",
     "type": "object"
    },
+   "Body_create_model_api_v1_models_post": {
+    "properties": {
+     "config": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Config"
+     },
+     "performance_metrics": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Performance Metrics"
+     }
+    },
+    "title": "Body_create_model_api_v1_models_post",
+    "type": "object"
+   },
    "CaseCommentRequest": {
     "properties": {
      "body": {
@@ -3582,6 +3610,381 @@
     "summary": "Get List Stats",
     "tags": [
      "Lists"
+    ]
+   }
+  },
+  "/api/v1/models": {
+   "get": {
+    "description": "List all risk model versions.",
+    "operationId": "list_models_api_v1_models_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Models",
+    "tags": [
+     "Models"
+    ]
+   },
+   "post": {
+    "description": "Create a new risk model version.",
+    "operationId": "create_model_api_v1_models_post",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "version",
+      "required": true,
+      "schema": {
+       "title": "Version",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "model_type",
+      "required": true,
+      "schema": {
+       "title": "Model Type",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "description",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Description"
+      }
+     },
+     {
+      "in": "query",
+      "name": "training_data_summary",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Training Data Summary"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limitations",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Limitations"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_create_model_api_v1_models_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create Model",
+    "tags": [
+     "Models"
+    ]
+   }
+  },
+  "/api/v1/models/{version}": {
+   "get": {
+    "description": "Get a specific model version with full model card.",
+    "operationId": "get_model_api_v1_models__version__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "version",
+      "required": true,
+      "schema": {
+       "title": "Version",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Model",
+    "tags": [
+     "Models"
+    ]
+   }
+  },
+  "/api/v1/models/{version}/activate": {
+   "post": {
+    "description": "Activate a model version (set as production).",
+    "operationId": "activate_model_api_v1_models__version__activate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "version",
+      "required": true,
+      "schema": {
+       "title": "Version",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Activate Model",
+    "tags": [
+     "Models"
+    ]
+   }
+  },
+  "/api/v1/models/{version}/deactivate": {
+   "post": {
+    "description": "Deactivate a model version.",
+    "operationId": "deactivate_model_api_v1_models__version__deactivate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "version",
+      "required": true,
+      "schema": {
+       "title": "Version",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Deactivate Model",
+    "tags": [
+     "Models"
+    ]
+   }
+  },
+  "/api/v1/models/{version}/shadow": {
+   "post": {
+    "description": "Enable shadow mode for a model version.",
+    "operationId": "enable_shadow_mode_api_v1_models__version__shadow_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "version",
+      "required": true,
+      "schema": {
+       "title": "Version",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "shadow_of",
+      "required": true,
+      "schema": {
+       "title": "Shadow Of",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "shadow_percentage",
+      "required": false,
+      "schema": {
+       "default": 10.0,
+       "title": "Shadow Percentage",
+       "type": "number"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Enable Shadow Mode",
+    "tags": [
+     "Models"
     ]
    }
   },
