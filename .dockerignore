@@ -3,13 +3,13 @@
 .gitignore
 
 # Python
-__pycache__
-*.py[cod]
+**/__pycache__
+**/*.py[cod]
 *.pyo
 *.pyd
 .Python
-env
-.venv
+**/.venv
+**/venv
 *.egg
 *.egg-info
 dist
@@ -17,12 +17,12 @@ build
 .eggs
 
 # Node
-node_modules
+**/node_modules
 npm-debug.log
 yarn-debug.log
 yarn-error.log
-.next
-out
+**/.next
+**/out
 
 # IDE
 .vscode
@@ -34,24 +34,27 @@ out
 .DS_Store
 Thumbs.db
 
-# Environment
-.env
-.env.local
-.env.production
+# Environment — `**/` matters: a bare `.env` only matches the context root,
+# so backend/.env (with its signing key) was being copied into the image.
+**/.env
+**/.env.*
+!**/.env.example
 
 # Database
-*.db
-*.sqlite
-*.sqlite3
+**/*.db
+**/*.sqlite
+**/*.sqlite3
 
 # Logs
 *.log
 logs
 
 # Testing
-.pytest_cache
-.coverage
-htmlcov
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+**/.mypy_cache
+**/.ruff_cache
 
 # Docker
 Dockerfile
