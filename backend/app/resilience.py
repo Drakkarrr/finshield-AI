@@ -20,7 +20,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Optional, TypeVar
 
-from app.database import SessionLocal
+from sqlalchemy.exc import IntegrityError
+
+from app.database import SideSession as SessionLocal  # own pool: see app.database.side_engine
 from app.db_models import CircuitBreaker
 
 logger = logging.getLogger("finshield.resilience")
@@ -50,6 +52,7 @@ class _State:
 
 
 _lock = threading.Lock()
+_load_lock = threading.Lock()
 _states: dict[str, _State] = {}
 
 
@@ -61,7 +64,11 @@ def _load(dependency: str) -> _State:
             row = CircuitBreaker(dependency=dependency, state="closed", failure_count=0, success_count=0,
                                  last_state_change_at=datetime.utcnow(), **DEFAULTS)
             db.add(row)
-            db.commit()
+            try:
+                db.commit()
+            except IntegrityError:  # another process created it first
+                db.rollback()
+                row = db.query(CircuitBreaker).filter(CircuitBreaker.dependency == dependency).one()
         return _State(state=row.state or "closed", failures=row.failure_count or 0, successes=row.success_count or 0,
                       changed_at=row.last_state_change_at or datetime.utcnow(), last_failure_at=row.last_failure_at,
                       failure_threshold=row.failure_threshold or DEFAULTS["failure_threshold"],
@@ -76,9 +83,13 @@ def _get(dependency: str) -> _State:
     with _lock:
         st = _states.get(dependency)
     if st is None:
-        st = _load(dependency)
-        with _lock:
-            st = _states.setdefault(dependency, st)
+        with _load_lock:  # one loader per process; the others wait here, not on the DB
+            with _lock:
+                st = _states.get(dependency)
+            if st is None:
+                st = _load(dependency)
+                with _lock:
+                    _states[dependency] = st
     return st
 
 

@@ -39,6 +39,12 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Bookkeeping that runs while a request already holds a connection (circuit-breaker state) uses
+# its own small pool. Taking a second connection from the request pool deadlocks under load:
+# every worker thread holds one connection and waits for another that no one can release.
+side_engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}) if IS_SQLITE else     create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=2, max_overflow=2)
+SideSession = sessionmaker(autocommit=False, autoflush=False, bind=side_engine)
+
 
 class Base(DeclarativeBase):
     pass
