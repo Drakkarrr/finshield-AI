@@ -52,15 +52,21 @@ BYPASS_KEY = "rls_bypass"
 if not IS_SQLITE and APP_DB_ROLE:
     @event.listens_for(engine, "connect")
     def _use_app_role(dbapi_conn, _record):
+        # SET ROLE is transactional: commit it, or the pool's reset-on-return ROLLBACK undoes it and
+        # the connection goes back to the pool as the (RLS-exempt) login user.
         with dbapi_conn.cursor() as cur:
             cur.execute(f'SET ROLE "{APP_DB_ROLE}"')
+        dbapi_conn.commit()
 
 
 @event.listens_for(SessionLocal, "after_begin")
 def _apply_tenant(session, _transaction, connection):
-    """Re-applied at the start of every transaction, so it survives mid-request commits."""
+    """Re-applied at the start of every transaction, so it survives mid-request commits. The role is
+    re-asserted transaction-locally too, so no session ever runs as the login user."""
     if connection.dialect.name != "postgresql":
         return
+    if APP_DB_ROLE:
+        connection.exec_driver_sql(f'SET LOCAL ROLE "{APP_DB_ROLE}"')
     connection.exec_driver_sql(
         "SELECT set_config('app.tenant_id', %s, true), set_config('app.rls_bypass', %s, true)",
         (session.info.get(TENANT_KEY) or "", "on" if session.info.get(BYPASS_KEY) else "off"),

@@ -10,9 +10,10 @@ import uuid
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.database import SessionLocal, bind_tenant
+from app.database import APP_DB_ROLE, SessionLocal, bind_tenant, engine
 from app.db_models import Transaction
 from app.main import app
 from app.permissions import MATRIX, RANK, ROLES, authorize, required_role
@@ -89,6 +90,26 @@ async def test_rls_hides_rows_even_when_the_app_filter_is_forgotten(two_tenants)
     finally:
         db.rollback()
         db.close()
+
+
+@pytest.mark.skipif(engine.dialect.name != "postgresql", reason="RLS is Postgres-only")
+async def test_rls_survives_a_rolled_back_session_on_a_pooled_connection(two_tenants):
+    """Regression: SET ROLE ran in the connection's first (uncommitted) transaction, so a session that
+    ended in ROLLBACK (any read-only request) returned the connection as the login superuser, and
+    every later tenant on that connection bypassed RLS."""
+    t = two_tenants
+    engine.dispose()  # one fresh connection, reused below
+    pid = text("SELECT pg_backend_pid(), current_user")
+    with SessionLocal() as db:
+        bind_tenant(db, t["tenant_a"])
+        first_pid, _ = db.execute(pid).one()
+        db.rollback()
+    with SessionLocal() as db:
+        bind_tenant(db, t["tenant_b"])
+        again_pid, user = db.execute(pid).one()
+        assert again_pid == first_pid  # same pooled connection
+        assert user == APP_DB_ROLE
+        assert db.query(Transaction).filter(Transaction.id == t["tx"]).count() == 0
 
 
 # ---------------- RBAC ----------------
