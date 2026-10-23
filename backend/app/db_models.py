@@ -69,10 +69,6 @@ class User(Base):
     pending_plan_change: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Downgrade queued for end-of-cycle
     # Preferences
     timezone: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g. "America/New_York"
-    # Saved payment method (for Qoder-like flow)
-    saved_card_last4: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    saved_card_expiry: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    saved_card_holder: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

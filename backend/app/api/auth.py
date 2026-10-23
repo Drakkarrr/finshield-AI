@@ -175,9 +175,6 @@ def get_me(current_user: User = Depends(get_current_user)):
         "is_trial": current_user.is_trial,
         "trial_expires_at": current_user.trial_expires_at.isoformat() if current_user.trial_expires_at else None,
         "timezone": current_user.timezone,
-        "saved_card_last4": current_user.saved_card_last4,
-        "saved_card_expiry": current_user.saved_card_expiry,
-        "saved_card_holder": current_user.saved_card_holder,
     }
 
 

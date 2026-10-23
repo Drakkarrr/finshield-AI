@@ -1,6 +1,5 @@
 """FinShield AI — Credits, plans, subscriptions and checkout."""
 from datetime import datetime, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -61,23 +60,10 @@ class PurchaseRequest(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
+    """No card fields: card data is never accepted or stored (S3.5). Stripe Checkout (S6.1)
+    will take payment on Stripe's page; extra fields sent by older clients are ignored."""
     credits: int
-    card_last4: Optional[str] = None
-    card_expiry: Optional[str] = None
-    card_holder: Optional[str] = None
     use_saved_card: bool = False
-
-
-class SavedCardRequest(BaseModel):
-    """Save or update the user's payment method on file."""
-    card_last4: str
-    card_expiry: str
-    card_holder: str
-
-
-class RemoveSavedCardRequest(BaseModel):
-    """Remove the saved payment method."""
-    pass
 
 
 @router.get("/api/v1/billing/plans", tags=["Billing"])
@@ -190,67 +176,41 @@ def checkout_credits(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Simulated payment checkout for credit purchase. Supports saved card (Qoder-like flow)."""
+    """SIMULATED payment checkout (no card data stored). Stripe Checkout replaces it in S6.1."""
     credit_packs = _credit_packs(db)
     if req.credits not in credit_packs:
         raise HTTPException(status_code=400, detail="Invalid credit pack")
 
-    # Determine card details: use saved card or validate new card
+    # Card data is never stored (S3.5); payments move to Stripe Checkout (S6.1, ruling D8).
     if req.use_saved_card:
-        if not current_user.saved_card_last4:
-            raise HTTPException(status_code=400, detail="No saved payment method. Please add a card first.")
-        card_last4 = current_user.saved_card_last4
-        card_expiry = current_user.saved_card_expiry
-        card_holder = current_user.saved_card_holder
-    else:
-        # Validate new card details
-        if not req.card_last4 or len(req.card_last4) != 4 or not req.card_last4.isdigit():
-            raise HTTPException(status_code=400, detail="Invalid card last 4 digits")
-        if not req.card_expiry or "/" not in req.card_expiry:
-            raise HTTPException(status_code=400, detail="Invalid card expiry format (MM/YY)")
-        if not req.card_holder or len(req.card_holder.strip()) < 2:
-            raise HTTPException(status_code=400, detail="Invalid card holder name")
-        card_last4 = req.card_last4
-        card_expiry = req.card_expiry
-        card_holder = req.card_holder
+        raise HTTPException(status_code=501, detail="Saved cards were removed; Stripe Checkout replaces them (S6.1)")
 
     price = credit_packs[req.credits]
 
-    # Simulate payment processing (in production, this would call Stripe/PayPal)
-    # Simulate decline for card ending in 0000
-    if card_last4 == "0000":
-        raise HTTPException(status_code=402, detail="Payment declined. Please try a different card.")
-
     # Payment "approved" — add credits
     current_user.total_credits += req.credits
-
-    # Save card for future use (Qoder-like flow: first payment saves billing info)
-    current_user.saved_card_last4 = card_last4
-    current_user.saved_card_expiry = card_expiry
-    current_user.saved_card_holder = card_holder
 
     # Create notification
     notif = Notification(
         user_id=current_user.id,
         type="credit_alert",
         title="Credits purchased",
-        message=f"{req.credits:,} credits added for ${price}. Card ending in {card_last4}.",
+        message=f"{req.credits:,} credits added for ${price}.",
         link="/settings?tab=billing",
     )
     db.add(notif)
 
     audit = AuditLog(user_id=current_user.id, action="credits_purchased",
                      resource_type="billing",
-                     details={"credits": req.credits, "price_usd": price, "card_last4": card_last4, "used_saved": req.use_saved_card})
+                     details={"credits": req.credits, "price_usd": price, "simulated_payment": True})
     db.add(audit)
     db.commit()
     db.refresh(current_user)
-    logger.info(f"User {current_user.email} purchased {req.credits} credits for ${price} (card ****{card_last4}, saved={req.use_saved_card})")
+    logger.info(f"User {current_user.id} purchased {req.credits} credits for ${price} (simulated payment)")
 
     return {
         "credits_added": req.credits,
         "price_usd": price,
-        "card_last4": card_last4,
         "total_credits": current_user.total_credits,
         "credits_remaining": current_user.total_credits - round(current_user.used_credits),
         "status": "completed",
@@ -258,38 +218,15 @@ def checkout_credits(
 
 
 @router.patch("/api/v1/billing/saved-card", tags=["Billing"])
-def update_saved_card(
-    req: SavedCardRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Save or update the user's payment method on file."""
-    if not req.card_last4 or len(req.card_last4) != 4 or not req.card_last4.isdigit():
-        raise HTTPException(status_code=400, detail="Invalid card last 4 digits")
-    if not req.card_expiry or "/" not in req.card_expiry:
-        raise HTTPException(status_code=400, detail="Invalid card expiry format (MM/YY)")
-    if not req.card_holder or len(req.card_holder.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Invalid card holder name")
-
-    current_user.saved_card_last4 = req.card_last4
-    current_user.saved_card_expiry = req.card_expiry
-    current_user.saved_card_holder = req.card_holder.strip()
-    db.commit()
-    db.refresh(current_user)
-    return {"detail": "Payment method saved", "card_last4": current_user.saved_card_last4, "card_expiry": current_user.saved_card_expiry, "card_holder": current_user.saved_card_holder}
+def update_saved_card(current_user: User = Depends(get_current_user)):
+    """Removed: storing card metadata with no payment provider is pure liability (S3.5)."""
+    raise HTTPException(status_code=501, detail="Saved cards were removed; Stripe Checkout replaces them (S6.1)")
 
 
 @router.delete("/api/v1/billing/saved-card", tags=["Billing"])
-def remove_saved_card(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Remove the saved payment method."""
-    current_user.saved_card_last4 = None
-    current_user.saved_card_expiry = None
-    current_user.saved_card_holder = None
-    db.commit()
-    return {"detail": "Payment method removed"}
+def remove_saved_card(current_user: User = Depends(get_current_user)):
+    """Removed with the saved-card columns (S3.5)."""
+    raise HTTPException(status_code=501, detail="Saved cards were removed; Stripe Checkout replaces them (S6.1)")
 
 
 @router.post("/api/v1/credits/purchase", tags=["Billing"])

@@ -305,40 +305,8 @@
     "type": "object"
    },
    "CheckoutRequest": {
+    "description": "No card fields: card data is never accepted or stored (S3.5). Stripe Checkout (S6.1)\nwill take payment on Stripe's page; extra fields sent by older clients are ignored.",
     "properties": {
-     "card_expiry": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Card Expiry"
-     },
-     "card_holder": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Card Holder"
-     },
-     "card_last4": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Card Last4"
-     },
      "credits": {
       "title": "Credits",
       "type": "integer"
@@ -1272,30 +1240,6 @@
      }
     },
     "title": "RuleUpdateRequest",
-    "type": "object"
-   },
-   "SavedCardRequest": {
-    "description": "Save or update the user's payment method on file.",
-    "properties": {
-     "card_expiry": {
-      "title": "Card Expiry",
-      "type": "string"
-     },
-     "card_holder": {
-      "title": "Card Holder",
-      "type": "string"
-     },
-     "card_last4": {
-      "title": "Card Last4",
-      "type": "string"
-     }
-    },
-    "required": [
-     "card_last4",
-     "card_expiry",
-     "card_holder"
-    ],
-    "title": "SavedCardRequest",
     "type": "object"
    },
    "ScreeningResult": {
@@ -2634,7 +2578,7 @@
   },
   "/api/v1/billing/saved-card": {
    "delete": {
-    "description": "Remove the saved payment method.",
+    "description": "Removed with the saved-card columns (S3.5).",
     "operationId": "remove_saved_card_api_v1_billing_saved_card_delete",
     "responses": {
      "200": {
@@ -2657,18 +2601,8 @@
     ]
    },
    "patch": {
-    "description": "Save or update the user's payment method on file.",
+    "description": "Removed: storing card metadata with no payment provider is pure liability (S3.5).",
     "operationId": "update_saved_card_api_v1_billing_saved_card_patch",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/SavedCardRequest"
-       }
-      }
-     },
-     "required": true
-    },
     "responses": {
      "200": {
       "content": {
@@ -2677,16 +2611,6 @@
        }
       },
       "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
      }
     },
     "security": [
@@ -3286,7 +3210,7 @@
   },
   "/api/v1/credits/checkout": {
    "post": {
-    "description": "Simulated payment checkout for credit purchase. Supports saved card (Qoder-like flow).",
+    "description": "SIMULATED payment checkout (no card data stored). Stripe Checkout replaces it in S6.1.",
     "operationId": "checkout_credits_api_v1_credits_checkout_post",
     "requestBody": {
      "content": {
