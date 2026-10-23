@@ -28,9 +28,9 @@ services:
       - "8091:8091"
     environment:
       - APP_ENV=production
-      # SQLite primary until S1.1; the file must sit on the backend-data volume to survive recreation
-      - DATABASE_URL=sqlite:////app/data/finshield.db
-      - RAG_DATABASE_URL=postgresql://${POSTGRES_USER:?POSTGRES_USER must be set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-finshield}
+      # Postgres is the primary database (D6); the RAG corpora live in the same database.
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?POSTGRES_USER must be set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-finshield}
+      - RAG_DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-finshield}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - DEBUG=${DEBUG:-false}

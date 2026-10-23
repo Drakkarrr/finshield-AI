@@ -47,6 +47,58 @@ jobs:
         # Coverage floor = measured value rounded down; raise it as slices land, never lower it.
         run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=63
 
+  # ── Backend on Postgres: Alembic round trip + full suite (catches dialect drift) ──
+  backend-postgres:
+    name: Backend on Postgres
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fs
+          POSTGRES_PASSWORD: fs
+          POSTGRES_DB: fs
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fs" --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Alembic upgrade / downgrade / upgrade
+        env:
+          DATABASE_URL: postgresql://fs:fs@localhost:5432/fs
+          JWT_SECRET_KEY: ci-only
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          alembic current | grep "(head)"
+
+      - name: Create test database
+        run: PGPASSWORD=fs psql -h localhost -U fs -d fs -c "CREATE DATABASE fstest"
+
+      - name: Full suite on Postgres (schema built by migrations)
+        env:
+          APP_ENV: test
+          TEST_DATABASE_URL: postgresql://fs:fs@localhost:5432/fstest
+        run: pytest tests/ -v --tb=short
+
   # ── Frontend: typecheck, lint, build ──
   frontend-build:
     name: Frontend Build
@@ -114,7 +166,7 @@ jobs:
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-build]
+    needs: [backend-tests, backend-postgres, frontend-build]
 
     steps:
       - uses: actions/checkout@v4

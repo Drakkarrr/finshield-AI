@@ -33,7 +33,7 @@ from app.auth import (
     verify_password,
 )
 from app.compliance_engine import ComplianceEngine
-from app.database import get_db, init_db
+from app.database import get_db
 from app.db_models import (
     AccountBaseline,
     ApiKey,
@@ -161,8 +161,7 @@ start_time = time.monotonic()
 # --- Startup ---
 @app.on_event("startup")
 async def startup():
-    init_db()
-    logger.info("Database initialized")
+    # Schema is managed by Alembic (`alembic upgrade head` runs in the container entrypoint).
 
     # Initialize RAG service if a PostgreSQL RAG database is configured
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")

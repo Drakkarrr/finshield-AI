@@ -13,11 +13,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.database import Base, engine
 from app.main import app
-
-# Ensure tables exist at module load
-Base.metadata.create_all(bind=engine)
 
 
 @pytest_asyncio.fixture(scope="session")

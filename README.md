@@ -120,7 +120,7 @@ Status: **Implemented** = in `backend/requirements.txt` / `platform-app/package.
 |---|---|---|
 | API | FastAPI 0.115 (SQLAlchemy 2.0 sync, Pydantic 2.9, slowapi) | Implemented |
 | Async Processing | Celery + Redis | Target (S4.1) |
-| Database | PostgreSQL 16 + pgvector | Partial — Postgres/pgvector backs RAG only; the primary DB is SQLite (Postgres primary is S1.1) |
+| Database | PostgreSQL 16 + pgvector, Alembic migrations | Implemented — Postgres is primary (SQLite only for the test suite) |
 | Retrieval | LangChain (agentic RAG) | Partial — direct pgvector cosine search without LangChain; embeddings are an MD5 feature hash, not a semantic model (S2.4) |
 | Prompt Optimization | DSPy | Target — superseded by ruling D1 (no LLM in the decision path) |
 | Classification | Llama (LoRA via PEFT + BitsAndBytes) | Target — the current "classifier" is simulated; ruling D1 replaces it with a deterministic `RiskModel` (S2.5) |
@@ -168,7 +168,14 @@ docker compose exec backend python -m app.seed_rag_data
 | API docs (OpenAPI) | http://localhost:8091/api/docs |
 | Health | http://localhost:8091/api/health |
 
-Tables are created on backend startup (`init_db()` → SQLAlchemy `create_all`). Alembic migrations are not adopted yet (roadmap slice S1.2).
+PostgreSQL is the primary database. The backend container runs `alembic upgrade head` before it starts serving, so the schema is always at the latest migration.
+
+**Upgrading from an older checkout that stored data in SQLite?** Copy the old file out of the old backend container first (`docker cp finshield-backend:/app/finshield.db ./finshield-old.db`), bring the new stack up, then import it:
+
+```bash
+docker cp ./finshield-old.db finshield-backend:/tmp/old.db
+docker compose exec backend python -m scripts.sqlite_to_postgres /tmp/old.db
+```
 
 ### Run the backend without Docker (Implemented)
 
@@ -176,11 +183,13 @@ Tables are created on backend startup (`init_db()` → SQLAlchemy `create_all`).
 cd backend
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env                                  # set JWT_SECRET_KEY
+cp .env.example .env                                  # set JWT_SECRET_KEY and DATABASE_URL
+docker compose up -d postgres                         # from the repo root: Postgres on 127.0.0.1:5432
+alembic upgrade head
 uvicorn app.main:app --port 8091 --reload
 ```
 
-Without `RAG_DATABASE_URL` pointing at Postgres the app runs with RAG disabled.
+PostgreSQL is required outside the test suite (SQLite is test-only). Without `RAG_DATABASE_URL` the app runs with RAG disabled.
 
 ### Submitting Your First Transaction (Implemented)
 
@@ -251,14 +260,16 @@ finshield/
 │   │   ├── db_models.py      # SQLAlchemy ORM models
 │   │   ├── models.py         # Pydantic request/response schemas
 │   │   └── database.py       # engine, session, init_db()
-│   ├── tests/                # pytest suite (API + engine)
+│   ├── migrations/           # Alembic (schema owner; runs on container start)
+│   ├── scripts/              # sqlite_to_postgres.py (one-off import of old SQLite data)
+│   ├── tests/                # pytest suite (API + engine; Postgres-only checks run in CI)
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── platform-app/             # Next.js 14 dashboard (src/app, src/components, src/lib/api.ts)
 ├── website/                  # static nginx marketing site
 ├── docs/architecture/evolution/  # gap analysis, roadmap, implementation ledger
 ├── .github/workflows/ci.yml
-├── docker-compose.yml        # postgres (pgvector) + backend + frontend
+├── docker-compose.yml        # postgres (pgvector, primary DB) + backend + frontend
 ├── FinShield-AI-Wiki.md      # design specification (with implementation-status labels)
 ├── DEPLOYMENT.md / DOCKER.md
 └── README.md

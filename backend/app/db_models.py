@@ -1,12 +1,13 @@
 """
 FinShield AI — Database Models
-SQLAlchemy ORM models for users, transactions, cases, and API keys.
+SQLAlchemy ORM models. Every table lives on the one Base so Alembic sees the whole schema.
 """
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
@@ -348,3 +349,50 @@ class AccountBaseline(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User")
+
+
+# --- RAG corpora (pgvector). 384-dim matches both the hashing embedder and all-MiniLM-L6-v2. ---
+EMBEDDING_DIM = 384
+
+
+class ComplianceDocument(Base):
+    """Compliance policy documents and regulations."""
+    __tablename__ = "compliance_documents"
+
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String, nullable=False)  # policy, regulation, guideline
+    jurisdiction = Column(String, nullable=True)
+    effective_date = Column(DateTime, nullable=True)
+    doc_metadata = Column("metadata", JSON, nullable=True)
+    embedding = Column(Vector(EMBEDDING_DIM))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SanctionsEntry(Base):
+    """Sanctions list entries (OFAC, UN, EU, etc.)."""
+    __tablename__ = "sanctions_entries"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # individual, entity, vessel
+    program = Column(String, nullable=True)  # SDN, SSI, etc.
+    country = Column(String, nullable=True)
+    aliases = Column(JSON, nullable=True)
+    remarks = Column(Text, nullable=True)
+    embedding = Column(Vector(EMBEDDING_DIM))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PrecedentDecision(Base):
+    """Historical compliance decisions for reference."""
+    __tablename__ = "precedent_decisions"
+
+    id = Column(String, primary_key=True)
+    case_summary = Column(Text, nullable=False)
+    decision = Column(String, nullable=False)  # approved, flagged, blocked
+    reasoning = Column(Text, nullable=True)
+    risk_factors = Column(JSON, nullable=True)
+    embedding = Column(Vector(EMBEDDING_DIM))
+    created_at = Column(DateTime, default=datetime.utcnow)

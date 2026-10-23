@@ -20,14 +20,12 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import numpy as np
-from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Column, DateTime, String, Text, create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-logger = logging.getLogger(__name__)
+from app.db_models import EMBEDDING_DIM, ComplianceDocument, PrecedentDecision, SanctionsEntry
 
-EMBEDDING_DIM = 384
+logger = logging.getLogger(__name__)
 
 # Detect optional sentence-transformers at import time
 _ST_MODEL = None
@@ -99,59 +97,12 @@ def _cosine_similarity(a, b) -> float:
         return 0.0
     return float(np.dot(va, vb) / denom)
 
-# Database setup for RAG
-RAGBase = declarative_base()
-
-class ComplianceDocument(RAGBase):
-    """Compliance policy documents and regulations."""
-    __tablename__ = "compliance_documents"
-
-    id = Column(String, primary_key=True)
-    title = Column(String, nullable=False)
-    content = Column(Text, nullable=False)
-    category = Column(String, nullable=False)  # policy, regulation, guideline
-    jurisdiction = Column(String, nullable=True)
-    effective_date = Column(DateTime, nullable=True)
-    doc_metadata = Column("metadata", JSON, nullable=True)
-    embedding = Column(Vector(384))  # hashing / MiniLM both produce 384-dim vectors
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class SanctionsEntry(RAGBase):
-    """Sanctions list entries (OFAC, UN, EU, etc.)."""
-    __tablename__ = "sanctions_entries"
-
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    type = Column(String, nullable=False)  # individual, entity, vessel
-    program = Column(String, nullable=True)  # SDN, SSI, etc.
-    country = Column(String, nullable=True)
-    aliases = Column(JSON, nullable=True)
-    remarks = Column(Text, nullable=True)
-    embedding = Column(Vector(384))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class PrecedentDecision(RAGBase):
-    """Historical compliance decisions for reference."""
-    __tablename__ = "precedent_decisions"
-
-    id = Column(String, primary_key=True)
-    case_summary = Column(Text, nullable=False)
-    decision = Column(String, nullable=False)  # approved, flagged, blocked
-    reasoning = Column(Text, nullable=True)
-    risk_factors = Column(JSON, nullable=True)
-    embedding = Column(Vector(384))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
 class RAGRetrievalService:
     """Service for RAG-based compliance retrieval."""
 
     def __init__(self, database_url: str):
-        self.engine = create_engine(database_url)
-        # Ensure the pgvector extension exists before creating vector columns
-        with self.engine.begin() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        RAGBase.metadata.create_all(self.engine)
+        # Tables and the vector extension are created by Alembic, not here.
+        self.engine = create_engine(database_url, pool_pre_ping=True)
         self.SessionLocal = sessionmaker(bind=self.engine)
         logger.info("RAG Retrieval Service initialized")
 
