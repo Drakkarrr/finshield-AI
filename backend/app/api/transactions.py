@@ -2,14 +2,14 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app import crypto, metrics, screening_service
 from app.auth import (
     get_current_user,
 )
-from app.core import limiter, logger
+from app.core import SCREENING_RATE_LIMIT, credential_key, limiter, logger
 from app.database import get_db
 from app.db_models import (
     AuditLog,
@@ -52,7 +52,7 @@ def _record_metrics(result: ScreeningResult) -> None:
 
 
 @router.post("/api/v1/transactions", response_model=TransactionResponse, tags=["Compliance"])
-@limiter.limit("60/minute")
+@limiter.limit(SCREENING_RATE_LIMIT, key_func=credential_key)
 def screen_transaction(
     request: Request,
     tx: TransactionRequest,
@@ -197,15 +197,17 @@ def screen_transaction(
 
 @router.get("/api/v1/transactions", tags=["Compliance"])
 def list_transactions(
-    limit: int = 50,
-    offset: int = 0,
+    response: Response,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List recent transactions for the current user."""
+    """List the tenant's transactions, newest first. X-Total-Count carries the total for paging."""
+    scoped = db.query(Transaction).filter(Transaction.tenant_id == current_user.tenant_id)
+    response.headers["X-Total-Count"] = str(scoped.count())
     txs = (
-        db.query(Transaction)
-        .filter(Transaction.tenant_id == current_user.tenant_id)
+        scoped
         .order_by(Transaction.created_at.desc())
         .offset(offset)
         .limit(limit)

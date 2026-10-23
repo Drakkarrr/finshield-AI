@@ -1,0 +1,15 @@
+# TLS termination for the web app (S6.2). Compose profile `tls`: docker compose --profile tls up -d
+#
+# Local:      SITE_ADDRESS=localhost, TLS_ISSUER=internal (Caddy's own CA; trust it or use curl -k).
+# Production: SITE_ADDRESS=app.example.com, TLS_ISSUER=<ops email> for Let's Encrypt, ports 80/443
+#             reachable. On a managed PaaS (ruling D9) the platform terminates TLS instead.
+# Behind it, set COOKIE_SECURE=true and HSTS_ENABLED=true on the backend.
+{$SITE_ADDRESS:localhost} {
+	tls {$TLS_ISSUER:internal}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy frontend:3000
+}

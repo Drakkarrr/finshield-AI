@@ -85,7 +85,7 @@ jobs:
       - name: Alembic upgrade / downgrade / upgrade
         env:
           DATABASE_URL: postgresql://fs:fs@localhost:5432/fs
-          JWT_SECRET_KEY: ci-only
+          JWT_SECRET_KEY: ci-only-jwt-secret-key-not-a-real-secret
           DATA_ENCRYPTION_KEY: ci-only-data-encryption-key-not-a-secret
         run: |
           alembic upgrade head

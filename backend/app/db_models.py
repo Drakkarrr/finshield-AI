@@ -397,6 +397,25 @@ class WebhookEvent(Base):
     user = relationship("User")
 
 
+class Payment(Base):
+    """A payment attempt with the provider (S6.1). Credits are granted once, when the provider's signed
+    webhook confirms it; no card data ever reaches FinShield (Stripe Checkout collects it)."""
+    __tablename__ = "payments"
+    __table_args__ = (UniqueConstraint("provider_ref", name="uq_payments_provider_ref"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    provider: Mapped[str] = mapped_column(String)  # stripe | simulated
+    provider_ref: Mapped[str] = mapped_column(String)  # Stripe Checkout Session id
+    credits: Mapped[int] = mapped_column(Integer)
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String, default="usd")
+    status: Mapped[str] = mapped_column(String, index=True)  # pending | completed | expired
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class JobRun(Base):
     """Ledger of background task executions (S4.1); dead_letter rows are the operator's queue."""
     __tablename__ = "job_runs"

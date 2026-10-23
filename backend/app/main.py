@@ -61,6 +61,7 @@ app = FastAPI(
     description="Transaction Compliance Engine — Production API with auth, DB, and rate limiting",
     version="2.4.0",
     docs_url="/api/docs",
+    openapi_url="/api/openapi.json",  # under /api so the web app's proxy serves it (docs page)
     redoc_url="/api/redoc",
 )
 
@@ -70,6 +71,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count", "X-Request-ID"],
 )
 app.state.limiter = limiter
 
@@ -115,6 +117,34 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 # --- Middleware ---
+# Security headers (S6.2). The API serves JSON, so its CSP forbids everything; the interactive docs
+# pages load Swagger/ReDoc assets from a CDN and keep the framework default instead. HSTS is sent
+# only over HTTPS (behind a TLS proxy uvicorn trusts X-Forwarded-Proto from FORWARDED_ALLOW_IPS)
+# or when HSTS_ENABLED=true. The web app sets its own headers in platform-app/next.config.js.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+}
+API_CSP = "default-src 'none'; frame-ancestors 'none'"
+DOCS_PATHS = ("/api/docs", "/api/redoc")
+HSTS = "max-age=31536000; includeSubDomains"
+
+
+def _security_headers(request: Request, response) -> None:
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    path = request.url.path
+    if not path.startswith(DOCS_PATHS):
+        response.headers.setdefault("Content-Security-Policy", API_CSP)
+    if path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    if request.url.scheme == "https" or os.getenv("HSTS_ENABLED", "false").lower() == "true":
+        response.headers.setdefault("Strict-Transport-Security", HSTS)
+
+
 async def request_logging_middleware(request: Request, call_next):
     """Request id (propagated or new), root span, HTTP metrics by route template."""
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
@@ -137,6 +167,7 @@ async def request_logging_middleware(request: Request, call_next):
             metrics.HTTP_LATENCY.labels(method=request.method, route=route).observe(elapsed)
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time-Ms"] = str(round(elapsed * 1000, 2))
+    _security_headers(request, response)
     return response
 
 
@@ -167,9 +198,10 @@ app.add_exception_handler(Exception, global_exception_handler)
 app.middleware("http")(request_logging_middleware)
 
 # Registration order is route-matching order; it follows the original main.py section order.
-# Every router except auth (register/login/self-profile) and health runs the RBAC check.
+# Every router except auth (register/login/self-profile), provider callbacks and health runs the RBAC check.
 app.include_router(auth.router)
 for _module in (keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral,
                 breakers, webhooks, privacy, rag, settings, lists, models, admin, audit):
     app.include_router(_module.router, dependencies=[Depends(authorize)])
+app.include_router(billing.provider_router)  # signature-authenticated provider callbacks
 app.include_router(health.router)

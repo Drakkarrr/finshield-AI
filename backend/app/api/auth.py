@@ -2,14 +2,16 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import (
+    clear_session_cookie,
     create_access_token,
     get_current_user,
     hash_password,
+    set_session_cookie,
     verify_password,
 )
 from app.core import limiter, logger
@@ -49,7 +51,7 @@ class TokenResponse(BaseModel):
 
 @router.post("/api/auth/register", response_model=TokenResponse, status_code=201, tags=["Auth"])
 @limiter.limit("5/minute")
-def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
+def register(request: Request, response: Response, req: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new account with 14-day free trial (Starter plan, 1,000 credits)."""
     with rls_bypass(db):  # email uniqueness is global, across tenants
         if db.query(User).filter(User.email == req.email).first():
@@ -98,6 +100,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
     db.commit()
 
     token = create_access_token(data={"sub": user.id})
+    set_session_cookie(response, token)
     logger.info(f"New trial user registered: {req.email}")
 
     return TokenResponse(
@@ -119,7 +122,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
 
 @router.post("/api/auth/login", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("10/minute")
-def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, response: Response, req: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate and receive a JWT token."""
     with rls_bypass(db):  # the tenant is unknown until the user is found
         user = db.query(User).filter(User.email == req.email).first()
@@ -136,6 +139,7 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     db.commit()
 
     token = create_access_token(data={"sub": user.id})
+    set_session_cookie(response, token)
     logger.info(f"User logged in: {req.email}")
 
     return TokenResponse(
@@ -151,6 +155,13 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
             "credits_remaining": user.total_credits - round(user.used_credits),
         },
     )
+
+
+@router.post("/api/auth/logout", status_code=204, tags=["Auth"])
+def logout(response: Response):
+    """End the browser session (clears the session cookie). Bearer tokens expire on their own."""
+    clear_session_cookie(response)
+    response.status_code = 204
 
 
 @router.get("/api/auth/me", tags=["Auth"])

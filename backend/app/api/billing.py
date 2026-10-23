@@ -1,7 +1,9 @@
 """FinShield AI — Credits, plans, subscriptions and checkout."""
+import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,13 +16,24 @@ from app.database import get_db
 from app.db_models import (
     AuditLog,
     Notification,
+    Payment,
     User,
 )
+from app.domain import payments
 from app.models import (
     CreditsResponse,
 )
 
 router = APIRouter()
+# Called by the payment provider, not a user: authenticated by the webhook signature instead.
+provider_router = APIRouter()
+
+
+def _refuse_unpaid_grants() -> None:
+    """With a real payment provider, nothing may add credits without a confirmed payment."""
+    if payments.stripe_enabled():
+        raise HTTPException(status_code=409, detail="Credits are sold through Stripe Checkout: "
+                                                    "use POST /api/v1/credits/checkout")
 
 
 # ============================================================
@@ -60,8 +73,8 @@ class PurchaseRequest(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
-    """No card fields: card data is never accepted or stored (S3.5). Stripe Checkout (S6.1)
-    will take payment on Stripe's page; extra fields sent by older clients are ignored."""
+    """No card fields: card data is never accepted or stored (S3.5). Stripe Checkout (S6.1) takes
+    payment on Stripe's page; extra fields sent by older clients are ignored."""
     credits: int
     use_saved_card: bool = False
 
@@ -78,6 +91,8 @@ def list_plans(current_user: User = Depends(get_current_user), db: Session = Dep
         days_remaining = max(0, (current_user.trial_expires_at - datetime.utcnow()).days)
     return {
         "plans": _plans(db),
+        "credit_packs": [{"credits": k, "price_usd": v} for k, v in sorted(_credit_packs(db).items())],
+        "payments_mode": payments.mode(),  # "stripe" or "simulated" (development: no real payment)
         "current_plan": current_user.plan,
         "billing_cycle_start": current_user.billing_cycle_start.isoformat() if current_user.billing_cycle_start else None,
         "billing_cycle_end": cycle_end.isoformat() if cycle_end else None,
@@ -95,6 +110,9 @@ def subscribe(
     db: Session = Depends(get_db),
 ):
     """Change the account's subscription plan with real-world constraints."""
+    if payments.stripe_enabled():  # plan billing through Stripe is not built yet; credit packs are
+        raise HTTPException(status_code=501, detail="Plan changes are not billed through Stripe yet; "
+                                                    "buy credit packs via checkout or contact sales")
     plan = next((p for p in _plans(db) if p["id"] == req.plan_id), None)
     if not plan:
         raise HTTPException(status_code=400, detail="Unknown plan")
@@ -176,45 +194,58 @@ def checkout_credits(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """SIMULATED payment checkout (no card data stored). Stripe Checkout replaces it in S6.1."""
+    """Buy a credit pack. With PAYMENTS_MODE=stripe this returns a Stripe Checkout URL and the
+    credits arrive with Stripe's webhook; in simulated mode (development) they are added at once."""
     credit_packs = _credit_packs(db)
     if req.credits not in credit_packs:
         raise HTTPException(status_code=400, detail="Invalid credit pack")
-
-    # Card data is never stored (S3.5); payments move to Stripe Checkout (S6.1, ruling D8).
+    # Card data is never stored (S3.5); Stripe's hosted page collects it (S6.1, ruling D8).
     if req.use_saved_card:
-        raise HTTPException(status_code=501, detail="Saved cards were removed; Stripe Checkout replaces them (S6.1)")
-
+        raise HTTPException(status_code=501, detail="Saved cards were removed; Stripe Checkout collects card details")
     price = credit_packs[req.credits]
+    if payments.stripe_enabled():
+        try:
+            return {**payments.create_checkout(db, current_user, req.credits, price), "mode": "stripe"}
+        except payments.PaymentError as exc:
+            logger.error(f"checkout unavailable: {exc}")
+            raise HTTPException(status_code=503, detail="Payments are temporarily unavailable") from exc
 
-    # Payment "approved" — add credits
+    # SIMULATED payment (development only): no provider, credits granted immediately.
     current_user.total_credits += req.credits
-
-    # Create notification
-    notif = Notification(
-        user_id=current_user.id,
-        type="credit_alert",
-        title="Credits purchased",
-        message=f"{req.credits:,} credits added for ${price}.",
-        link="/settings?tab=billing",
-    )
-    db.add(notif)
-
-    audit = AuditLog(user_id=current_user.id, action="credits_purchased",
-                     resource_type="billing",
-                     details={"credits": req.credits, "price_usd": price, "simulated_payment": True})
-    db.add(audit)
+    ref = f"sim_{uuid.uuid4().hex}"
+    db.add(Payment(tenant_id=current_user.tenant_id, user_id=current_user.id, provider="simulated",
+                   provider_ref=ref, credits=req.credits, amount_cents=int(round(price * 100)), currency="usd",
+                   status="completed", completed_at=datetime.utcnow()))
+    db.add(Notification(user_id=current_user.id, type="credit_alert", title="Credits purchased",
+                        message=f"{req.credits:,} credits added for ${price} (simulated payment).",
+                        link="/settings?tab=billing"))
+    db.add(AuditLog(user_id=current_user.id, action="credits_purchased", resource_type="payment", resource_id=ref,
+                    details={"credits": req.credits, "price_usd": price, "simulated_payment": True}))
     db.commit()
     db.refresh(current_user)
     logger.info(f"User {current_user.id} purchased {req.credits} credits for ${price} (simulated payment)")
 
     return {
+        "mode": "simulated",
         "credits_added": req.credits,
         "price_usd": price,
         "total_credits": current_user.total_credits,
         "credits_remaining": current_user.total_credits - round(current_user.used_credits),
         "status": "completed",
     }
+
+
+@provider_router.post("/api/v1/billing/webhooks/stripe", tags=["Billing"], include_in_schema=False)
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    """Stripe event receiver. Authenticated by the Stripe-Signature header (STRIPE_WEBHOOK_SECRET)."""
+    if not payments.stripe_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        body = await request.body()  # the signature covers the raw bytes
+        return await run_in_threadpool(payments.handle_webhook, db, body, request.headers.get("stripe-signature", ""))
+    except payments.PaymentError as exc:
+        logger.warning(f"stripe webhook rejected: {exc}")
+        raise HTTPException(status_code=400, detail="Webhook rejected") from exc
 
 
 @router.patch("/api/v1/billing/saved-card", tags=["Billing"])
@@ -236,6 +267,7 @@ def purchase_credits(
     db: Session = Depends(get_db),
 ):
     """Purchase an additional credit pack (legacy — use /checkout for payment verification)."""
+    _refuse_unpaid_grants()
     credit_packs = _credit_packs(db)
     if req.credits not in credit_packs:
         raise HTTPException(status_code=400, detail="Invalid credit pack")

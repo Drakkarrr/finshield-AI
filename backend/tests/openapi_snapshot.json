@@ -305,7 +305,7 @@
     "type": "object"
    },
    "CheckoutRequest": {
-    "description": "No card fields: card data is never accepted or stored (S3.5). Stripe Checkout (S6.1)\nwill take payment on Stripe's page; extra fields sent by older clients are ignored.",
+    "description": "No card fields: card data is never accepted or stored (S3.5). Stripe Checkout (S6.1) takes\npayment on Stripe's page; extra fields sent by older clients are ignored.",
     "properties": {
      "credits": {
       "title": "Credits",
@@ -1888,6 +1888,21 @@
     ]
    }
   },
+  "/api/auth/logout": {
+   "post": {
+    "description": "End the browser session (clears the session cookie). Bearer tokens expire on their own.",
+    "operationId": "logout_api_auth_logout_post",
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Logout",
+    "tags": [
+     "Auth"
+    ]
+   }
+  },
   "/api/auth/me": {
    "get": {
     "description": "Get current user profile.",
@@ -3213,7 +3228,7 @@
   },
   "/api/v1/credits/checkout": {
    "post": {
-    "description": "SIMULATED payment checkout (no card data stored). Stripe Checkout replaces it in S6.1.",
+    "description": "Buy a credit pack. With PAYMENTS_MODE=stripe this returns a Stripe Checkout URL and the\ncredits arrive with Stripe's webhook; in simulated mode (development) they are added at once.",
     "operationId": "checkout_credits_api_v1_credits_checkout_post",
     "requestBody": {
      "content": {
@@ -5031,7 +5046,7 @@
   },
   "/api/v1/transactions": {
    "get": {
-    "description": "List recent transactions for the current user.",
+    "description": "List the tenant's transactions, newest first. X-Total-Count carries the total for paging.",
     "operationId": "list_transactions_api_v1_transactions_get",
     "parameters": [
      {
@@ -5040,6 +5055,8 @@
       "required": false,
       "schema": {
        "default": 50,
+       "maximum": 500,
+       "minimum": 1,
        "title": "Limit",
        "type": "integer"
       }
@@ -5050,6 +5067,7 @@
       "required": false,
       "schema": {
        "default": 0,
+       "minimum": 0,
        "title": "Offset",
        "type": "integer"
       }

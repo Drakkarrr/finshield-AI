@@ -12,7 +12,7 @@ from typing import Optional
 import bcrypt
 import jwt
 import structlog
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -22,14 +22,32 @@ from app.db_models import ApiKey, User
 # --- Configuration ---
 APP_ENV = os.getenv("APP_ENV", "production")
 _jwt_secret = os.getenv("JWT_SECRET_KEY")
-if not _jwt_secret and APP_ENV != "test":
-    raise RuntimeError("JWT_SECRET_KEY must be set in non-test environments")
+if APP_ENV != "test" and len(_jwt_secret or "") < 32:  # HS256 wants a key of at least 256 bits
+    raise RuntimeError("JWT_SECRET_KEY must be set to at least 32 characters in non-test environments")
 SECRET_KEY = _jwt_secret or secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 # --- Bearer Token ---
 security = HTTPBearer(auto_error=False)
+
+# --- Browser session (ruling D11) ---
+# The web app never sees the token: login sets it as an httpOnly cookie. Programmatic clients keep
+# using `Authorization: Bearer` (JWT or API key). Cookie-authenticated unsafe requests must carry
+# X-Requested-With: a cross-site form cannot set it, and CORS blocks cross-site scripts from doing so.
+SESSION_COOKIE = "finshield_session"
+CSRF_HEADER = "X-Requested-With"
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() != "false"
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(SESSION_COOKIE, token, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, path="/",
+                        httponly=True, secure=COOKIE_SECURE, samesite="lax")
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=COOKIE_SECURE, samesite="lax")
 
 
 # --- Password Hashing ---
@@ -62,21 +80,30 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 
 def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     """Dependency to get the current authenticated user.
 
-    Accepts either a JWT bearer token or a live API key (fsk_... prefix).
+    Accepts a JWT bearer token, a live API key (fsk_... prefix), or the browser session cookie.
     """
-    if credentials is None:
+    if credentials is not None:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get(SESSION_COOKIE) or ""
+        if token.startswith("fsk_"):
+            token = ""  # the cookie only ever carries a session JWT
+        if token and request.method not in SAFE_METHODS and not request.headers.get(CSRF_HEADER):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail=f"CSRF check failed: cookie-authenticated requests must send {CSRF_HEADER}")
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = credentials.credentials
     # Who the caller is must be resolved before their tenant is known: look up across tenants,
     # then bind the session to the caller's tenant for everything that follows in the request.
     with rls_bypass(db):
