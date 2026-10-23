@@ -1,0 +1,22 @@
+{
+  "behavioral.f1": 1.0,
+  "behavioral.precision": 1.0,
+  "behavioral.recall": 1.0,
+  "decision_accuracy": 0.9608,
+  "final_gate.f1": 0.9688,
+  "final_gate.precision": 1.0,
+  "final_gate.recall": 0.9394,
+  "model.f1": 0.0,
+  "model.precision": 1.0,
+  "model.recall": 0.0,
+  "rag.f1": 1.0,
+  "rag.precision": 1.0,
+  "rag.recall": 1.0,
+  "retrieval[hash-v1].lexical.hit@1": 1.0,
+  "retrieval[hash-v1].lexical.mrr": 1.0,
+  "retrieval[hash-v1].paraphrase.hit@1": 0.0,
+  "retrieval[hash-v1].paraphrase.mrr": 0.3333,
+  "rules.f1": 1.0,
+  "rules.precision": 1.0,
+  "rules.recall": 1.0
+}

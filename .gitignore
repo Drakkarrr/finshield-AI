@@ -38,3 +38,6 @@ platform-app/node_modules/
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Evaluation harness output (baseline.json is committed)
+backend/tests/eval/report.json
