@@ -179,7 +179,6 @@ services:
       - "3000:3000"
     environment:
       - API_URL=http://backend:8091
-      - NEXT_PUBLIC_API_URL=http://localhost:8091
     depends_on:
       backend:
         condition: service_healthy

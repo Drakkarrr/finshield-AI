@@ -34,7 +34,10 @@ It's designed for compliance teams at fintechs and banks who need:
 
 ## Key Features
 
-> **Target feature set.** This list is the product vision. For the per-feature status (`Implemented & wired` / `Built but not wired` / `Stub` / `Absent`) see [Wiki §21](./FinShield-AI-Wiki.md#21-implementation-status--future-work). In short, today: the hard-rule engine, case management, SAR/STR filing records, rule configuration and pgvector retrieval are implemented; the classifier and behavioral stage in the screening path are simulated; circuit breakers, webhooks, DSAR, multi-tenancy, encryption, observability and the model lifecycle are not yet built or are stubs.
+> **Target feature set.** This list is the product vision. For the per-feature status (`Implemented & wired` / `Built but not wired` / `Stub` / `Absent`) see [Wiki §21](./FinShield-AI-Wiki.md#21-implementation-status--future-work). In short, today (P1–P6 of the [roadmap](./docs/architecture/evolution/PROGRESS.md)):
+>
+> - **Implemented:** deterministic, explainable screening with reasons; OFAC sanctions lists with fuzzy matching; behavioral baselines per account; a versioned classical `RiskModel` (no LLM, ruling D1) with shadow mode; MiniLM semantic RAG; circuit breakers that route to human review; case management with SLA escalation; SAR/STR filings; RBAC across four roles; multi-tenancy with Postgres row-level security; a hash-chained, signed audit trail; DSAR with retention-aware erasure; webhooks; a Celery worker; observability; backups; Stripe Checkout for credit packs.
+> - **Not built:** LLM or LoRA classification, LangChain, SSO/MFA, Stripe subscriptions and refunds.
 
 ### Detection Pipeline
 - **Hard rule engine** — deterministic compliance rules (sanctions blocks, country restrictions, amount thresholds) authored from admin UI, no code changes
@@ -47,7 +50,7 @@ It's designed for compliance teams at fintechs and banks who need:
 ### Investigation & Filing
 - **Case management** — lifecycle states, assignment, SLA timers, escalation policies, investigator notes
 - **SAR/STR filing** — draft generation, narrative assistance, deadline tracking, safe harbor logging
-- **Real-time dashboard** — case-centric workspace with WebSocket push, full reasoning trail per transaction
+- **Dashboard** — case-centric workspace with the full reasoning trail per transaction. Implemented: it polls every 15 s while visible; there is no WebSocket push.
 
 ### Enterprise Operations
 - **Circuit breaker resilience** — graceful degradation when dependencies fail; never silently auto-approves
@@ -62,7 +65,15 @@ It's designed for compliance teams at fintechs and banks who need:
 
 ## Architecture
 
-> **Target pipeline.** Today the screening path runs, in order: idempotency check → hard rules (sanctions/PEP/geography/amount against small built-in lists) → a simulated behavioral score → a simulated classifier → risk blend → rule-action precedence gate → optional pgvector RAG check (when `RAG_DATABASE_URL` points at Postgres). There is no circuit-breaker check, no worker and no webhook delivery in the path yet.
+> **Implemented pipeline** (`backend/app/domain/screening/`). The screening path runs in this order:
+> 1. Idempotency check.
+> 2. Hard rules, including OFAC/PEP list matching.
+> 3. Behavioral baseline score.
+> 4. MiniLM RAG retrieval of precedents and policies.
+> 5. The versioned `RiskModel`.
+> 6. Scoring and the precedence gate.
+>
+> Every stage adds machine-readable `reasons`. A failed dependency trips its circuit breaker and sends the decision to `in_review` with `degraded=true`; it is never auto-approved. Lifecycle events go to webhooks through the worker. The diagram below is the original target design.
 
 ```
 Transaction → Idempotency Check → Sanitization → Circuit Breaker Check
@@ -118,17 +129,17 @@ Status: **Implemented** = in `backend/requirements.txt` / `platform-app/package.
 
 | Layer | Technology | Status |
 |---|---|---|
-| API | FastAPI 0.115 (SQLAlchemy 2.0 sync, Pydantic 2.9, slowapi) | Implemented |
-| Async Processing | Celery + Redis | Target (S4.1) |
+| API | FastAPI 0.161 (SQLAlchemy 2.0 sync, Pydantic 2.9, slowapi) | Implemented |
+| Async Processing | Celery + Redis | Implemented (S4.1). Housekeeping only; decisions stay synchronous |
 | Database | PostgreSQL 16 + pgvector, Alembic migrations | Implemented — Postgres is primary (SQLite only for the test suite) |
-| Retrieval | LangChain (agentic RAG) | Partial — direct pgvector cosine search without LangChain; embeddings are an MD5 feature hash, not a semantic model (S2.4) |
+| Retrieval | LangChain (agentic RAG) | Partial. Direct pgvector cosine search with local all-MiniLM-L6-v2 embeddings (S2.4, ruling D4); no LangChain |
 | Prompt Optimization | DSPy | Target — superseded by ruling D1 (no LLM in the decision path) |
-| Classification | Llama (LoRA via PEFT + BitsAndBytes) | Target — the current "classifier" is simulated; ruling D1 replaces it with a deterministic `RiskModel` (S2.5) |
+| Classification | Llama (LoRA via PEFT + BitsAndBytes) | Superseded by ruling D1. A versioned, deterministic weighted-logistic `RiskModel` is implemented (S2.5) |
 | Model Serving | vLLM | Target — superseded by ruling D1 |
-| Behavioral Scoring | Statistical (z-score / isolation forest) | Partial — a z-score monitor exists but is not called by screening (S2.1) |
-| RAG Evaluation | RAGAS | Target (S2.7) |
-| Frontend | Next.js 14 + React 18 + TypeScript + Tailwind 3 | Implemented |
-| Observability | OpenTelemetry + Prometheus + structlog | Target (S4.4) — today: stdlib logging + `X-Process-Time-Ms` header |
+| Behavioral Scoring | Statistical (z-score / isolation forest) | Implemented. Per-account z-score baselines in the screening path (S2.1); no isolation forest |
+| RAG Evaluation | RAGAS | Partial. Own eval harness with retrieval hit@k and per-stage metrics, run nightly (S2.7); no RAGAS |
+| Frontend | Next.js 16 + React 19 + TypeScript + Tailwind 4 | Implemented |
+| Observability | OpenTelemetry + Prometheus + structlog | Implemented (S4.4). JSON logs, one trace per request with a span per stage, `/metrics` gated by `METRICS_TOKEN`, alert rules in `deploy/prometheus/` |
 | Containerization | Docker Compose (dev) / Kubernetes + Helm (prod) | Partial — root `docker-compose.yml` implemented; Kubernetes superseded by ruling D9 (managed PaaS) |
 | Secrets | HashiCorp Vault | Target — superseded by ruling D9 (platform secret store) |
 
@@ -308,7 +319,7 @@ finshield-ai/
 
 ## Configuration
 
-> **Target.** Today the only runtime-configurable parameters are per-user hard-rule overrides (`/api/v1/rules`, editable from the dashboard's Rules page). Thresholds, model versions, feature flags, SLA timers and retention are code constants; tenants do not exist yet. The runtime config service is roadmap slice S1.4.
+> **Implemented** (S1.4). Thresholds, SLA hours, retention, webhook policy and feature flags are per-tenant runtime settings (`/api/v1/settings`, `/api/v1/flags`; Operations page). Changes apply without a restart and are audited. Environment variables are listed in `.env.example`.
 
 FinShield treats all operational parameters as runtime configuration, not code:
 
@@ -334,7 +345,7 @@ The API is versioned (`/api/v1/...`) with idempotent transaction submission. The
 
 | Endpoint | Method | Description | Status |
 |---|---|---|---|
-| `/api/auth/register`, `/api/auth/login` | POST | Create an account / obtain a JWT | Implemented |
+| `/api/auth/register`, `/api/auth/login`, `/api/auth/logout` | POST | Create an account / sign in (JWT in the body, plus an httpOnly session cookie for the browser) / sign out | Implemented |
 | `/api/v1/keys` | GET/POST/DELETE | Manage `fsk_` API keys | Implemented |
 | `/api/v1/transactions` | POST | Submit a transaction for screening | Implemented |
 | `/api/v1/transactions/{id}` | GET | Get transaction status and decision | Implemented |
@@ -344,11 +355,14 @@ The API is versioned (`/api/v1/...`) with idempotent transaction submission. The
 | `/api/v1/rules`, `/api/v1/rules/{id}` | GET / PATCH | List built-in hard rules / override one per user (enable, threshold, action) | Implemented — creating new rules is Target |
 | `/api/v1/rules/simulate` | POST | Simulate rule configuration against historical transactions | Implemented |
 | `/api/health` | GET | System health | Implemented — see the Wiki status table for probe coverage |
-| `/api/v1/privacy/dsar` | POST | Submit a data subject access request | Stub — records an audit entry only (S3.3) |
+| `/api/v1/privacy/requests` | GET/POST | Data-subject requests: access export, and erasure that preserves retention | Implemented (S3.3) |
 | `/api/v1/cases/{id}/resolve` | POST | Resolve a case (approve, override, escalate) | Target — case status changes go through the case update routes today |
 | `/api/v1/filings/{id}` | GET | Get filing detail and status | Implemented |
-| `/api/v1/admin/users` | CRUD | User and role management | Target (S3.1) |
-| `/api/v1/settings` | GET/PUT | Thresholds, retention, notification config | Target (S1.4) |
+| `/api/v1/admin/users` | GET/POST/PATCH | User and role management | Implemented (S3.1) |
+| `/api/v1/settings` | GET/PUT | Thresholds, retention, notification config | Implemented (S1.4) |
+| `/api/v1/audit`, `/audit/verify`, `/audit/export` | GET | Hash-chained audit trail, chain verification, signed export | Implemented (S3.2) |
+| `/api/v1/webhooks/subscriptions` | GET/POST/DELETE | Signed webhook subscriptions and delivery log | Implemented (S4.2) |
+| `/api/v1/credits/checkout` | POST | Buy credits through Stripe Checkout (simulated in development) | Implemented (S6.1) |
 
 <details><summary>Original target endpoint table</summary>
 
@@ -449,16 +463,26 @@ See [Wiki Section 17](./FinShield-AI-Wiki.md#17-enterprise--fintech-readiness) f
 
 ## Security
 
-**Implemented today:** bcrypt password hashing; HS256 JWTs; hashed `fsk_` API keys accepted alongside JWTs; per-user row filtering on every authenticated route; rate limits on register (5/min), login (10/min) and screening (60/min); all inference local (there is no external model call).
+**Implemented today:**
+
+- **Passwords and keys:** bcrypt password hashing; HS256 JWTs (secret ≥ 32 characters); hashed `fsk_` API keys.
+- **Browser session:** httpOnly SameSite cookie with a CSRF header check.
+- **Access control:** RBAC across four roles (`app/permissions.py`); tenant isolation by Postgres row-level security.
+- **Encryption:** sensitive columns encrypted (Fernet); no card data stored.
+- **Audit:** append-only, hash-chained audit trail with an Ed25519-signed export.
+- **Transport and headers:** security headers on the API and the web app; optional TLS front door (Caddy); containers run as non-root.
+- **Rate limits:** register 5/min and login 10/min per IP; screening 60/min per credential.
+- **Inference:** all local; there is no external model call.
+
+Evidence for each control: [docs/compliance/](./docs/compliance/).
 
 **Target** (not yet built — see roadmap phase P3 and S6.2):
 
 - **Local-first**: all inference runs in your infrastructure, no data leaves your boundary
 - **Prompt injection defense**: multi-layer (denylist, structured delimiting, perplexity scoring, length limits)
-- **Encryption**: at rest (pgcrypto/TDE), in transit (TLS 1.3, mTLS between services)
-- **Secrets management**: HashiCorp Vault integration, API key hashing and rotation
-- **RBAC**: role-scoped access with configurable permission matrix per tenant
-- **Audit**: every action, every config change, every model decision — immutably logged
+- **Encryption**: full at-rest encryption (TDE/KMS) and mTLS between services
+- **Secrets management**: Vault/KMS integration and key rotation (D9: platform secret store)
+- **RBAC**: a permission matrix configurable per tenant (today the matrix is fixed in code)
 
 Report security vulnerabilities to `security@your-org.com`. Do not file publicly.
 

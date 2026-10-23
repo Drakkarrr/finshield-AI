@@ -159,7 +159,7 @@ def update_case(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    valid_statuses = ["created", "open", "under_review", "in_progress", "escalated", "resolved", "closed"]
+    valid_statuses = ["created", "open", "under_review", "escalated", "resolved", "closed"]
     if req.status is not None:
         if req.status not in valid_statuses:
             raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
