@@ -6,13 +6,17 @@ persistence-backed `ListProvider` lives in app.domain.lists.provider.
 from __future__ import annotations
 
 import re
+import threading
 import unicodedata
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Optional
 
+import numpy as np
 from rapidfuzz import fuzz, process
 
 LIST_TYPES = ("sanctions", "pep")
+SCORE_CACHE_SIZE = 4096  # normalised query names per snapshot (counterparties recur)
 
 # Legal-form tokens that carry no identity. Removed only as whole tokens.
 _LEGAL_FORMS = {"ltd", "llc", "inc", "corp", "corporation", "co", "company", "limited", "plc", "gmbh",
@@ -80,6 +84,24 @@ class WatchlistSnapshot:
                 self._names[e.list_type].append(norm)
                 self._owners[e.list_type].append((e, raw))
                 self._exact[e.list_type].setdefault(norm, []).append((e, raw))
+        self._scores_cache: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
+        self._cache_lock = threading.Lock()
+
+    def _scores(self, norm: str, list_type: str) -> np.ndarray:
+        """Token-sort similarity (0-100) of `norm` to every listed name, one vectorised pass, cached.
+        float64 so scores equal process.extract's exactly."""
+        key = (list_type, norm)
+        with self._cache_lock:
+            hit = self._scores_cache.get(key)
+            if hit is not None:
+                self._scores_cache.move_to_end(key)
+                return hit
+        scores = process.cdist([norm], self._names[list_type], scorer=fuzz.token_sort_ratio, dtype=np.float64)[0]
+        with self._cache_lock:
+            self._scores_cache[key] = scores
+            if len(self._scores_cache) > SCORE_CACHE_SIZE:
+                self._scores_cache.popitem(last=False)
+        return scores
 
     def has(self, list_type: str) -> bool:
         return bool(self._names.get(list_type))
@@ -94,10 +116,11 @@ class WatchlistSnapshot:
         for entry, raw in self._exact[list_type].get(norm, []):
             best[entry.id] = ListHit(entry.id, entry.source, entry.list_version, list_type, entry.primary_name,
                                      raw, query, "exact", 1.0)
-        for _name, score, idx in process.extract(norm, self._names[list_type], scorer=fuzz.token_sort_ratio,
-                                                 score_cutoff=threshold * 100, limit=None):
+        scores = self._scores(norm, list_type)
+        above = np.flatnonzero(scores >= threshold * 100)
+        for idx in sorted(above.tolist(), key=lambda i: (-scores[i], i)):  # process.extract's order
             entry, raw = self._owners[list_type][idx]
-            s = round(score / 100.0, 4)
+            s = round(float(scores[idx]) / 100.0, 4)
             if entry.id not in best or best[entry.id].score < s:
                 best[entry.id] = ListHit(entry.id, entry.source, entry.list_version, list_type,
                                          entry.primary_name, raw, query, "fuzzy", s)
@@ -108,5 +131,5 @@ class WatchlistSnapshot:
         norm = normalize(query)
         if not norm or not self.has(list_type):
             return 0.0
-        hit = process.extractOne(norm, self._names[list_type], scorer=fuzz.token_sort_ratio)
-        return round(hit[1] / 100.0, 4) if hit else 0.0
+        scores = self._scores(norm, list_type)
+        return round(float(scores.max()) / 100.0, 4) if scores.size else 0.0

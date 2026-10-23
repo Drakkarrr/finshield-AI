@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import (
+    api_key_digest,
     generate_api_key,
     get_current_user,
 )
@@ -49,6 +50,7 @@ def create_api_key(
         user_id=current_user.id,
         name=req.name,
         key_hash=key_hash,
+        key_digest=api_key_digest(raw_key),
         key_prefix=key_prefix,
     )
     db.add(api_key)

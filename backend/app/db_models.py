@@ -87,6 +87,10 @@ class ApiKey(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     key_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    # SHA-256 of the full key: the per-request lookup. Keys are 256-bit random, so a fast digest is
+    # as safe as bcrypt here and costs microseconds instead of ~250 ms of CPU per request (S6.5).
+    # NULL for keys created before migration 0011 until their first successful use.
+    key_digest: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
     key_prefix: Mapped[str] = mapped_column(String, nullable=False)  # First 8 chars for display
     is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)

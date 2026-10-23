@@ -4,6 +4,7 @@ JWT-based authentication with password hashing.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -117,9 +118,15 @@ def get_current_user(
 def _resolve(token: str, db: Session) -> User:
     # Path 1: API key (starts with the fsk_ prefix)
     if token.startswith("fsk_"):
-        prefix = token[:12] + "..."
-        candidates = db.query(ApiKey).filter(ApiKey.key_prefix == prefix, ApiKey.is_active == True).all()
-        matched = next((k for k in candidates if verify_password(token, k.key_hash)), None)
+        digest = api_key_digest(token)
+        matched = db.query(ApiKey).filter(ApiKey.key_digest == digest, ApiKey.is_active == True).first()
+        if matched is None:  # a key from before migration 0011: verify once with bcrypt, then by digest
+            prefix = token[:12] + "..."
+            candidates = db.query(ApiKey).filter(ApiKey.key_prefix == prefix, ApiKey.is_active == True,
+                                                 ApiKey.key_digest.is_(None)).all()
+            matched = next((k for k in candidates if verify_password(token, k.key_hash)), None)
+            if matched is not None:
+                matched.key_digest = digest
         if matched is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -152,6 +159,10 @@ def _resolve(token: str, db: Session) -> User:
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
     return user
+
+
+def api_key_digest(raw_key: str) -> str:
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 
 def generate_api_key() -> tuple[str, str, str]:

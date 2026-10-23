@@ -7,6 +7,8 @@ similarities; `reembed()` rebuilds the vectors with the current embedder.
 from __future__ import annotations
 
 import logging
+import threading
+from collections import OrderedDict
 from datetime import datetime
 from typing import Any, Optional
 
@@ -16,6 +18,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db_models import ComplianceDocument, PrecedentDecision, SanctionsEntry
 from app.domain.rag.embedders import Embedder
+
+EMBED_CACHE_SIZE = 4096  # distinct texts kept per process
 
 logger = logging.getLogger("finshield.rag")
 
@@ -46,12 +50,26 @@ class RAGRetrievalService:
         self.engine = create_engine(database_url, pool_pre_ping=True)
         self.SessionLocal = sessionmaker(bind=self.engine)
         self.embedder = embedder
+        self._vectors: OrderedDict[str, list[float]] = OrderedDict()
+        self._cache_lock = threading.Lock()
 
     def _db(self) -> Session:
         return self.SessionLocal()
 
     def _embed(self, text: str) -> list[float]:
-        return self.embedder.embed([text])[0]
+        """One text per encode, so a text always maps to the same vector; recurring texts
+        (counterparty names, transaction types) are served from a bounded cache."""
+        with self._cache_lock:
+            hit = self._vectors.get(text)
+            if hit is not None:
+                self._vectors.move_to_end(text)
+                return hit
+        vector = self.embedder.embed([text])[0]
+        with self._cache_lock:
+            self._vectors[text] = vector
+            if len(self._vectors) > EMBED_CACHE_SIZE:
+                self._vectors.popitem(last=False)
+        return vector
 
     def _check_model(self, db: Session, model: Any) -> None:
         stored = {m for (m,) in db.query(model.embedding_model).distinct().all()}
@@ -125,8 +143,9 @@ class RAGRetrievalService:
 
     # --- reads --------------------------------------------------------------------------------
     def search_similar_documents(self, query: str, category: Optional[str] = None,
-                                 jurisdiction: Optional[str] = None, top_k: int = 5) -> list[dict]:
-        q = self._embed(query)
+                                 jurisdiction: Optional[str] = None, top_k: int = 5,
+                                 vector: Optional[list[float]] = None) -> list[dict]:
+        q = vector if vector is not None else self._embed(query)
         db = self._db()
         try:
             self._check_model(db, ComplianceDocument)
@@ -141,8 +160,9 @@ class RAGRetrievalService:
         finally:
             db.close()
 
-    def search_sanctions_matches(self, query: str, top_k: int = 10, threshold: float = 0.8) -> list[dict]:
-        q = self._embed(query)
+    def search_sanctions_matches(self, query: str, top_k: int = 10, threshold: float = 0.8,
+                                 vector: Optional[list[float]] = None) -> list[dict]:
+        q = vector if vector is not None else self._embed(query)
         db = self._db()
         try:
             self._check_model(db, SanctionsEntry)
@@ -158,8 +178,9 @@ class RAGRetrievalService:
         finally:
             db.close()
 
-    def search_similar_precedents(self, query: str, decision_filter: Optional[str] = None, top_k: int = 5) -> list[dict]:
-        q = self._embed(query)
+    def search_similar_precedents(self, query: str, decision_filter: Optional[str] = None, top_k: int = 5,
+                                  vector: Optional[list[float]] = None) -> list[dict]:
+        q = vector if vector is not None else self._embed(query)
         db = self._db()
         try:
             self._check_model(db, PrecedentDecision)
@@ -180,18 +201,20 @@ class RAGRetrievalService:
             transaction_context.get("description"),
         ) if p)
         parties = [p for p in (transaction_context.get("sender_name"), transaction_context.get("receiver_name")) if p]
+        query = " ".join([*parties, context]) or "transaction"
+        party_vectors = [self._embed(p) for p in parties]
+        policy_vector, query_vector = self._embed(context or query), self._embed(query)
         sanctions: dict[str, dict] = {}
-        for party in parties:
-            for m in self.search_sanctions_matches(party, top_k=5, threshold=0.7):
+        for party, vector in zip(parties, party_vectors, strict=True):
+            for m in self.search_sanctions_matches(party, top_k=5, threshold=0.7, vector=vector):
                 prev = sanctions.get(m["id"])
                 if prev is None or m["similarity_score"] > prev["similarity_score"]:
                     sanctions[m["id"]] = {**m, "matched_party": party}
-        query = " ".join([*parties, context]) or "transaction"
         return {
             "embedding_model": self.embedder.name,
             "semantic": self.embedder.semantic,
             # every document type (policy, regulation, guideline) can be relevant to a transaction
-            "policies": self.search_similar_documents(context or query, top_k=3),
+            "policies": self.search_similar_documents(context or query, top_k=3, vector=policy_vector),
             "sanctions_matches": sorted(sanctions.values(), key=lambda x: (-x["similarity_score"], x["id"])),
-            "similar_precedents": self.search_similar_precedents(query, top_k=3),
+            "similar_precedents": self.search_similar_precedents(query, top_k=3, vector=query_vector),
         }

@@ -57,8 +57,12 @@ class MiniLMEmbedder:
     dim = EMBEDDING_DIM
 
     def __init__(self) -> None:
+        import torch
         from sentence_transformers import SentenceTransformer
 
+        # Requests already run in parallel threads; torch's default (one thread per HOST core, not
+        # per container CPU quota) oversubscribes the CPUs and multiplies latency under load (S6.5).
+        torch.set_num_threads(int(os.getenv("TORCH_NUM_THREADS", "1")))
         self._model = SentenceTransformer(MINILM, device="cpu")
         if self._model.get_embedding_dimension() != self.dim:
             raise RuntimeError(f"{MINILM} produced {self._model.get_embedding_dimension()}-d vectors, expected {self.dim}")
