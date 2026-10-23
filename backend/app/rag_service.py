@@ -12,17 +12,18 @@ Embedding strategy (local-first, no heavy ML runtime required):
   pgvector column (384) — all-MiniLM-L6-v2 is 384-dim, so both paths align.
 """
 
+import hashlib
+import logging
 import os
 import re
-import hashlib
-import numpy as np
-from typing import List, Dict, Optional, Tuple
-from sqlalchemy import create_engine, Column, String, Text, Float, DateTime, JSON, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from pgvector.sqlalchemy import Vector
 from datetime import datetime
-import logging
+from typing import Dict, List, Optional
+
+import numpy as np
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import JSON, Column, DateTime, String, Text, create_engine, text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session, sessionmaker
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ RAGBase = declarative_base()
 class ComplianceDocument(RAGBase):
     """Compliance policy documents and regulations."""
     __tablename__ = "compliance_documents"
-    
+
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
@@ -114,11 +115,11 @@ class ComplianceDocument(RAGBase):
     doc_metadata = Column("metadata", JSON, nullable=True)
     embedding = Column(Vector(384))  # hashing / MiniLM both produce 384-dim vectors
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
 class SanctionsEntry(RAGBase):
     """Sanctions list entries (OFAC, UN, EU, etc.)."""
     __tablename__ = "sanctions_entries"
-    
+
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     type = Column(String, nullable=False)  # individual, entity, vessel
@@ -132,7 +133,7 @@ class SanctionsEntry(RAGBase):
 class PrecedentDecision(RAGBase):
     """Historical compliance decisions for reference."""
     __tablename__ = "precedent_decisions"
-    
+
     id = Column(String, primary_key=True)
     case_summary = Column(Text, nullable=False)
     decision = Column(String, nullable=False)  # approved, flagged, blocked
@@ -144,7 +145,7 @@ class PrecedentDecision(RAGBase):
 
 class RAGRetrievalService:
     """Service for RAG-based compliance retrieval."""
-    
+
     def __init__(self, database_url: str):
         self.engine = create_engine(database_url)
         # Ensure the pgvector extension exists before creating vector columns
@@ -153,10 +154,10 @@ class RAGRetrievalService:
         RAGBase.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
         logger.info("RAG Retrieval Service initialized")
-    
+
     def _get_db(self) -> Session:
         return self.SessionLocal()
-    
+
     def add_compliance_document(
         self,
         doc_id: str,
@@ -169,7 +170,7 @@ class RAGRetrievalService:
     ) -> str:
         """Add a compliance document with automatic embedding."""
         embedding = get_single_embedding(f"{title} {content}")
-        
+
         doc = ComplianceDocument(
             id=doc_id,
             title=title,
@@ -180,7 +181,7 @@ class RAGRetrievalService:
             doc_metadata=metadata,
             embedding=embedding
         )
-        
+
         db = self._get_db()
         try:
             db.add(doc)
@@ -189,7 +190,7 @@ class RAGRetrievalService:
             return doc_id
         finally:
             db.close()
-    
+
     def add_sanctions_entry(
         self,
         entry_id: str,
@@ -203,7 +204,7 @@ class RAGRetrievalService:
         """Add a sanctions list entry with automatic embedding."""
         text_to_embed = f"{name} {' '.join(aliases or [])} {program or ''}"
         embedding = get_single_embedding(text_to_embed)
-        
+
         entry = SanctionsEntry(
             id=entry_id,
             name=name,
@@ -214,7 +215,7 @@ class RAGRetrievalService:
             remarks=remarks,
             embedding=embedding
         )
-        
+
         db = self._get_db()
         try:
             db.add(entry)
@@ -223,7 +224,7 @@ class RAGRetrievalService:
             return entry_id
         finally:
             db.close()
-    
+
     def add_precedent_decision(
         self,
         decision_id: str,
@@ -234,7 +235,7 @@ class RAGRetrievalService:
     ) -> str:
         """Add a precedent decision with automatic embedding."""
         embedding = get_single_embedding(f"{case_summary} {reasoning or ''}")
-        
+
         precedent = PrecedentDecision(
             id=decision_id,
             case_summary=case_summary,
@@ -243,7 +244,7 @@ class RAGRetrievalService:
             risk_factors=risk_factors,
             embedding=embedding
         )
-        
+
         db = self._get_db()
         try:
             db.add(precedent)
@@ -252,7 +253,7 @@ class RAGRetrievalService:
             return decision_id
         finally:
             db.close()
-    
+
     def search_similar_documents(
         self,
         query: str,
@@ -262,21 +263,21 @@ class RAGRetrievalService:
     ) -> List[Dict]:
         """Search for similar compliance documents."""
         query_embedding = get_single_embedding(query)
-        
+
         db = self._get_db()
         try:
             query_stmt = db.query(ComplianceDocument)
-            
+
             if category:
                 query_stmt = query_stmt.filter(ComplianceDocument.category == category)
             if jurisdiction:
                 query_stmt = query_stmt.filter(ComplianceDocument.jurisdiction == jurisdiction)
-            
+
             # Use pgvector similarity search
             results = query_stmt.order_by(
                 ComplianceDocument.embedding.cosine_distance(query_embedding)
             ).limit(top_k).all()
-            
+
             return [
                 {
                     "id": r.id,
@@ -290,7 +291,7 @@ class RAGRetrievalService:
             ]
         finally:
             db.close()
-    
+
     def search_sanctions_matches(
         self,
         query: str,
@@ -299,13 +300,13 @@ class RAGRetrievalService:
     ) -> List[Dict]:
         """Search for potential sanctions matches."""
         query_embedding = get_single_embedding(query)
-        
+
         db = self._get_db()
         try:
             results = db.query(SanctionsEntry).order_by(
                 SanctionsEntry.embedding.cosine_distance(query_embedding)
             ).limit(top_k).all()
-            
+
             matches = []
             for r in results:
                 similarity = _cosine_similarity(r.embedding, query_embedding)
@@ -319,11 +320,11 @@ class RAGRetrievalService:
                         "aliases": r.aliases,
                         "similarity_score": similarity
                     })
-            
+
             return matches
         finally:
             db.close()
-    
+
     def search_similar_precedents(
         self,
         query: str,
@@ -332,18 +333,18 @@ class RAGRetrievalService:
     ) -> List[Dict]:
         """Search for similar historical decisions."""
         query_embedding = get_single_embedding(query)
-        
+
         db = self._get_db()
         try:
             query_stmt = db.query(PrecedentDecision)
-            
+
             if decision_filter:
                 query_stmt = query_stmt.filter(PrecedentDecision.decision == decision_filter)
-            
+
             results = query_stmt.order_by(
                 PrecedentDecision.embedding.cosine_distance(query_embedding)
             ).limit(top_k).all()
-            
+
             return [
                 {
                     "id": r.id,
@@ -357,7 +358,7 @@ class RAGRetrievalService:
             ]
         finally:
             db.close()
-    
+
     def multi_hop_retrieval(
         self,
         transaction_context: Dict,
@@ -365,7 +366,7 @@ class RAGRetrievalService:
     ) -> Dict:
         """
         Perform multi-hop retrieval for a transaction.
-        
+
         1. Search for relevant compliance policies
         2. Check sanctions lists
         3. Find similar historical decisions
@@ -378,7 +379,7 @@ class RAGRetrievalService:
             transaction_context.get("destination_country", ""),
         ]
         query = " ".join([p for p in query_parts if p])
-        
+
         # Screen each party independently (combining names dilutes each match),
         # then merge unique sanctions hits keeping the highest score per entry.
         sanctions_matches: Dict[str, Dict] = {}

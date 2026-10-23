@@ -3,9 +3,10 @@ Seed data for RAG retrieval service.
 Adds sample compliance documents, sanctions entries, and precedent decisions.
 """
 
-from app.rag_service import RAGRetrievalService, ComplianceDocument
 from datetime import datetime
-import uuid
+
+from app.rag_service import ComplianceDocument, RAGRetrievalService
+
 
 def seed_rag_data(database_url: str):
     """Seed the RAG database with sample data (idempotent)."""
@@ -22,7 +23,7 @@ def seed_rag_data(database_url: str):
     if existing > 0:
         print(f"RAG already seeded ({existing} documents). Skipping.")
         return
-    
+
     # Add compliance documents
     compliance_docs = [
         {
@@ -71,11 +72,11 @@ def seed_rag_data(database_url: str):
             "metadata": {"source": "FinCEN", "topic": "geographic_risk"}
         }
     ]
-    
+
     print("Adding compliance documents...")
     for doc in compliance_docs:
         service.add_compliance_document(**doc)
-    
+
     # Add sanctions entries (sample OFAC SDN list)
     sanctions_entries = [
         {
@@ -133,11 +134,11 @@ def seed_rag_data(database_url: str):
             "remarks": "Government ministry subject to comprehensive sanctions"
         }
     ]
-    
+
     print("Adding sanctions entries...")
     for entry in sanctions_entries:
         service.add_sanctions_entry(**entry)
-    
+
     # Add precedent decisions
     precedent_decisions = [
         {
@@ -176,11 +177,11 @@ def seed_rag_data(database_url: str):
             "risk_factors": {"pep_status": True, "large_first_transaction": True, "tax_haven_destination": True, "vague_purpose": True}
         }
     ]
-    
+
     print("Adding precedent decisions...")
     for precedent in precedent_decisions:
         service.add_precedent_decision(**precedent)
-    
+
     print("RAG seed data initialization complete!")
     print(f"Added {len(compliance_docs)} compliance documents")
     print(f"Added {len(sanctions_entries)} sanctions entries")
@@ -189,9 +190,10 @@ def seed_rag_data(database_url: str):
 
 if __name__ == "__main__":
     import os
+
     from dotenv import load_dotenv
-    
+
     load_dotenv()
-    
+
     database_url = os.getenv("RAG_DATABASE_URL", "postgresql://finshield:finshield_secret@localhost:5432/finshield")
     seed_rag_data(database_url)

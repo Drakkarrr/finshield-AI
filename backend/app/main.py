@@ -2,40 +2,68 @@
 FinShield AI — FastAPI Application (Production)
 Full API with authentication, database persistence, rate limiting, and compliance engine.
 """
+import logging
+import math
 import os
 import time
 import uuid
-import math
-import logging
 from datetime import datetime
 from typing import Optional
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from sqlalchemy.orm import Session
-from sqlalchemy import func, text
 from pydantic import BaseModel, Field
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from sqlalchemy import func, text
+from sqlalchemy.orm import Session
 
-from app.database import get_db, init_db
-from app.db_models import User, ApiKey, Transaction, Case, AuditLog, Notification, NotificationPreference, RuleConfig, CaseComment, CaseNote, Filing, AccountBaseline, CircuitBreaker, WebhookEvent
 from app.auth import (
-    hash_password, verify_password, create_access_token,
-    get_current_user, generate_api_key,
+    create_access_token,
+    generate_api_key,
+    get_current_user,
+    hash_password,
+    verify_password,
 )
 from app.compliance_engine import ComplianceEngine
-from app.models import (
-    CaseCreateRequest, CaseResponse, CaseStatus, CreditsResponse,
-    HealthResponse, TransactionRequest, TransactionResponse,
-    ScreeningResult, ScreeningStatus, CreditTier, RuleResult,
+from app.database import get_db, init_db
+from app.db_models import (
+    AccountBaseline,
+    ApiKey,
+    AuditLog,
+    Case,
+    CaseComment,
+    CaseNote,
+    CircuitBreaker,
+    Filing,
+    Notification,
+    NotificationPreference,
+    RuleConfig,
+    Transaction,
+    User,
+    WebhookEvent,
 )
+from app.models import (
+    CaseCreateRequest,
+    CaseResponse,
+    CaseStatus,
+    CreditsResponse,
+    CreditTier,
+    HealthResponse,
+    RuleResult,
+    ScreeningResult,
+    ScreeningStatus,
+    TransactionRequest,
+    TransactionResponse,
+)
+
 try:  # RAG requires pgvector/numpy; optional so the core app runs without them
     from app.rag_service import RAGRetrievalService
     _RAG_AVAILABLE = True
@@ -135,7 +163,7 @@ start_time = time.monotonic()
 async def startup():
     init_db()
     logger.info("Database initialized")
-    
+
     # Initialize RAG service if a PostgreSQL RAG database is configured
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")
     if rag_database_url.startswith("postgresql") and _RAG_AVAILABLE:
@@ -149,7 +177,7 @@ async def startup():
     else:
         logger.info("RAG service skipped (no RAG_DATABASE_URL or deps unavailable)")
         app.state.rag_service = None
-    
+
     logger.info(f"FinShield AI v2.4.0 started on port {os.getenv('APP_PORT', '8091')}")
 
 
@@ -613,8 +641,9 @@ async def export_transactions(
     db: Session = Depends(get_db),
 ):
     """Export transactions as CSV with optional date range filter."""
-    from io import StringIO
     import csv
+    from io import StringIO
+
     from fastapi.responses import StreamingResponse
 
     query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
@@ -625,13 +654,13 @@ async def export_transactions(
             start_dt = datetime.fromisoformat(start_date)
             query = query.filter(Transaction.created_at >= start_dt)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)") from None
     if end_date:
         try:
             end_dt = datetime.fromisoformat(end_date)
             query = query.filter(Transaction.created_at <= end_dt)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)") from None
 
     txs = query.order_by(Transaction.created_at.desc()).all()
     if fmt != "csv":
@@ -737,7 +766,6 @@ async def create_case(
         raise HTTPException(status_code=404, detail="Transaction not found for this account")
 
     case_id = f"CASE-{str(uuid.uuid4())[:8].upper()}"
-    now = datetime.utcnow()
     case = Case(
         id=case_id,
         user_id=current_user.id,
@@ -1464,19 +1492,19 @@ async def simulate_rule(
     rule_def = next((r for r in definitions if r["rule_id"] == req.rule_id), None)
     if not rule_def:
         raise HTTPException(404, "Rule not found")
-    
+
     # Get transactions from last N days
     cutoff = datetime.utcnow() - timedelta(days=req.days)
     transactions = db.query(Transaction).filter(
         Transaction.user_id == current_user.id,
         Transaction.created_at >= cutoff
     ).all()
-    
+
     # Simulate rule against each transaction
     triggered_count = 0
     would_block = 0
     would_flag = 0
-    
+
     for tx in transactions:
         # Run rule evaluation
         tx_data = {
@@ -1488,7 +1516,7 @@ async def simulate_rule(
             "destination_country": tx.destination_country,
             "description": tx.description,
         }
-        
+
         result = engine.evaluate_rule(rule_def, tx_data)
         if result["triggered"]:
             triggered_count += 1
@@ -1496,7 +1524,7 @@ async def simulate_rule(
                 would_block += 1
             elif rule_def["action"] == "flag":
                 would_flag += 1
-    
+
     return {
         "rule_id": req.rule_id,
         "rule_name": rule_def["name"],
@@ -1521,7 +1549,7 @@ async def get_rule_stats(
         RuleConfig.rule_id == rule_id,
         RuleConfig.user_id == current_user.id
     ).first()
-    
+
     if not config:
         # Return default stats if no config exists
         return {
@@ -1531,11 +1559,11 @@ async def get_rule_stats(
             "last_hit_at": None,
             "false_positive_rate": 0.0,
         }
-    
+
     fp_rate = 0.0
     if config.hit_count > 0:
         fp_rate = round(config.false_positive_count / config.hit_count * 100, 2)
-    
+
     return {
         "rule_id": rule_id,
         "hit_count": config.hit_count,
@@ -1556,7 +1584,7 @@ async def record_rule_hit(
         RuleConfig.rule_id == rule_id,
         RuleConfig.user_id == current_user.id
     ).first()
-    
+
     if not config:
         # Create config if it doesn't exist
         config = RuleConfig(
@@ -1569,7 +1597,7 @@ async def record_rule_hit(
     else:
         config.hit_count += 1
         config.last_hit_at = datetime.utcnow()
-    
+
     db.commit()
     return {"recorded": True, "hit_count": config.hit_count}
 
@@ -1585,13 +1613,13 @@ async def record_false_positive(
         RuleConfig.rule_id == rule_id,
         RuleConfig.user_id == current_user.id
     ).first()
-    
+
     if not config:
         raise HTTPException(404, "Rule config not found")
-    
+
     config.false_positive_count += 1
     db.commit()
-    
+
     return {"recorded": True, "false_positive_count": config.false_positive_count}
 
 
@@ -1754,7 +1782,7 @@ async def check_sla_escalation(
 ):
     """Check all open cases for SLA breaches and auto-escalate if needed."""
     now = datetime.utcnow()
-    
+
     # Find cases approaching SLA (within 15 minutes of deadline)
     approaching_sla = db.query(Case).filter(
         Case.user_id == current_user.id,
@@ -1764,7 +1792,7 @@ async def check_sla_escalation(
         Case.sla_deadline > now,
         Case.escalated_at.is_(None),  # Not already escalated
     ).all()
-    
+
     # Find cases that have breached SLA
     breached_sla = db.query(Case).filter(
         Case.user_id == current_user.id,
@@ -1773,9 +1801,9 @@ async def check_sla_escalation(
         Case.sla_deadline <= now,
         Case.escalated_at.is_(None),
     ).all()
-    
+
     escalated_count = 0
-    
+
     # Escalate breached cases
     for case in breached_sla:
         case.status = "escalated"
@@ -1783,14 +1811,11 @@ async def check_sla_escalation(
         case.escalated_by = "system"
         case.escalation_reason = f"SLA breached. Deadline was {case.sla_deadline.isoformat()}"
         escalated_count += 1
-    
-    # Warn on approaching cases (could send notification here)
-    for case in approaching_sla:
-        # In production, this would send a notification
-        pass
-    
+
+    # Approaching-SLA notifications are not sent yet (scheduled jobs, slice S4.3).
+
     db.commit()
-    
+
     return {
         "escalated": escalated_count,
         "approaching": len(approaching_sla),
@@ -1815,7 +1840,7 @@ async def aggregate_case(
     ).first()
     if not tx:
         raise HTTPException(404, "Transaction not found")
-    
+
     # Check for existing open case for this transaction's sender
     # In a real system, you'd match on account_id, but we're using sender_name as a proxy
     existing_case = db.query(Case).filter(
@@ -1828,7 +1853,7 @@ async def aggregate_case(
             )
         )
     ).first()
-    
+
     if existing_case:
         # Attach to existing case (just add a comment noting the new transaction)
         comment = CaseComment(
@@ -1838,7 +1863,7 @@ async def aggregate_case(
         )
         db.add(comment)
         db.commit()
-        
+
         return {
             "aggregated": True,
             "case_id": existing_case.id,
@@ -1856,16 +1881,16 @@ async def aggregate_case(
             severity=priority,  # Map priority to severity for SLA
             reason=reason,
         )
-        
+
         # Calculate SLA deadline based on severity
         sla_hours = {"low": 72, "medium": 24, "high": 4, "critical": 1}
         hours = sla_hours.get(priority, 24)
         new_case.sla_deadline = datetime.utcnow() + timedelta(hours=hours)
-        
+
         db.add(new_case)
         db.commit()
         db.refresh(new_case)
-        
+
         return {
             "aggregated": False,
             "case_id": new_case.id,
@@ -1935,14 +1960,14 @@ async def create_filing(
     case = db.query(Case).filter(Case.id == filing.case_id, Case.user_id == current_user.id).first()
     if not case:
         raise HTTPException(404, "Case not found")
-    
+
     # Verify case is resolved as suspicious
     if case.resolution not in ["confirmed_suspicious", "filed_sar"]:
         raise HTTPException(400, "Case must be resolved as suspicious before filing")
-    
+
     # Calculate deadline (30 days from now for FinCEN SAR)
     deadline = datetime.utcnow() + timedelta(days=30)
-    
+
     # Auto-populate structured data from case
     transaction = db.query(Transaction).filter(Transaction.id == case.transaction_id).first()
     structured_data = {
@@ -1956,7 +1981,7 @@ async def create_filing(
         "case_id": case.id,
         "case_reason": case.reason,
     }
-    
+
     db_filing = Filing(
         case_id=filing.case_id,
         user_id=current_user.id,
@@ -1969,7 +1994,7 @@ async def create_filing(
     db.add(db_filing)
     db.commit()
     db.refresh(db_filing)
-    
+
     # Audit log
     db.add(AuditLog(
         user_id=current_user.id,
@@ -1979,7 +2004,7 @@ async def create_filing(
         details={"filing_type": filing.filing_type, "case_id": filing.case_id},
     ))
     db.commit()
-    
+
     return FilingResponse(
         id=db_filing.id,
         case_id=db_filing.case_id,
@@ -2007,14 +2032,14 @@ async def list_filings(
 ):
     """List all filings for the current user."""
     query = db.query(Filing).filter(Filing.user_id == current_user.id)
-    
+
     if status:
         query = query.filter(Filing.status == status)
     if filing_type:
         query = query.filter(Filing.filing_type == filing_type)
-    
+
     filings = query.order_by(Filing.created_at.desc()).all()
-    
+
     return [
         FilingResponse(
             id=f.id,
@@ -2046,7 +2071,7 @@ async def get_filing(
     filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
-    
+
     return FilingResponse(
         id=filing.id,
         case_id=filing.case_id,
@@ -2076,30 +2101,30 @@ async def update_filing(
     filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
-    
+
     # Update fields
     if update.narrative is not None:
         filing.narrative = update.narrative
-    
+
     if update.status is not None:
         old_status = filing.status
         filing.status = update.status
-        
+
         # Track submission
         if update.status == "submitted" and old_status != "submitted":
             filing.submitted_at = datetime.utcnow()
             filing.submitted_by = current_user.id
-        
+
         # Track confirmation
         if update.status == "confirmed" and old_status != "confirmed":
             filing.confirmed_at = datetime.utcnow()
             filing.confirmed_by = current_user.id
-    
+
     if update.reference_number is not None:
         filing.reference_number = update.reference_number
-    
+
     filing.updated_at = datetime.utcnow()
-    
+
     # Audit log
     db.add(AuditLog(
         user_id=current_user.id,
@@ -2108,10 +2133,10 @@ async def update_filing(
         resource_id=filing.id,
         details={"changes": update.dict(exclude_unset=True)},
     ))
-    
+
     db.commit()
     db.refresh(filing)
-    
+
     return FilingResponse(
         id=filing.id,
         case_id=filing.case_id,
@@ -2140,10 +2165,10 @@ async def delete_filing(
     filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
-    
+
     if filing.status != "draft":
         raise HTTPException(400, "Only draft filings can be deleted")
-    
+
     db.delete(filing)
     db.add(AuditLog(
         user_id=current_user.id,
@@ -2152,7 +2177,7 @@ async def delete_filing(
         resource_id=filing_id,
     ))
     db.commit()
-    
+
     return {"deleted": filing_id}
 
 
@@ -2175,13 +2200,13 @@ async def score_transaction_behavior(
     db: Session = Depends(get_db),
 ):
     """Score a transaction against account's behavioral baseline."""
-    
+
     # Get or create baseline
     baseline = db.query(AccountBaseline).filter(
         AccountBaseline.user_id == current_user.id,
         AccountBaseline.account_id == req.account_id
     ).first()
-    
+
     if not baseline:
         # Cold-start: no baseline yet
         return {
@@ -2192,33 +2217,33 @@ async def score_transaction_behavior(
             "reason": "No behavioral baseline - cold-start policy applied",
             "baseline": None,
         }
-    
+
     # Calculate z-score for amount
     if baseline.std_dev_amount > 0:
         z_score = abs(req.amount - baseline.avg_amount) / baseline.std_dev_amount
     else:
         z_score = 0.0 if req.amount == baseline.avg_amount else 3.0
-    
+
     # Convert z-score to anomaly score (0-1 scale)
     # z-score of 0 = anomaly 0, z-score of 3+ = anomaly 1
     anomaly_score = min(1.0, z_score / 3.0)
-    
+
     # Check for unusual country
     if req.destination_country and baseline.typical_countries:
         if req.destination_country not in baseline.typical_countries:
             anomaly_score = min(1.0, anomaly_score + 0.2)
-    
+
     # Check for unusual payee
     if req.receiver_name and baseline.typical_payees:
         if req.receiver_name not in baseline.typical_payees:
             anomaly_score = min(1.0, anomaly_score + 0.15)
-    
+
     # Cold-start adjustment (if < 30 days history, use stricter threshold)
     is_cold_start = baseline.is_cold_start or baseline.history_days < 30
     trigger_threshold = 0.5 if is_cold_start else 0.65
-    
+
     triggered = anomaly_score >= trigger_threshold
-    
+
     return {
         "account_id": req.account_id,
         "anomaly_score": round(anomaly_score, 3),
@@ -2247,53 +2272,53 @@ async def update_account_baseline(
         Transaction.user_id == current_user.id,
         Transaction.sender_name == account_id,  # Using sender_name as account_id proxy
     ).order_by(Transaction.created_at.asc()).all()
-    
+
     if not transactions:
         raise HTTPException(404, "No transactions found for this account")
-    
+
     # Get or create baseline
     baseline = db.query(AccountBaseline).filter(
         AccountBaseline.user_id == current_user.id,
         AccountBaseline.account_id == account_id
     ).first()
-    
+
     if not baseline:
         baseline = AccountBaseline(
             user_id=current_user.id,
             account_id=account_id,
         )
         db.add(baseline)
-    
+
     # Compute statistics
     amounts = [tx.amount for tx in transactions]
     avg_amount = sum(amounts) / len(amounts)
-    
+
     # Standard deviation
     if len(amounts) > 1:
         variance = sum((x - avg_amount) ** 2 for x in amounts) / (len(amounts) - 1)
         std_dev = math.sqrt(variance)
     else:
         std_dev = 0.0
-    
+
     # Typical patterns
     countries = [tx.destination_country for tx in transactions if tx.destination_country]
     country_counts = {}
     for c in countries:
         country_counts[c] = country_counts.get(c, 0) + 1
     typical_countries = [c for c, count in country_counts.items() if count >= len(transactions) * 0.1]
-    
+
     payees = [tx.receiver_name for tx in transactions if tx.receiver_name]
     payee_counts = {}
     for p in payees:
         payee_counts[p] = payee_counts.get(p, 0) + 1
     typical_payees = [p for p, count in payee_counts.items() if count >= len(transactions) * 0.1]
-    
+
     tx_types = [tx.transaction_type for tx in transactions if tx.transaction_type]
     type_counts = {}
     for t in tx_types:
         type_counts[t] = type_counts.get(t, 0) + 1
     typical_tx_types = [t for t, count in type_counts.items() if count >= len(transactions) * 0.1]
-    
+
     # Update baseline
     baseline.avg_amount = avg_amount
     baseline.std_dev_amount = std_dev
@@ -2308,10 +2333,10 @@ async def update_account_baseline(
     baseline.typical_tx_types = typical_tx_types
     baseline.is_cold_start = baseline.history_days < 30
     baseline.last_computed_at = datetime.utcnow()
-    
+
     db.commit()
     db.refresh(baseline)
-    
+
     return {
         "account_id": account_id,
         "baseline_updated": True,
@@ -2336,14 +2361,14 @@ async def get_account_baseline(
         AccountBaseline.user_id == current_user.id,
         AccountBaseline.account_id == account_id
     ).first()
-    
+
     if not baseline:
         return {
             "account_id": account_id,
             "exists": False,
             "baseline": None,
         }
-    
+
     return {
         "account_id": account_id,
         "exists": True,
@@ -2385,14 +2410,14 @@ async def get_circuit_breaker_status(
 ):
     """Get circuit breaker status for all dependencies."""
     breakers = db.query(CircuitBreaker).all()
-    
+
     # Ensure all critical dependencies have breakers
     critical_deps = ["model_server", "pgvector", "redis", "notification_service"]
     for dep in critical_deps:
         if not any(b.dependency == dep for b in breakers):
             breaker = get_or_create_breaker(db, dep)
             breakers.append(breaker)
-    
+
     return {
         "breakers": [
             {
@@ -2415,9 +2440,9 @@ def get_overall_health(breakers: list) -> str:
     """Determine overall system health from circuit breakers."""
     if not breakers:
         return "green"
-    
+
     states = [b.state for b in breakers]
-    
+
     if any(s == "open" for s in states):
         return "red"  # Critical degradation
     elif any(s == "half_open" for s in states):
@@ -2434,11 +2459,11 @@ async def record_circuit_breaker_failure(
 ):
     """Record a failure for a circuit breaker."""
     breaker = get_or_create_breaker(db, dependency)
-    
+
     now = datetime.utcnow()
     breaker.failure_count += 1
     breaker.last_failure_at = now
-    
+
     # Check if we should open the circuit
     if breaker.state == "closed" and breaker.failure_count >= breaker.failure_threshold:
         breaker.state = "open"
@@ -2456,9 +2481,9 @@ async def record_circuit_breaker_failure(
         breaker.state = "open"
         breaker.last_state_change_at = now
         breaker.failure_count = 1  # Reset counter
-    
+
     db.commit()
-    
+
     return {
         "dependency": dependency,
         "state": breaker.state,
@@ -2474,10 +2499,10 @@ async def record_circuit_breaker_success(
 ):
     """Record a success for a circuit breaker."""
     breaker = get_or_create_breaker(db, dependency)
-    
+
     now = datetime.utcnow()
     breaker.success_count += 1
-    
+
     # Check if we should close the circuit
     if breaker.state == "half_open":
         breaker.success_count += 1
@@ -2497,9 +2522,9 @@ async def record_circuit_breaker_success(
     elif breaker.state == "closed":
         # Reset failure count on success
         breaker.failure_count = max(0, breaker.failure_count - 1)
-    
+
     db.commit()
-    
+
     return {
         "dependency": dependency,
         "state": breaker.state,
@@ -2515,10 +2540,10 @@ async def check_half_open_transition(
 ):
     """Check if an open circuit breaker should transition to half-open."""
     breaker = get_or_create_breaker(db, dependency)
-    
+
     if breaker.state != "open":
         return {"dependency": dependency, "state": breaker.state, "transitioned": False}
-    
+
     now = datetime.utcnow()
     if breaker.last_state_change_at:
         elapsed = (now - breaker.last_state_change_at).total_seconds()
@@ -2527,7 +2552,7 @@ async def check_half_open_transition(
             breaker.success_count = 0
             breaker.last_state_change_at = now
             db.commit()
-            
+
             # Audit log
             db.add(AuditLog(
                 user_id=current_user.id,
@@ -2537,9 +2562,9 @@ async def check_half_open_transition(
                 details={"dependency": dependency, "cooldown_elapsed": elapsed},
             ))
             db.commit()
-            
+
             return {"dependency": dependency, "state": "half_open", "transitioned": True}
-    
+
     return {"dependency": dependency, "state": breaker.state, "transitioned": False}
 
 
@@ -2550,22 +2575,22 @@ async def get_overall_health_status(
 ):
     """Get overall system health status for dashboard."""
     breakers = db.query(CircuitBreaker).all()
-    
+
     # Ensure all critical dependencies have breakers
     critical_deps = ["model_server", "pgvector", "redis", "notification_service"]
     for dep in critical_deps:
         if not any(b.dependency == dep for b in breakers):
             breaker = get_or_create_breaker(db, dep)
             breakers.append(breaker)
-    
+
     health = get_overall_health(breakers)
-    
+
     health_messages = {
         "green": "All systems operational",
         "yellow": "Degraded mode active - some dependencies unavailable",
         "red": "Critical degradation - transactions routing to human review",
     }
-    
+
     return {
         "health": health,
         "message": health_messages.get(health, "Unknown"),
@@ -2602,10 +2627,10 @@ async def dispatch_webhook_event(
     db.add(event)
     db.commit()
     db.refresh(event)
-    
+
     # In production, this would trigger async delivery via Celery
     # For now, we just queue it
-    
+
     return {
         "event_id": event.id,
         "event_type": event.event_type,
@@ -2622,12 +2647,12 @@ async def list_webhook_events(
 ):
     """List webhook events for the current user."""
     query = db.query(WebhookEvent).filter(WebhookEvent.user_id == current_user.id)
-    
+
     if status:
         query = query.filter(WebhookEvent.status == status)
-    
+
     events = query.order_by(WebhookEvent.created_at.desc()).limit(100).all()
-    
+
     return [
         {
             "id": e.id,
@@ -2654,19 +2679,19 @@ async def retry_webhook_event(
         WebhookEvent.id == event_id,
         WebhookEvent.user_id == current_user.id
     ).first()
-    
+
     if not event:
         raise HTTPException(404, "Event not found")
-    
+
     if event.status not in ["failed", "dead_letter"]:
         raise HTTPException(400, "Only failed events can be retried")
-    
+
     event.status = "pending"
     event.attempts = 0
     event.last_error = None
     event.next_retry_at = None
     db.commit()
-    
+
     return {"event_id": event_id, "status": "pending", "message": "Event queued for retry"}
 
 
@@ -2688,7 +2713,7 @@ async def create_dsar_request(
     """Create a Data Subject Access Request."""
     # In production, this would initiate a DSAR workflow
     # For now, we just log it
-    
+
     db.add(AuditLog(
         user_id=current_user.id,
         action="dsar_request_created",
@@ -2696,7 +2721,7 @@ async def create_dsar_request(
         details={"subject_email": req.subject_email, "request_type": req.request_type},
     ))
     db.commit()
-    
+
     return {
         "request_type": req.request_type,
         "subject_email": req.subject_email,
@@ -2759,7 +2784,7 @@ async def search_compliance_documents(
     rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
     if not rag_service:
         raise HTTPException(status_code=503, detail="RAG service not available")
-    
+
     results = rag_service.search_similar_documents(
         query=req.query,
         category=req.category,
@@ -2777,7 +2802,7 @@ async def search_sanctions(
     rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
     if not rag_service:
         raise HTTPException(status_code=503, detail="RAG service not available")
-    
+
     results = rag_service.search_sanctions_matches(
         query=req.query,
         top_k=req.top_k,
@@ -2794,7 +2819,7 @@ async def search_precedents(
     rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
     if not rag_service:
         raise HTTPException(status_code=503, detail="RAG service not available")
-    
+
     results = rag_service.search_similar_precedents(
         query=req.query,
         decision_filter=req.decision_filter,
@@ -2811,14 +2836,14 @@ async def multi_hop_retrieval(
     rag_service: RAGRetrievalService = getattr(app.state, 'rag_service', None)
     if not rag_service:
         raise HTTPException(status_code=503, detail="RAG service not available")
-    
+
     transaction_context = {
         "sender_name": req.sender_name,
         "receiver_name": req.receiver_name,
         "transaction_type": req.transaction_type,
         "destination_country": req.destination_country,
     }
-    
+
     results = rag_service.multi_hop_retrieval(transaction_context)
     return results
 

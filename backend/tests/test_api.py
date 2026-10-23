@@ -8,12 +8,13 @@ import os
 os.environ["APP_ENV"] = "test"
 
 import uuid
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.database import Base, engine
 from app.main import app
-from app.database import engine, Base, reset_db
 
 # Ensure tables exist at module load
 Base.metadata.create_all(bind=engine)

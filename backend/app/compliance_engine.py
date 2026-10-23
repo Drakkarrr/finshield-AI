@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import random
 import time
-import uuid
-from datetime import datetime
 
 from app.models import (
     CreditTier,
@@ -242,12 +240,12 @@ class ComplianceEngine:
     def evaluate_rule(self, rule_def: dict, tx_data: dict) -> dict:
         """Evaluate a single rule against transaction data (for simulation)."""
         rule_id = rule_def["rule_id"]
-        
+
         # RULE-001: Sanctions
         if rule_id == "RULE-001":
             sender_sanctioned = tx_data.get("sender_name", "").lower() in SANCTIONED_ENTITIES
             return {"triggered": sender_sanctioned}
-        
+
         # RULE-002: PEP
         if rule_id == "RULE-002":
             pep_match = (
@@ -255,7 +253,7 @@ class ComplianceEngine:
                 tx_data.get("receiver_name", "").lower() in PEP_ENTITIES
             )
             return {"triggered": pep_match}
-        
+
         # RULE-003: Threshold
         if rule_id == "RULE-003":
             params = rule_def.get("parameters", {})
@@ -265,7 +263,7 @@ class ComplianceEngine:
             threshold = wire_thr if tx_type == "wire" else intl_thr
             amount = tx_data.get("amount", 0)
             return {"triggered": amount >= threshold}
-        
+
         # RULE-004: Geography
         if rule_id == "RULE-004":
             params = rule_def.get("parameters", {})
@@ -274,7 +272,7 @@ class ComplianceEngine:
             dest_country = tx_data.get("destination_country")
             high_risk = dest_country in country_set if dest_country else False
             return {"triggered": high_risk}
-        
+
         return {"triggered": False}
 
     # --- Stage 4: Behavioral Analysis ---

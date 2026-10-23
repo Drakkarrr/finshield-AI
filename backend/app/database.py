@@ -5,8 +5,9 @@ SQLite database with SQLAlchemy ORM for production persistence.
 from __future__ import annotations
 
 import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Use test database in test environment
 if os.getenv("APP_ENV") == "test":
