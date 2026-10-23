@@ -16,8 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
+from app import crypto
 from app.api import (
     admin,
+    audit,
     auth,
     behavioral,
     billing,
@@ -119,6 +121,7 @@ async def request_logging_middleware(request: Request, call_next):
 # --- Startup ---
 async def startup():  # run by lifespan()
     # Schema is managed by Alembic (`alembic upgrade head` runs in the container entrypoint).
+    crypto.public_key_pem()  # fail fast: DATA_ENCRYPTION_KEY is required outside tests
 
     # RAG is optional: without RAG_DATABASE_URL decisions report rag_status="disabled".
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")
@@ -145,6 +148,6 @@ app.middleware("http")(request_logging_middleware)
 # Every router except auth (register/login/self-profile) and health runs the RBAC check.
 app.include_router(auth.router)
 for _module in (keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral,
-                breakers, webhooks, privacy, rag, settings, lists, models, admin):
+                breakers, webhooks, privacy, rag, settings, lists, models, admin, audit):
     app.include_router(_module.router, dependencies=[Depends(authorize)])
 app.include_router(health.router)

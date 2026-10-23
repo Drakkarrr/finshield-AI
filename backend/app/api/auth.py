@@ -15,11 +15,13 @@ from app.auth import (
 from app.core import limiter, logger
 from app.database import bind_tenant, get_db, rls_bypass
 from app.db_models import (
+    AuditChainHead,
     AuditLog,
     Notification,
     Tenant,
     User,
 )
+from app.domain import audit as audit_trail
 
 router = APIRouter()
 
@@ -61,6 +63,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
     with rls_bypass(db):
         db.add(tenant)
     bind_tenant(db, tenant.id)
+    db.add(AuditChainHead(tenant_id=tenant.id, seq=0, last_hash=audit_trail.GENESIS))  # sealers never race to create it
 
     # Create user on Starter trial
     user = User(
@@ -80,7 +83,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
     db.refresh(user)
 
     # Audit log
-    audit = AuditLog(user_id=user.id, action="user_registered", details={"email": req.email, "trial": True})
+    audit = AuditLog(user_id=user.id, action="user_registered", details={"trial": True})
     db.add(audit)
 
     # Welcome notification

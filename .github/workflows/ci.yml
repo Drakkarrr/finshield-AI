@@ -86,6 +86,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://fs:fs@localhost:5432/fs
           JWT_SECRET_KEY: ci-only
+          DATA_ENCRYPTION_KEY: ci-only-data-encryption-key-not-a-secret
         run: |
           alembic upgrade head
           alembic downgrade base
@@ -225,7 +226,7 @@ jobs:
       - name: Validate docker compose config
         run: |
           cp .env.example .env
-          sed -i "s/^JWT_SECRET_KEY=$/JWT_SECRET_KEY=$(openssl rand -hex 32)/; s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$(openssl rand -hex 16)/" .env
+          sed -i "s/^JWT_SECRET_KEY=$/JWT_SECRET_KEY=$(openssl rand -hex 32)/; s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$(openssl rand -hex 16)/; s/^DATA_ENCRYPTION_KEY=$/DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)/" .env
           docker compose config --quiet
 
   # ── E2E: full stack + filing workflow (not a required check) ──
@@ -246,7 +247,7 @@ jobs:
       - name: Start stack
         run: |
           cp .env.example .env
-          sed -i "s/^JWT_SECRET_KEY=$/JWT_SECRET_KEY=$(openssl rand -hex 32)/; s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$(openssl rand -hex 16)/" .env
+          sed -i "s/^JWT_SECRET_KEY=$/JWT_SECRET_KEY=$(openssl rand -hex 32)/; s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$(openssl rand -hex 16)/; s/^DATA_ENCRYPTION_KEY=$/DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)/" .env
           docker compose up -d --build --wait
 
       - name: Run e2e tests

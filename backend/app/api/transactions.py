@@ -5,13 +5,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app import screening_service
+from app import crypto, screening_service
 from app.auth import (
     get_current_user,
 )
 from app.core import limiter, logger
 from app.database import get_db
 from app.db_models import (
+    AuditLog,
     Case,
     CaseComment,
     Notification,
@@ -117,6 +118,22 @@ def screen_transaction(
     # The persisted DB id is the single source of truth for downstream case creation
     result.transaction_id = db_tx.id
     db_tx.decision = result.model_dump(mode="json")
+    # Every decision is audited; parties appear only as pseudonyms (the log is append-only).
+    db.add(AuditLog(user_id=current_user.id, action="transaction_screened", resource_type="transaction",
+                    resource_id=db_tx.id, details={
+        "decision": result.status.value, "risk_score": result.risk_score, "model_version": result.model_version,
+        "degraded": result.degraded, "degraded_dependencies": result.degraded_dependencies,
+        "rule_hits": [r.rule_id for r in result.rule_results if r.triggered],
+        "list_hits": [{"entry_id": getattr(r, "entry_id", None), "list_version": getattr(r, "list_version", None),
+                       "score": getattr(r, "score", None)} for r in result.reasons if r.source == "list"
+                      and r.feature.endswith("_match")],
+        "behavioral_score": result.behavioral_score, "rag_status": result.rag_status,
+        "rag_sanctions_matches": len((result.rag_context or {}).get("sanctions_matches") or []),
+        "inputs": {"amount": tx.amount, "currency": tx.currency, "transaction_type": tx.transaction_type.value,
+                   "destination_country": tx.destination_country, "sender": crypto.pseudonym(tx.sender_name),
+                   "receiver": crypto.pseudonym(tx.receiver_name), "account": crypto.pseudonym(result.account_key)},
+        "api_key_id": db.info.get("api_key_id"),
+    }))
     if result.account_key:
         screening_service.refresh_baseline(db, current_user.tenant_id, current_user.id, result.account_key)
     db.commit()

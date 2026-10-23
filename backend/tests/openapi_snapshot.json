@@ -2189,6 +2189,239 @@
     ]
    }
   },
+  "/api/v1/audit": {
+   "get": {
+    "description": "The tenant's audit entries, newest first, filterable by actor / entity / type / date.",
+    "operationId": "list_audit_api_v1_audit_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "actor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Actor"
+      }
+     },
+     {
+      "in": "query",
+      "name": "action",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Action"
+      }
+     },
+     {
+      "in": "query",
+      "name": "resource_type",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Resource Type"
+      }
+     },
+     {
+      "in": "query",
+      "name": "resource_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Resource Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "date_from",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Date From"
+      }
+     },
+     {
+      "in": "query",
+      "name": "date_to",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Date To"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 500,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "minimum": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Audit",
+    "tags": [
+     "Audit"
+    ]
+   }
+  },
+  "/api/v1/audit/export": {
+   "get": {
+    "description": "Signed chain-of-custody bundle; verify offline with scripts/verify_audit_export.py.",
+    "operationId": "export_audit_api_v1_audit_export_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Export Audit",
+    "tags": [
+     "Audit"
+    ]
+   }
+  },
+  "/api/v1/audit/public-key": {
+   "get": {
+    "description": "The Ed25519 public key that verifies export signatures.",
+    "operationId": "audit_public_key_api_v1_audit_public_key_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Audit Public Key",
+    "tags": [
+     "Audit"
+    ]
+   }
+  },
+  "/api/v1/audit/verify": {
+   "get": {
+    "description": "Seal pending entries, then recompute the tenant's whole chain.",
+    "operationId": "verify_audit_api_v1_audit_verify_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Verify Audit",
+    "tags": [
+     "Audit"
+    ]
+   }
+  },
   "/api/v1/behavioral/baseline/{account_id}": {
    "get": {
     "description": "Get behavioral baseline for an account.",
@@ -3469,7 +3702,7 @@
   },
   "/api/v1/health/circuit-breakers/{dependency}/reset": {
    "post": {
-    "description": "Manually close a breaker after an incident is resolved (audited in S3.1/S3.2).",
+    "description": "Manually close a breaker after an incident is resolved (admin; audited).",
     "operationId": "reset_circuit_breaker_api_v1_health_circuit_breakers__dependency__reset_post",
     "parameters": [
      {

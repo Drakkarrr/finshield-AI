@@ -239,7 +239,8 @@ def update_filing(
         action="filing_updated",
         resource_type="filing",
         resource_id=filing.id,
-        details={"changes": update.dict(exclude_unset=True)},
+        # field names and status only: the narrative may name people and the log cannot be edited
+        details={"fields": sorted(update.model_dump(exclude_unset=True)), "status": update.status},
     ))
 
     db.commit()

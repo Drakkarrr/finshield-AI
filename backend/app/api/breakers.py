@@ -1,9 +1,11 @@
 """FinShield AI — Circuit breaker state (S2.6). Breakers are driven by real calls, not by clients."""
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from app import resilience
 from app.auth import get_current_user
-from app.db_models import User
+from app.database import get_db
+from app.db_models import AuditLog, User
 
 router = APIRouter()
 
@@ -42,9 +44,14 @@ def get_overall_health_status(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/api/v1/health/circuit-breakers/{dependency}/reset", tags=["System"])
-def reset_circuit_breaker(dependency: str, current_user: User = Depends(get_current_user)):
-    """Manually close a breaker after an incident is resolved (audited in S3.1/S3.2)."""
+def reset_circuit_breaker(dependency: str, current_user: User = Depends(get_current_user),
+                          db: Session = Depends(get_db)):
+    """Manually close a breaker after an incident is resolved (admin; audited)."""
     if dependency not in resilience.DEPENDENCIES:
         raise HTTPException(status_code=404, detail=f"Unknown dependency: {dependency}")
+    before = resilience.states().get(dependency, {}).get("state", "closed")
     resilience.reset(dependency)
+    db.add(AuditLog(user_id=current_user.id, action="circuit_breaker_reset", resource_type="circuit_breaker",
+                    resource_id=dependency, details={"before": before, "after": "closed"}))
+    db.commit()
     return {"dependency": dependency, "state": "closed"}

@@ -41,6 +41,9 @@ MATRIX: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/webhooks"): "supervisor",
     ("POST", "/api/v1/privacy/dsar"): "supervisor",
     ("GET", "/api/v1/privacy/pii-classification"): "supervisor",
+    ("GET", "/api/v1/audit"): "supervisor",
+    ("GET", "/api/v1/audit/verify"): "supervisor",
+    ("GET", "/api/v1/audit/export"): "supervisor",
     # --- admin: configuration, users, billing ------------------------------------------------
     ("PUT", "/api/v1/settings/{key}"): "admin",
     ("PUT", "/api/v1/flags/{key}"): "admin",

@@ -177,17 +177,39 @@ class Case(Base):
 
 
 class AuditLog(Base):
-    __tablename__ = "audit_logs"
+    """Append-only, hash-chained audit trail (S3.2).
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    Rows are inserted unsealed; app.domain.audit.seal() assigns seq / prev_hash / entry_hash per
+    tenant in (created_at, id) order. On Postgres a trigger rejects DELETE/TRUNCATE and any UPDATE
+    except that one-time sealing (migration 0006). Details must not hold raw personal data
+    (pseudonymise with app.crypto.pseudonym): the log can never be edited for an erasure request.
+    """
+    __tablename__ = "audit_logs"
+    __table_args__ = (UniqueConstraint("tenant_id", "seq", name="uq_audit_logs_tenant_seq"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=True)
-    action = Column(String, nullable=False)
-    resource_type = Column(String, nullable=True)
-    resource_id = Column(String, nullable=True)
-    details = Column(JSON, nullable=True)
-    ip_address = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String)
+    resource_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    resource_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    details: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    seq: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    prev_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    entry_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    sealed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class AuditChainHead(Base):
+    """Tip of each tenant's audit chain; its row lock serialises sealers."""
+    __tablename__ = "audit_chain_heads"
+
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    last_hash: Mapped[str] = mapped_column(String(64))
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Notification(Base):

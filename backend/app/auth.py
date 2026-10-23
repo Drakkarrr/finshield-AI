@@ -101,6 +101,7 @@ def _resolve(token: str, db: Session) -> User:
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
         matched.last_used_at = datetime.utcnow()
+        db.info["api_key_id"] = matched.id  # attributed on audit entries
         return user
 
     # Path 2: JWT bearer token
