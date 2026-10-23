@@ -8,10 +8,10 @@ import { api, StatsData, HealthData, TransactionListItem } from '@/lib/api';
 import { formatCurrency, formatNumber, formatDateTime, timeAgo as timeAgoFmt, calcCredits } from '@/lib/format';
 
 const STATUS_COLORS: Record<string, string> = {
-  approved: 'text-emerald-600 bg-emerald-50',
-  flagged: 'text-amber-600 bg-amber-50',
-  blocked: 'text-red-600 bg-red-50',
-  in_review: 'text-blue-600 bg-blue-50',
+  approved: 'text-success bg-success-bg',
+  flagged: 'text-warning bg-warning-bg',
+  blocked: 'text-danger bg-danger-bg',
+  in_review: 'text-info bg-info-bg',
 };
 
 export default function DashboardPage() {
@@ -68,10 +68,10 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             {error ? (
-              <span className="text-xs text-red-600">API offline</span>
+              <span className="text-xs text-danger">API offline</span>
             ) : (
               <>
-                <span className={`w-2 h-2 rounded-full ${health?.status === 'healthy' ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
+                <span className={`w-2 h-2 rounded-full ${health?.status === 'healthy' ? 'bg-success' : 'bg-warning'} animate-pulse`} />
                 <span className="text-xs text-ink-muted">API v{health?.version || '—'}</span>
               </>
             )}
@@ -79,7 +79,7 @@ export default function DashboardPage() {
         </div>
 
         {error && (
-          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+          <div className="p-4 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">
             {error} Make sure the backend is running on port 8091.
           </div>
         )}
@@ -88,9 +88,9 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Total Screened', value: stats?.total_transactions ?? 0, color: 'text-ink' },
-            { label: 'Flagged', value: stats?.flagged ?? 0, color: 'text-amber-600' },
-            { label: 'Blocked', value: stats?.blocked ?? 0, color: 'text-red-600' },
-            { label: 'Open Cases', value: stats?.open_cases ?? 0, color: 'text-blue-600' },
+            { label: 'Flagged', value: stats?.flagged ?? 0, color: 'text-warning' },
+            { label: 'Blocked', value: stats?.blocked ?? 0, color: 'text-danger' },
+            { label: 'Open Cases', value: stats?.open_cases ?? 0, color: 'text-info' },
           ].map((kpi, i) => (
             <div key={kpi.label} className={`glass p-5 animate-fade-in-up animate-delay-${i + 1}`}>
               <div className="text-xs font-medium text-ink-muted uppercase tracking-wider mb-3">{kpi.label}</div>
@@ -123,10 +123,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: 'Approved', value: stats!.approved, color: 'bg-emerald-500' },
-                    { label: 'Flagged', value: stats!.flagged, color: 'bg-amber-500' },
-                    { label: 'Blocked', value: stats!.blocked, color: 'bg-red-500' },
-                    { label: 'In Review', value: stats!.in_review, color: 'bg-blue-500' },
+                    { label: 'Approved', value: stats!.approved, color: 'bg-success' },
+                    { label: 'Flagged', value: stats!.flagged, color: 'bg-warning' },
+                    { label: 'Blocked', value: stats!.blocked, color: 'bg-danger' },
+                    { label: 'In Review', value: stats!.in_review, color: 'bg-info' },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(health?.services ?? { database: 'unknown' }).map(([svc, st]) => (
                 <div key={svc} className="flex items-center gap-2 bg-bg-alt rounded-lg px-3 py-2">
-                  <span className={`w-2 h-2 rounded-full ${st === 'healthy' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <span className={`w-2 h-2 rounded-full ${st === 'healthy' ? 'bg-success' : 'bg-warning'}`} />
                   <div className="truncate">
                     <div className="text-[10px] text-ink-muted capitalize">{svc.replace(/_/g, ' ')}</div>
                     <div className="text-[10px] text-ink-light">{st}</div>
@@ -220,7 +220,7 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="py-3">
-                        <span className={`text-xs font-mono ${tx.risk_score > 0.7 ? 'text-red-600' : tx.risk_score > 0.4 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        <span className={`text-xs font-mono ${tx.risk_score > 0.7 ? 'text-danger' : tx.risk_score > 0.4 ? 'text-warning' : 'text-success'}`}>
                           {(tx.risk_score * 100).toFixed(0)}%
                         </span>
                       </td>

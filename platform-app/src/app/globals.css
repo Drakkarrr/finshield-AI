@@ -1,5 +1,69 @@
 @import "tailwindcss";
-@config "../../tailwind.config.js";
+
+@theme {
+  /* Warm neutrals — matching website palette */
+  --color-bg: #F8F7F4;
+  --color-bg-alt: #F0EDE8;
+  --color-bg-dark: #0A1628;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F5F4F0;
+  --color-surface-raised: #FAFAF8;
+  --color-border: #E2DFD8;
+  --color-border-light: #EDEBE6;
+  --color-border-dark: #D4D0C8;
+  
+  /* Text */
+  --color-ink: #1A1A2E;
+  --color-ink-secondary: #4A5568;
+  --color-ink-muted: #6B7280;
+  --color-ink-light: #9CA3AF;
+  
+  /* Brand accents — matching website */
+  --color-accent: #C8870E;
+  --color-accent-light: #E5A628;
+  --color-accent-dark: #A06E0A;
+  --color-accent-muted: #D4930D;
+  --color-teal: #1A9E8F;
+  --color-teal-light: #22B8A6;
+  --color-teal-dark: #147A6E;
+  --color-navy: #0A1628;
+  --color-navy-light: #132038;
+  --color-navy-mid: #1B2D4A;
+  
+  /* Semantic */
+  --color-success: #16A34A;
+  --color-success-light: #DCFCE7;
+  --color-success-bg: #F0FDF4;
+  --color-warning: #E5A628;
+  --color-warning-light: #FEF3C7;
+  --color-warning-bg: #FFFBEB;
+  --color-danger: #DC2626;
+  --color-danger-light: #FEE2E2;
+  --color-danger-bg: #FEF2F2;
+  --color-info: #1A9E8F;
+  --color-info-light: #D1FAE5;
+  --color-info-bg: #F0FDFA;
+  
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(10, 22, 40, 0.04), 0 1px 2px rgba(10, 22, 40, 0.06);
+  --shadow-card-lg: 0 4px 12px rgba(10, 22, 40, 0.08);
+  --shadow-card-xl: 0 8px 24px rgba(10, 22, 40, 0.12);
+  --shadow-dropdown: 0 12px 40px rgba(10, 22, 40, 0.15);
+  
+  /* Animations */
+  --animate-fade-in-up: fadeInUp 0.4s ease both;
+  --animate-slide-in: slideIn 0.3s ease both;
+  
+  @keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(12px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes slideIn {
+    0% { transform: translateX(-100%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+}
 
 :root {
   --bg:         #F8F7F4;
@@ -56,10 +120,10 @@ body {
 .status-badge {
   @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
 }
-.status-approved { @apply bg-green-50 text-emerald-700 border border-emerald-200; }
-.status-flagged  { @apply bg-amber-50 text-amber-700 border border-amber-200; }
-.status-blocked  { @apply bg-red-50 text-red-700 border border-red-200; }
-.status-review   { @apply bg-blue-50 text-blue-700 border border-blue-200; }
+.status-approved { @apply bg-success-bg text-success border border-success-light; }
+.status-flagged  { @apply bg-warning-bg text-warning border border-warning-light; }
+.status-blocked  { @apply bg-danger-bg text-danger border border-danger-light; }
+.status-review   { @apply bg-info-bg text-info border border-info-light; }
 
 .status-dot {
   @apply w-1.5 h-1.5 rounded-full bg-current;
@@ -87,10 +151,21 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
 
 /* Input focus ring */
-input:focus, select:focus, textarea:focus {
+input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: none;
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 3px rgba(200, 135, 14, 0.1);
+}
+
+/* Focus visible for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Remove outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Mono font for IDs */

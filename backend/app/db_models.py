@@ -35,6 +35,8 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     # RBAC (S3.1)
     role = Column(String, default="user")  # user, analyst, admin, super_admin
+    # Multi-tenancy (S3.4)
+    tenant_id = Column(String, nullable=True, index=True)  # Tenant isolation
     # Trial
     is_trial = Column(Boolean, default=True)
     trial_expires_at = Column(DateTime, nullable=True)
@@ -44,10 +46,6 @@ class User(Base):
     pending_plan_change = Column(String, nullable=True)  # Downgrade queued for end-of-cycle
     # Preferences
     timezone = Column(String, nullable=True)  # e.g. "America/New_York"
-    # Saved payment method (for Qoder-like flow)
-    saved_card_last4 = Column(String, nullable=True)
-    saved_card_expiry = Column(String, nullable=True)
-    saved_card_holder = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -63,6 +61,7 @@ class ApiKey(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(String, nullable=True, index=True)  # Multi-tenancy (S3.4)
     name = Column(String, nullable=False)
     key_hash = Column(String, unique=True, nullable=False)
     key_prefix = Column(String, nullable=False)  # First 8 chars for display
@@ -79,6 +78,7 @@ class Transaction(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(String, nullable=True, index=True)  # Multi-tenancy (S3.4)
     idempotency_key = Column(String, unique=True, index=True, nullable=False)
     amount = Column(Float, nullable=False)
     currency = Column(String, default="USD")
@@ -112,6 +112,7 @@ class Case(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(String, nullable=True, index=True)  # Multi-tenancy (S3.4)
     transaction_id = Column(String, ForeignKey("transactions.id"), nullable=False)
     status = Column(String, default="open")  # open, under_review, escalated, resolved, closed
     priority = Column(String, default="medium")  # low, medium, high, critical
@@ -211,6 +212,7 @@ class Notification(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(String, nullable=True, index=True)  # Multi-tenancy (S3.4)
     type = Column(String, nullable=False)  # blocked_tx, new_case, credit_alert, system, plan_change
     title = Column(String, nullable=False)
     message = Column(Text, nullable=False)
@@ -535,6 +537,53 @@ class DSARRequest(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Tenant(Base):
+    """Multi-tenancy support (S3.4)."""
+    __tablename__ = "tenants"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False, index=True)  # URL-friendly identifier
+    domain = Column(String, nullable=True, unique=True)  # Custom domain
+    
+    # Configuration
+    plan = Column(String, default="starter")
+    max_users = Column(Integer, default=10)
+    is_active = Column(Boolean, default=True)
+    
+    # Settings
+    settings = Column(JSON, nullable=True)  # Tenant-specific settings
+    
+    # Audit
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WebhookSubscription(Base):
+    """Webhook subscriptions for event delivery (S4.2)."""
+    __tablename__ = "webhook_subscriptions"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    url = Column(String, nullable=False)
+    secret = Column(String, nullable=False)  # HMAC signing secret
+    
+    # Event types to subscribe to
+    event_types = Column(JSON, nullable=False)  # ["transaction.blocked", "case.escalated", etc.]
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    consecutive_failures = Column(Integer, default=0)
+    delivery_count = Column(Integer, default=0)
+    last_delivered_at = Column(DateTime, nullable=True)
+    
+    # Audit
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User")
 
 
 class PrecedentDecision(Base):

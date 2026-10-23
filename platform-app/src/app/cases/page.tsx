@@ -6,20 +6,20 @@ import { api, CaseData, CaseComment, TransactionListItem } from '@/lib/api';
 import { formatCurrency, formatNumber, formatDateTime, timeAgo } from '@/lib/format';
 
 const PRIORITY_COLORS: Record<string, string> = {
-  critical: 'text-red-600 bg-red-50',
+  critical: 'text-danger bg-danger-bg',
   high: 'text-orange-600 bg-orange-50',
-  medium: 'text-amber-600 bg-amber-50',
-  low: 'text-ink-muted bg-gray-100',
+  medium: 'text-warning bg-warning-bg',
+  low: 'text-ink-muted bg-bg-alt',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  created: 'text-blue-600 bg-blue-50',
-  open: 'text-blue-600 bg-blue-50',
-  under_review: 'text-amber-600 bg-amber-50',
-  in_progress: 'text-amber-600 bg-amber-50',
-  escalated: 'text-red-600 bg-red-50',
-  resolved: 'text-emerald-600 bg-emerald-50',
-  closed: 'text-emerald-600 bg-emerald-50',
+  created: 'text-info bg-info-bg',
+  open: 'text-info bg-info-bg',
+  under_review: 'text-warning bg-warning-bg',
+  in_progress: 'text-warning bg-warning-bg',
+  escalated: 'text-danger bg-danger-bg',
+  resolved: 'text-success bg-success-bg',
+  closed: 'text-success bg-success-bg',
 };
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -126,7 +126,7 @@ export default function CasesPage() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+          <div className="p-3 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">{error}</div>
         )}
 
         {/* Create Case Form */}
@@ -175,9 +175,9 @@ export default function CasesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: 'Total', value: cases.length, color: 'text-ink' },
-            { label: 'Open', value: cases.filter(c => inGroup(c.status, 'open')).length, color: 'text-blue-600' },
-            { label: 'Escalated', value: cases.filter(c => inGroup(c.status, 'escalated')).length, color: 'text-red-600' },
-            { label: 'Resolved', value: cases.filter(c => inGroup(c.status, 'resolved')).length, color: 'text-emerald-600' },
+            { label: 'Open', value: cases.filter(c => inGroup(c.status, 'open')).length, color: 'text-info' },
+            { label: 'Escalated', value: cases.filter(c => inGroup(c.status, 'escalated')).length, color: 'text-danger' },
+            { label: 'Resolved', value: cases.filter(c => inGroup(c.status, 'resolved')).length, color: 'text-success' },
           ].map((s) => (
             <div key={s.label} className="glass p-4 text-center">
               <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -236,7 +236,7 @@ export default function CasesPage() {
                     </button>
                     <button
                       onClick={() => handleDeleteCase(c.case_id)}
-                      className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded bg-red-50 hover:bg-red-100 transition-colors"
+                      className="text-xs text-danger hover:text-danger px-2 py-1 rounded bg-danger-bg hover:bg-danger-light transition-colors"
                       title="Delete case"
                     >
                       Delete

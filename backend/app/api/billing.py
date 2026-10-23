@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -62,22 +62,9 @@ class PurchaseRequest(BaseModel):
 
 class CheckoutRequest(BaseModel):
     credits: int
-    card_last4: Optional[str] = None
-    card_expiry: Optional[str] = None
-    card_holder: Optional[str] = None
-    use_saved_card: bool = False
-
-
-class SavedCardRequest(BaseModel):
-    """Save or update the user's payment method on file."""
     card_last4: str
     card_expiry: str
     card_holder: str
-
-
-class RemoveSavedCardRequest(BaseModel):
-    """Remove the saved payment method."""
-    pass
 
 
 @router.get("/api/v1/billing/plans", tags=["Billing"])
@@ -190,30 +177,20 @@ def checkout_credits(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Simulated payment checkout for credit purchase. Supports saved card (Qoder-like flow)."""
+    """Simulated payment checkout for credit purchase. Card data is not stored (S3.5)."""
     credit_packs = _credit_packs(db)
     if req.credits not in credit_packs:
         raise HTTPException(status_code=400, detail="Invalid credit pack")
 
-    # Determine card details: use saved card or validate new card
-    if req.use_saved_card:
-        if not current_user.saved_card_last4:
-            raise HTTPException(status_code=400, detail="No saved payment method. Please add a card first.")
-        card_last4 = current_user.saved_card_last4
-        card_expiry = current_user.saved_card_expiry
-        card_holder = current_user.saved_card_holder
-    else:
-        # Validate new card details
-        if not req.card_last4 or len(req.card_last4) != 4 or not req.card_last4.isdigit():
-            raise HTTPException(status_code=400, detail="Invalid card last 4 digits")
-        if not req.card_expiry or "/" not in req.card_expiry:
-            raise HTTPException(status_code=400, detail="Invalid card expiry format (MM/YY)")
-        if not req.card_holder or len(req.card_holder.strip()) < 2:
-            raise HTTPException(status_code=400, detail="Invalid card holder name")
-        card_last4 = req.card_last4
-        card_expiry = req.card_expiry
-        card_holder = req.card_holder
-
+    # Validate card details (not stored)
+    if not req.card_last4 or len(req.card_last4) != 4 or not req.card_last4.isdigit():
+        raise HTTPException(status_code=400, detail="Invalid card last 4 digits")
+    if not req.card_expiry or "/" not in req.card_expiry:
+        raise HTTPException(status_code=400, detail="Invalid card expiry format (MM/YY)")
+    if not req.card_holder or len(req.card_holder.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Invalid card holder name")
+    
+    card_last4 = req.card_last4
     price = credit_packs[req.credits]
 
     # Simulate payment processing (in production, this would call Stripe/PayPal)
@@ -223,11 +200,6 @@ def checkout_credits(
 
     # Payment "approved" — add credits
     current_user.total_credits += req.credits
-
-    # Save card for future use (Qoder-like flow: first payment saves billing info)
-    current_user.saved_card_last4 = card_last4
-    current_user.saved_card_expiry = card_expiry
-    current_user.saved_card_holder = card_holder
 
     # Create notification
     notif = Notification(
@@ -241,11 +213,11 @@ def checkout_credits(
 
     audit = AuditLog(user_id=current_user.id, action="credits_purchased",
                      resource_type="billing",
-                     details={"credits": req.credits, "price_usd": price, "card_last4": card_last4, "used_saved": req.use_saved_card})
+                     details={"credits": req.credits, "price_usd": price, "card_last4": card_last4})
     db.add(audit)
     db.commit()
     db.refresh(current_user)
-    logger.info(f"User {current_user.email} purchased {req.credits} credits for ${price} (card ****{card_last4}, saved={req.use_saved_card})")
+    logger.info(f"User {current_user.email} purchased {req.credits} credits for ${price} (card ****{card_last4})")
 
     return {
         "credits_added": req.credits,
@@ -255,41 +227,6 @@ def checkout_credits(
         "credits_remaining": current_user.total_credits - round(current_user.used_credits),
         "status": "completed",
     }
-
-
-@router.patch("/api/v1/billing/saved-card", tags=["Billing"])
-def update_saved_card(
-    req: SavedCardRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Save or update the user's payment method on file."""
-    if not req.card_last4 or len(req.card_last4) != 4 or not req.card_last4.isdigit():
-        raise HTTPException(status_code=400, detail="Invalid card last 4 digits")
-    if not req.card_expiry or "/" not in req.card_expiry:
-        raise HTTPException(status_code=400, detail="Invalid card expiry format (MM/YY)")
-    if not req.card_holder or len(req.card_holder.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Invalid card holder name")
-
-    current_user.saved_card_last4 = req.card_last4
-    current_user.saved_card_expiry = req.card_expiry
-    current_user.saved_card_holder = req.card_holder.strip()
-    db.commit()
-    db.refresh(current_user)
-    return {"detail": "Payment method saved", "card_last4": current_user.saved_card_last4, "card_expiry": current_user.saved_card_expiry, "card_holder": current_user.saved_card_holder}
-
-
-@router.delete("/api/v1/billing/saved-card", tags=["Billing"])
-def remove_saved_card(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Remove the saved payment method."""
-    current_user.saved_card_last4 = None
-    current_user.saved_card_expiry = None
-    current_user.saved_card_holder = None
-    db.commit()
-    return {"detail": "Payment method removed"}
 
 
 @router.post("/api/v1/credits/purchase", tags=["Billing"])
@@ -319,3 +256,86 @@ def purchase_credits(
         "total_credits": current_user.total_credits,
         "credits_remaining": current_user.total_credits - round(current_user.used_credits),
     }
+
+
+# ============================================================
+# STRIPE WEBHOOKS
+# ============================================================
+
+@router.post("/api/v1/billing/webhooks/stripe", tags=["Billing"])
+async def stripe_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Handle Stripe webhook events.
+    
+    Processes:
+    - checkout.session.completed: Credit purchase completed
+    - customer.subscription.updated: Subscription status changed
+    - payment_intent.payment_failed: Payment failed
+    """
+    from app.stripe_service import (
+        is_stripe_enabled,
+        verify_webhook_signature,
+        handle_checkout_completed,
+        handle_subscription_updated,
+    )
+    
+    if not is_stripe_enabled():
+        raise HTTPException(status_code=400, detail="Stripe not enabled")
+    
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Missing stripe-signature header")
+    
+    try:
+        event = verify_webhook_signature(payload, sig_header)
+    except Exception as e:
+        logger.error(f"Stripe webhook verification failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    event_type = event["type"]
+    
+    if event_type == "checkout.session.completed":
+        result = handle_checkout_completed(event)
+        user_id = result["user_id"]
+        credits = result["credits"]
+        
+        # Find user and add credits
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            user.total_credits += credits
+            audit = AuditLog(
+                user_id=user.id,
+                action="stripe_checkout_completed",
+                resource_type="billing",
+                details={"credits": credits, "amount": result["amount"]},
+            )
+            db.add(audit)
+            db.commit()
+            logger.info(f"Stripe: Added {credits} credits to user {user.email}")
+    
+    elif event_type == "customer.subscription.updated":
+        result = handle_subscription_updated(event)
+        user_id = result["user_id"]
+        status = result["status"]
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            audit = AuditLog(
+                user_id=user.id,
+                action="stripe_subscription_updated",
+                resource_type="billing",
+                details={"status": status, "plan_id": result.get("plan_id")},
+            )
+            db.add(audit)
+            db.commit()
+            logger.info(f"Stripe: Subscription updated for user {user.email}, status={status}")
+    
+    else:
+        logger.info(f"Stripe webhook: Unhandled event type {event_type}")
+    
+    return {"status": "ok"}
+

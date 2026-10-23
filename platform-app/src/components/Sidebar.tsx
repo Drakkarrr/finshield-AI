@@ -92,8 +92,8 @@ function TrialSidebarBadge({ expiresAt }: { expiresAt: string }) {
   const isExpired = daysLeft === 0;
 
   return (
-    <div className={`mb-2 rounded-lg px-3 py-2 text-center ${isExpired ? 'bg-red-500/10 border border-red-500/20' : 'bg-accent/10 border border-accent/20'}`}>
-      <span className={`text-[10px] font-semibold ${isExpired ? 'text-red-400' : 'text-accent'}`}>
+    <div className={`mb-2 rounded-lg px-3 py-2 text-center ${isExpired ? 'bg-danger/10 border border-danger/20' : 'bg-accent/10 border border-accent/20'}`}>
+      <span className={`text-[10px] font-semibold ${isExpired ? 'text-danger' : 'text-accent'}`}>
         {isExpired ? 'Trial expired' : `Free trial · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
       </span>
     </div>

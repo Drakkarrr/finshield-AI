@@ -6,11 +6,11 @@ import { api, Filing } from '@/lib/api';
 import { formatDateTime, timeAgo } from '@/lib/format';
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  under_review: 'bg-blue-100 text-blue-700',
+  draft: 'bg-bg-alt text-ink',
+  under_review: 'bg-info-light text-info',
   submitted: 'bg-yellow-100 text-yellow-700',
   confirmed: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
+  rejected: 'bg-danger-light text-danger',
 };
 
 const FILING_TYPE_STYLES: Record<string, string> = {
@@ -73,8 +73,8 @@ export default function FilingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Regulatory Filings</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold text-ink">Regulatory Filings</h1>
+          <p className="mt-1 text-sm text-ink-secondary">
             SAR/STR filings for confirmed suspicious activity
           </p>
         </div>
@@ -85,7 +85,7 @@ export default function FilingsPage() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="rounded-lg border border-border px-3 py-2 text-sm focus:border-info focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="">All Statuses</option>
           <option value="draft">Draft</option>
@@ -98,7 +98,7 @@ export default function FilingsPage() {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="rounded-lg border border-border px-3 py-2 text-sm focus:border-info focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="">All Types</option>
           <option value="SAR">SAR</option>
@@ -108,13 +108,13 @@ export default function FilingsPage() {
 
       {/* Filings List */}
       {loading ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-gray-500">Loading filings...</p>
+        <div className="rounded-lg border border-border bg-white p-8 text-center">
+          <p className="text-ink-muted">Loading filings...</p>
         </div>
       ) : filings.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-gray-500">No filings found</p>
-          <p className="mt-2 text-sm text-gray-400">
+        <div className="rounded-lg border border-border bg-white p-8 text-center">
+          <p className="text-ink-muted">No filings found</p>
+          <p className="mt-2 text-sm text-ink-light">
             Filings are created when cases are resolved as suspicious
           </p>
         </div>
@@ -128,7 +128,7 @@ export default function FilingsPage() {
             return (
               <div
                 key={filing.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+                className="rounded-lg border border-border bg-white p-4 transition-shadow hover:shadow-md"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -140,7 +140,7 @@ export default function FilingsPage() {
                         {filing.status.replace('_', ' ')}
                       </span>
                       {isOverdue && (
-                        <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                        <span className="inline-flex items-center rounded-full bg-danger-light px-2.5 py-0.5 text-xs font-medium text-danger">
                           OVERDUE
                         </span>
                       )}
@@ -151,14 +151,14 @@ export default function FilingsPage() {
                       )}
                     </div>
 
-                    <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
+                    <div className="mt-2 flex items-center gap-4 text-sm text-ink-secondary">
                       <span>Case: {filing.case_id.substring(0, 8)}...</span>
                       <span>•</span>
                       <span>Created {timeAgo(filing.created_at)}</span>
                       {filing.deadline && (
                         <>
                           <span>•</span>
-                          <span className={isOverdue ? 'text-red-600 font-medium' : isUrgent ? 'text-yellow-600 font-medium' : ''}>
+                          <span className={isOverdue ? 'text-danger font-medium' : isUrgent ? 'text-yellow-600 font-medium' : ''}>
                             Deadline: {formatDateTime(filing.deadline)}
                             {daysUntilDeadline !== null && (
                               <span className="ml-1">
@@ -171,13 +171,13 @@ export default function FilingsPage() {
                     </div>
 
                     {filing.narrative && (
-                      <p className="mt-2 text-sm text-gray-700 line-clamp-2">
+                      <p className="mt-2 text-sm text-ink line-clamp-2">
                         {filing.narrative}
                       </p>
                     )}
 
                     {filing.reference_number && (
-                      <p className="mt-2 text-xs text-gray-500">
+                      <p className="mt-2 text-xs text-ink-muted">
                         Reference: {filing.reference_number}
                       </p>
                     )}
@@ -186,7 +186,7 @@ export default function FilingsPage() {
                   <div className="ml-4">
                     <button
                       onClick={() => handleViewFiling(filing)}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      className="rounded-lg bg-info px-4 py-2 text-sm font-medium text-white hover:bg-info"
                     >
                       View Details
                     </button>
@@ -203,12 +203,12 @@ export default function FilingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink">
                 Filing Details - {selectedFiling.filing_type}
               </h2>
               <button
                 onClick={() => setShowDetail(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-ink-light hover:text-ink-secondary"
               >
                 ✕
               </button>
@@ -226,46 +226,46 @@ export default function FilingsPage() {
               </div>
 
               {/* Metadata */}
-              <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-surface-hover p-4">
                 <div>
-                  <p className="text-xs text-gray-500">Case ID</p>
-                  <p className="text-sm font-medium text-gray-900">{selectedFiling.case_id}</p>
+                  <p className="text-xs text-ink-muted">Case ID</p>
+                  <p className="text-sm font-medium text-ink">{selectedFiling.case_id}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Created</p>
-                  <p className="text-sm font-medium text-gray-900">{formatDateTime(selectedFiling.created_at)}</p>
+                  <p className="text-xs text-ink-muted">Created</p>
+                  <p className="text-sm font-medium text-ink">{formatDateTime(selectedFiling.created_at)}</p>
                 </div>
                 {selectedFiling.deadline && (
                   <div>
-                    <p className="text-xs text-gray-500">Deadline</p>
-                    <p className="text-sm font-medium text-gray-900">{formatDateTime(selectedFiling.deadline)}</p>
+                    <p className="text-xs text-ink-muted">Deadline</p>
+                    <p className="text-sm font-medium text-ink">{formatDateTime(selectedFiling.deadline)}</p>
                   </div>
                 )}
                 {selectedFiling.reference_number && (
                   <div>
-                    <p className="text-xs text-gray-500">Reference Number</p>
-                    <p className="text-sm font-medium text-gray-900">{selectedFiling.reference_number}</p>
+                    <p className="text-xs text-ink-muted">Reference Number</p>
+                    <p className="text-sm font-medium text-ink">{selectedFiling.reference_number}</p>
                   </div>
                 )}
                 {selectedFiling.submitted_at && (
                   <div>
-                    <p className="text-xs text-gray-500">Submitted</p>
-                    <p className="text-sm font-medium text-gray-900">{formatDateTime(selectedFiling.submitted_at)}</p>
+                    <p className="text-xs text-ink-muted">Submitted</p>
+                    <p className="text-sm font-medium text-ink">{formatDateTime(selectedFiling.submitted_at)}</p>
                   </div>
                 )}
                 {selectedFiling.confirmed_at && (
                   <div>
-                    <p className="text-xs text-gray-500">Confirmed</p>
-                    <p className="text-sm font-medium text-gray-900">{formatDateTime(selectedFiling.confirmed_at)}</p>
+                    <p className="text-xs text-ink-muted">Confirmed</p>
+                    <p className="text-sm font-medium text-ink">{formatDateTime(selectedFiling.confirmed_at)}</p>
                   </div>
                 )}
               </div>
 
               {/* Narrative */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Narrative</label>
-                <div className="mt-1 rounded-lg border border-gray-300 bg-white p-3">
-                  <p className="whitespace-pre-wrap text-sm text-gray-900">
+                <label className="block text-sm font-medium text-ink">Narrative</label>
+                <div className="mt-1 rounded-lg border border-border bg-white p-3">
+                  <p className="whitespace-pre-wrap text-sm text-ink">
                     {selectedFiling.narrative || 'No narrative provided'}
                   </p>
                 </div>
@@ -274,9 +274,9 @@ export default function FilingsPage() {
               {/* Structured Data */}
               {selectedFiling.structured_data && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Transaction Details</label>
-                  <div className="mt-1 rounded-lg border border-gray-300 bg-white p-3">
-                    <pre className="overflow-x-auto text-xs text-gray-700">
+                  <label className="block text-sm font-medium text-ink">Transaction Details</label>
+                  <div className="mt-1 rounded-lg border border-border bg-white p-3">
+                    <pre className="overflow-x-auto text-xs text-ink">
                       {JSON.stringify(selectedFiling.structured_data, null, 2)}
                     </pre>
                   </div>
@@ -284,7 +284,7 @@ export default function FilingsPage() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 border-t border-gray-200 pt-4">
+              <div className="flex gap-2 border-t border-border pt-4">
                 {selectedFiling.status === 'draft' && (
                   <>
                     <button
@@ -292,7 +292,7 @@ export default function FilingsPage() {
                         await handleUpdateStatus(selectedFiling.id, 'under_review');
                         setShowDetail(false);
                       }}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      className="rounded-lg bg-info px-4 py-2 text-sm font-medium text-white hover:bg-info"
                     >
                       Submit for Review
                     </button>
@@ -302,7 +302,7 @@ export default function FilingsPage() {
                         await loadFilings();
                         setShowDetail(false);
                       }}
-                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                      className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:bg-danger"
                     >
                       Delete Draft
                     </button>
@@ -332,7 +332,7 @@ export default function FilingsPage() {
                 )}
                 <button
                   onClick={() => setShowDetail(false)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink hover:bg-surface-hover"
                 >
                   Close
                 </button>

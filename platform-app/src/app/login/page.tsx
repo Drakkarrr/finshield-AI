@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
+import { Input, Button, Alert } from '@/components/ui';
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState('');
@@ -79,40 +80,32 @@ export default function LoginPage() {
           <p className="text-ink-muted mb-8">Sign in to your compliance dashboard</p>
 
           {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+            <Alert variant="danger" className="mb-4">
               {error}
-            </div>
+            </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="login-email" className="block text-sm font-medium text-ink-secondary mb-1.5">Email</label>
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm text-ink placeholder-ink-light transition-all"
-                required
-                aria-required="true"
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-ink-secondary mb-1.5">Password</label>
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm text-ink placeholder-ink-light transition-all"
-                required
-                aria-required="true"
-                autoComplete="current-password"
-              />
-            </div>
+            <Input
+              label="Email"
+              id="login-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+              autoComplete="email"
+            />
+            <Input
+              label="Password"
+              id="login-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              required
+              autoComplete="current-password"
+            />
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 rounded border-border text-accent" />
@@ -122,13 +115,9 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-accent hover:bg-accent-dark text-white font-semibold py-3 rounded-xl transition-all duration-200 disabled:opacity-50"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
+            <Button type="submit" className="w-full" size="lg" loading={loading}>
+              Sign In
+            </Button>
           </form>
 
           <p className="text-center text-ink-muted text-sm mt-6">

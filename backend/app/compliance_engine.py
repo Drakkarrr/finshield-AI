@@ -19,6 +19,12 @@ from app.models import (
     ScreeningStatus,
     TransactionRequest,
 )
+from app.observability import (
+    TRANSACTION_DURATION,
+    SCREENING_PIPELINE_DURATION,
+    RISK_SCORES,
+    TRANSACTIONS_TOTAL,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -144,6 +150,11 @@ class ComplianceEngine:
         stages.append("decision")
 
         total_latency = (time.monotonic() - pipeline_start) * 1000
+
+        # Record metrics (S4.4)
+        TRANSACTION_DURATION.labels(stage="total").observe(total_latency / 1000)
+        RISK_SCORES.observe(risk_score)
+        TRANSACTIONS_TOTAL.labels(status=status.value, credit_tier=credit_tier.value).inc()
 
         result = ScreeningResult(
             transaction_id=f"TX-{hashlib.sha256(tx.idempotency_key.encode()).hexdigest()[:8]}",

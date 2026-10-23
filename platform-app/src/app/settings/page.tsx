@@ -211,7 +211,7 @@ function NotificationsTab({ flash }: { flash: (m: string) => void }) {
             onClick={() => toggle(n.key)}
             className={`relative w-9 h-5 rounded-full transition-colors ${n.value ? 'bg-accent/30' : 'bg-white/10'}`}
           >
-            <span className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full transition-all ${n.value ? 'translate-x-4 bg-accent' : 'bg-gray-400'}`} />
+            <span className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full transition-all ${n.value ? 'translate-x-4 bg-accent' : 'bg-ink-light'}`} />
           </button>
         </div>
       ))}
@@ -420,7 +420,7 @@ function BillingTab({ flash, refreshUser }: { flash: (m: string) => void; refres
               </div>
             )}
             {plansData?.pending_plan_change && (
-              <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+              <div className="text-xs text-warning mt-1 flex items-center gap-1">
                 <span>⏳</span> Downgrade to {plansData.pending_plan_change} scheduled for end of cycle
               </div>
             )}
@@ -535,7 +535,7 @@ function BillingTab({ flash, refreshUser }: { flash: (m: string) => void; refres
               <button
                 onClick={handleRemoveCard}
                 disabled={removingCard}
-                className="text-xs text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50"
+                className="text-xs text-danger hover:text-danger px-3 py-1.5 rounded-lg bg-danger-bg hover:bg-danger-light transition-colors disabled:opacity-50"
               >
                 {removingCard ? 'Removing...' : 'Remove'}
               </button>
@@ -636,11 +636,11 @@ function BillingTab({ flash, refreshUser }: { flash: (m: string) => void; refres
               </div>
             )}
 
-            <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-500/10">
-              <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-success-bg border border-success/10">
+              <svg className="w-4 h-4 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
               </svg>
-              <span className="text-[11px] text-emerald-600">Secured with 256-bit encryption (simulated)</span>
+              <span className="text-[11px] text-success">Secured with 256-bit encryption (simulated)</span>
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-4">
@@ -673,8 +673,8 @@ function BillingTab({ flash, refreshUser }: { flash: (m: string) => void; refres
                   <p className="text-xs text-ink-muted mt-1">Credits will be adjusted to {confirmPlan.included_credits?.toLocaleString()}.</p>
                 </div>
               ) : (
-                <div className="p-3 rounded-lg bg-amber-50 border border-amber-500/10">
-                  <p className="text-xs text-amber-600">Downgrade takes effect at the end of your current billing cycle ({plansData?.billing_cycle_end ? formatDate(plansData.billing_cycle_end) : 'N/A'}). You&apos;ll keep your current plan features until then.</p>
+                <div className="p-3 rounded-lg bg-warning-bg border border-warning/10">
+                  <p className="text-xs text-warning">Downgrade takes effect at the end of your current billing cycle ({plansData?.billing_cycle_end ? formatDate(plansData.billing_cycle_end) : 'N/A'}). You&apos;ll keep your current plan features until then.</p>
                 </div>
               )}
             </div>

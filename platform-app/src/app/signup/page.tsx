@@ -87,7 +87,7 @@ export default function SignupPage() {
           <p className="text-ink-muted mb-8">14-day free trial · 1,000 credits · No card required</p>
 
           {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="mb-4 p-3 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">
               {error}
             </div>
           )}

@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: backend
-title: FinShield AI Backend — FastAPI Compliance Screening Service
+title: FinShield AI FastAPI Compliance Engine
 scope:
     - backend/
 source_files: []

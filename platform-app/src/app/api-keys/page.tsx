@@ -79,13 +79,13 @@ export default function ApiKeysPage() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+          <div className="p-3 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">{error}</div>
         )}
 
         {/* Newly created key — shown once */}
         {newlyCreated && newlyCreated.key && (
-          <div className="glass p-6 border border-emerald-500/30 animate-fade-in-up">
-            <h3 className="text-sm font-semibold text-emerald-600 mb-2">Key created — copy it now</h3>
+          <div className="glass p-6 border border-success/30 animate-fade-in-up">
+            <h3 className="text-sm font-semibold text-success mb-2">Key created — copy it now</h3>
             <p className="text-xs text-ink-muted mb-3">This is the only time the full key will be shown. Store it securely.</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-bg-alt rounded-lg px-3 py-2 text-xs text-ink font-mono break-all">{newlyCreated.key}</code>
@@ -135,16 +135,16 @@ export default function ApiKeysPage() {
               <div key={k.id} className="glass glass-hover p-5 transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-2.5 h-2.5 rounded-full ${k.is_active ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                    <div className={`w-2.5 h-2.5 rounded-full ${k.is_active ? 'bg-success' : 'bg-ink-muted'}`} />
                     <span className="text-sm font-semibold text-ink">{k.name}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${k.is_active ? 'text-emerald-600 bg-emerald-50' : 'text-ink-muted bg-gray-100'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${k.is_active ? 'text-success bg-success-bg' : 'text-ink-muted bg-bg-alt'}`}>
                       {k.is_active ? 'ACTIVE' : 'REVOKED'}
                     </span>
                   </div>
                   {k.is_active && (
                     <button
                       onClick={() => handleRevoke(k.id)}
-                      className="text-xs text-red-600 hover:text-red-300 transition-colors px-2 py-1 rounded bg-red-50 hover:bg-red-50"
+                      className="text-xs text-danger hover:text-danger transition-colors px-2 py-1 rounded bg-danger-bg hover:bg-danger-bg"
                     >
                       Revoke
                     </button>

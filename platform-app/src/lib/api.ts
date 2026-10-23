@@ -385,6 +385,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers,
   });
 
+  // 401 interceptor: clear token and redirect to login
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login?expired=1';
+    }
+    throw new ApiError(401, 'Session expired');
+  }
+
   if (!res.ok) {
     let errorDetail = '';
     try {

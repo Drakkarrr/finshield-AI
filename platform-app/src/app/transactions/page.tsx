@@ -8,10 +8,10 @@ import { formatCurrency, formatNumber, formatDateTime, formatDate, timeAgo, coun
 const STATUS_OPTIONS = ['all', 'approved', 'flagged', 'blocked', 'in_review'] as const;
 
 const RULE_TYPE_STYLES: Record<string, string> = {
-  sanctions: 'bg-red-50 text-red-700 border-red-200',
+  sanctions: 'bg-danger-bg text-danger border-danger-light',
   pep: 'bg-orange-50 text-orange-700 border-orange-200',
-  threshold: 'bg-amber-50 text-amber-700 border-amber-200',
-  geography: 'bg-blue-50 text-blue-700 border-blue-200',
+  threshold: 'bg-warning-bg text-warning border-warning-light',
+  geography: 'bg-info-bg text-info border-info-light',
 };
 
 export default function TransactionsPage() {
@@ -130,7 +130,7 @@ export default function TransactionsPage() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+          <div className="p-3 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">{error}</div>
         )}
 
         {/* Screen New Transaction */}
@@ -185,7 +185,7 @@ export default function TransactionsPage() {
               </div>
             </form>
             {screening && (
-              <div className={`mt-4 p-4 rounded-xl border ${screening.status === 'approved' ? 'bg-emerald-50 border-emerald-200' : screening.status === 'blocked' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+              <div className={`mt-4 p-4 rounded-xl border ${screening.status === 'approved' ? 'bg-success-bg border-success-light' : screening.status === 'blocked' ? 'bg-danger-bg border-danger-light' : 'bg-warning-bg border-warning-light'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-ink">Result: {screening.status.toUpperCase()}</span>
                   <span className="text-xs text-ink-muted">Risk: {(screening.risk_score * 100).toFixed(1)}%</span>
@@ -254,7 +254,7 @@ export default function TransactionsPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className={`text-xs font-mono font-semibold ${tx.risk_score > 0.7 ? 'text-red-600' : tx.risk_score > 0.4 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <span className={`text-xs font-mono font-semibold ${tx.risk_score > 0.7 ? 'text-danger' : tx.risk_score > 0.4 ? 'text-warning' : 'text-success'}`}>
                         {(tx.risk_score * 100).toFixed(1)}%
                       </span>
                     </td>
@@ -271,7 +271,7 @@ export default function TransactionsPage() {
                         </button>
                         <button
                           onClick={() => handleDelete(tx.id)}
-                          className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded bg-red-50 hover:bg-red-100 transition-colors"
+                          className="text-xs text-danger hover:text-danger px-2 py-1 rounded bg-danger-bg hover:bg-danger-light transition-colors"
                           title="Delete transaction"
                         >
                           Delete
@@ -339,7 +339,7 @@ export default function TransactionsPage() {
                                 <span>Confidence</span>
                                 <span className="font-semibold">{(selectedTx.ml_confidence * 100).toFixed(1)}%</span>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="w-full bg-border rounded-full h-1.5">
                                 <div 
                                   className="h-1.5 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all"
                                   style={{ width: `${selectedTx.ml_confidence * 100}%` }}
@@ -350,27 +350,27 @@ export default function TransactionsPage() {
                         </div>
                       )}
                       {selectedTx.behavioral_score != null && (
-                        <div className="bg-white/60 rounded-lg p-3 border border-blue-100">
+                        <div className="bg-white/60 rounded-lg p-3 border border-info-light">
                           <div className="text-[10px] text-ink-muted uppercase tracking-wider mb-1">Behavioral Score</div>
                           <div className="text-sm font-semibold text-ink">{selectedTx.behavioral_score.toFixed(3)}</div>
                           <div className="mt-2">
                             <div className="flex items-center justify-between text-[10px] text-ink-muted mb-1">
                               <span>Anomaly Level</span>
                               <span className={`font-semibold ${
-                                Math.abs(selectedTx.behavioral_score) > 3 ? 'text-red-600' :
-                                Math.abs(selectedTx.behavioral_score) > 2 ? 'text-amber-600' :
-                                'text-emerald-600'
+                                Math.abs(selectedTx.behavioral_score) > 3 ? 'text-danger' :
+                                Math.abs(selectedTx.behavioral_score) > 2 ? 'text-warning' :
+                                'text-success'
                               }`}>
                                 {Math.abs(selectedTx.behavioral_score) > 3 ? 'High' :
                                  Math.abs(selectedTx.behavioral_score) > 2 ? 'Medium' : 'Low'}
                               </span>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div className="w-full bg-border rounded-full h-1.5">
                               <div 
                                 className={`h-1.5 rounded-full transition-all ${
-                                  Math.abs(selectedTx.behavioral_score) > 3 ? 'bg-red-500' :
-                                  Math.abs(selectedTx.behavioral_score) > 2 ? 'bg-amber-500' :
-                                  'bg-emerald-500'
+                                  Math.abs(selectedTx.behavioral_score) > 3 ? 'bg-danger' :
+                                  Math.abs(selectedTx.behavioral_score) > 2 ? 'bg-warning' :
+                                  'bg-success'
                                 }`}
                                 style={{ width: `${Math.min(Math.abs(selectedTx.behavioral_score) * 20, 100)}%` }}
                               />
@@ -395,19 +395,19 @@ export default function TransactionsPage() {
                   ) : (
                     <div className="space-y-2">
                       {selectedTx.rule_results.map((r: RuleResult, i: number) => (
-                        <div key={i} className={`rounded-lg border p-3 ${r.triggered ? (RULE_TYPE_STYLES[r.rule_type] || 'bg-gray-50 border-gray-200') : 'bg-bg-alt border-border-light'}`}>
+                        <div key={i} className={`rounded-lg border p-3 ${r.triggered ? (RULE_TYPE_STYLES[r.rule_type] || 'bg-surface-hover border-border') : 'bg-bg-alt border-border-light'}`}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-semibold text-ink">{r.rule_id} — {r.rule_name}</span>
                             <div className="flex items-center gap-2">
                               {r.triggered && (
                                 <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                                  r.rule_type === 'sanctions' ? 'bg-red-100 text-red-700' :
+                                  r.rule_type === 'sanctions' ? 'bg-danger-light text-danger' :
                                   r.rule_type === 'pep' ? 'bg-orange-100 text-orange-700' :
-                                  r.rule_type === 'threshold' ? 'bg-amber-100 text-amber-700' :
-                                  'bg-blue-100 text-blue-700'
+                                  r.rule_type === 'threshold' ? 'bg-warning-light text-warning' :
+                                  'bg-info-light text-info'
                                 }`}>{r.rule_type}</span>
                               )}
-                              <span className={`text-[10px] font-medium ${r.triggered ? 'text-red-600' : 'text-emerald-600'}`}>
+                              <span className={`text-[10px] font-medium ${r.triggered ? 'text-danger' : 'text-success'}`}>
                                 {r.triggered ? 'TRIGGERED' : 'Passed'}
                               </span>
                             </div>
@@ -428,7 +428,7 @@ export default function TransactionsPage() {
                 {selectedTx.pipeline_stages && selectedTx.pipeline_stages.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       Processing Pipeline ({selectedTx.pipeline_stages.length} stages)
@@ -436,7 +436,7 @@ export default function TransactionsPage() {
                     <div className="flex flex-wrap gap-2">
                       {selectedTx.pipeline_stages.map((stage: string, i: number) => (
                         <div key={i} className="flex items-center gap-1.5">
-                          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-success-light text-success text-[10px] font-bold">
                             {i + 1}
                           </div>
                           <span className="text-xs text-ink-secondary bg-bg-alt px-2 py-1 rounded-md border border-border-light">
@@ -465,12 +465,12 @@ export default function TransactionsPage() {
                     <div className="space-y-3">
                       {selectedTx.rag_context.sanctions_matches?.length > 0 && (
                         <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-1">⚠ Sanctions Matches</div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-danger mb-1">⚠ Sanctions Matches</div>
                           <div className="space-y-1">
                             {selectedTx.rag_context.sanctions_matches.map((m, i) => (
-                              <div key={i} className="flex items-center justify-between text-xs bg-red-50 border border-red-100 rounded-md px-2.5 py-1.5">
+                              <div key={i} className="flex items-center justify-between text-xs bg-danger-bg border border-danger-light rounded-md px-2.5 py-1.5">
                                 <span className="font-medium text-ink">{m.name}</span>
-                                <span className="text-red-600 font-semibold">{((m.similarity_score ?? 0) * 100).toFixed(0)}% · {m.program}</span>
+                                <span className="text-danger font-semibold">{((m.similarity_score ?? 0) * 100).toFixed(0)}% · {m.program}</span>
                               </div>
                             ))}
                           </div>
@@ -496,7 +496,7 @@ export default function TransactionsPage() {
                             {selectedTx.rag_context.similar_precedents.map((pr, i) => (
                               <div key={i} className="flex items-center justify-between text-xs bg-white border border-border-light rounded-md px-2.5 py-1.5">
                                 <span className="text-ink truncate max-w-[70%]">{pr.case_summary}</span>
-                                <span className={`font-semibold capitalize ${pr.decision === 'blocked' ? 'text-red-600' : pr.decision === 'flagged' ? 'text-amber-600' : 'text-emerald-600'}`}>{pr.decision}</span>
+                                <span className={`font-semibold capitalize ${pr.decision === 'blocked' ? 'text-danger' : pr.decision === 'flagged' ? 'text-warning' : 'text-success'}`}>{pr.decision}</span>
                               </div>
                             ))}
                           </div>
@@ -510,7 +510,7 @@ export default function TransactionsPage() {
                 <div className="flex items-center justify-between pt-3 border-t border-border-light">
                   <button
                     onClick={() => { handleDelete(selectedTx.id); }}
-                    className="text-xs text-red-600 hover:text-red-700 px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                    className="text-xs text-danger hover:text-danger px-3 py-2 rounded-lg bg-danger-bg hover:bg-danger-light transition-colors"
                   >
                     Delete Transaction
                   </button>

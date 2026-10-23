@@ -2,7 +2,7 @@
 import time
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models import (
     HealthResponse,
 )
+from app.observability import get_metrics
 
 router = APIRouter()
 
@@ -92,3 +93,36 @@ def root():
         "docs": "/api/docs",
         "health": "/api/health",
     }
+
+
+@router.get("/api/health/worker", tags=["System"])
+def worker_health():
+    """Worker health check — verifies Celery worker is responsive (S4.1)."""
+    try:
+        from app.worker import celery_app
+        
+        # Ping worker with health_check task
+        result = celery_app.send_task("app.worker.tasks.health_check")
+        response = result.get(timeout=5.0)
+        
+        return {
+            "status": "healthy",
+            "worker": response.get("worker", "unknown"),
+            "timestamp": response.get("timestamp"),
+        }
+    except Exception as e:
+        logger.exception("worker_health_check_failed")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+            },
+        )
+
+
+@router.get("/metrics", tags=["System"])
+def prometheus_metrics():
+    """Prometheus metrics endpoint (S4.4)."""
+    metrics_text, content_type = get_metrics()
+    return Response(content=metrics_text, media_type=content_type)

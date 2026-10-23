@@ -72,7 +72,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                   <div className="px-3 py-1.5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Transactions</div>
                   {results.transactions.map(tx => (
                     <button key={tx.id} onClick={() => navigate('/transactions')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg transition-colors text-left">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${tx.status === 'blocked' ? 'bg-red-500' : tx.status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${tx.status === 'blocked' ? 'bg-danger' : tx.status === 'approved' ? 'bg-success' : 'bg-warning'}`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-ink truncate">{formatCurrency(tx.amount, tx.currency)} — {tx.sender} → {tx.receiver}</div>
                         <div className="text-[10px] text-ink-light">{timeAgo(tx.created_at)}</div>
@@ -87,7 +87,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                   <div className="px-3 py-1.5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Cases</div>
                   {results.cases.map(c => (
                     <button key={c.case_id} onClick={() => navigate('/cases')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg transition-colors text-left">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${c.status === 'resolved' ? 'bg-emerald-500' : c.status === 'escalated' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${c.status === 'resolved' ? 'bg-success' : c.status === 'escalated' ? 'bg-danger' : 'bg-info'}`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-ink truncate">{c.case_id} — {c.reason}</div>
                         <div className="text-[10px] text-ink-light">{c.priority} priority</div>
@@ -101,7 +101,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                   <div className="px-3 py-1.5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">API Keys</div>
                   {results.api_keys.map(k => (
                     <button key={k.id} onClick={() => navigate('/api-keys')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-bg transition-colors text-left">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${k.is_active ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${k.is_active ? 'bg-success' : 'bg-ink-light'}`} />
                       <div className="text-sm text-ink">{k.name}</div>
                       <span className="text-xs text-ink-light font-mono">{k.key_prefix}••••</span>
                     </button>
@@ -171,7 +171,7 @@ function NotificationDropdown({ open, onClose }: { open: boolean; onClose: () =>
           <div className="p-6 text-center text-sm text-ink-muted">No notifications</div>
         ) : (
           data.notifications.map(n => (
-            <div key={n.id} className={`px-4 py-3 border-b border-border-light last:border-0 hover:bg-bg-alt transition-colors ${!n.is_read ? 'bg-amber-50/50' : ''}`}>
+            <div key={n.id} className={`px-4 py-3 border-b border-border-light last:border-0 hover:bg-bg-alt transition-colors ${!n.is_read ? 'bg-warning-bg/50' : ''}`}>
               <div className="flex items-start gap-2.5">
                 <span className="text-sm mt-0.5">{TYPE_ICONS[n.type] || '🔔'}</span>
                 <div className="flex-1 min-w-0">
@@ -216,10 +216,10 @@ function TrialBadge({ expiresAt }: { expiresAt: string }) {
   return (
     <Link href="/settings?tab=billing" className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
       isExpired
-        ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+        ? 'bg-danger-bg text-danger border border-danger-light hover:bg-danger-light'
         : isUrgent
-        ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+        ? 'bg-warning-bg text-warning border border-warning-light hover:bg-warning-light'
+        : 'bg-info-bg text-info border border-info-light hover:bg-info-light'
     }`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
       {isExpired ? 'Trial expired — Upgrade' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
@@ -288,7 +288,7 @@ export default function Topbar() {
           )}
 
           {/* Credits */}
-          <div className="hidden sm:flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+          <div className="hidden sm:flex items-center gap-2 bg-warning-bg border border-warning-light rounded-lg px-3 py-1.5">
             <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-6.241-2.25A2.25 2.25 0 0012 7.5a2.25 2.25 0 00-2.759 2.25A2.25 2.25 0 003 12a2.25 2.25 0 006.241 2.25A2.25 2.25 0 0012 16.5a2.25 2.25 0 002.759-2.25A2.25 2.25 0 0021 12z" />
             </svg>

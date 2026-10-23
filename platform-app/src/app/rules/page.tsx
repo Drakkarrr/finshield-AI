@@ -5,9 +5,9 @@ import PlatformLayout from '@/components/PlatformLayout';
 import { api, RuleDefinition } from '@/lib/api';
 
 const ACTION_COLORS: Record<string, string> = {
-  block: 'text-red-600 bg-red-50',
-  flag: 'text-amber-600 bg-amber-50',
-  review: 'text-blue-600 bg-blue-50',
+  block: 'text-danger bg-danger-bg',
+  flag: 'text-warning bg-warning-bg',
+  review: 'text-info bg-info-bg',
   escalate: 'text-orange-600 bg-orange-50',
 };
 
@@ -69,7 +69,7 @@ export default function RulesPage() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+          <div className="p-3 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">{error}</div>
         )}
 
         {loading ? (
@@ -90,7 +90,7 @@ export default function RulesPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ACTION_COLORS[r.action] || 'text-ink-muted bg-gray-100'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ACTION_COLORS[r.action] || 'text-ink-muted bg-bg-alt'}`}>
                       {r.action.toUpperCase()}
                     </span>
                     {/* Toggle */}
@@ -99,7 +99,7 @@ export default function RulesPage() {
                       disabled={toggling === r.rule_id}
                       className={`relative w-9 h-5 rounded-full transition-colors ${r.enabled ? 'bg-accent/30' : 'bg-white/10'} disabled:opacity-50`}
                     >
-                      <span className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full transition-all ${r.enabled ? 'translate-x-4 bg-accent' : 'bg-gray-400'}`} />
+                      <span className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full transition-all ${r.enabled ? 'translate-x-4 bg-accent' : 'bg-ink-light'}`} />
                     </button>
                   </div>
                 </div>

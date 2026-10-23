@@ -335,50 +335,27 @@
    "CheckoutRequest": {
     "properties": {
      "card_expiry": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Card Expiry"
+      "title": "Card Expiry",
+      "type": "string"
      },
      "card_holder": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Card Holder"
+      "title": "Card Holder",
+      "type": "string"
      },
      "card_last4": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Card Last4"
+      "title": "Card Last4",
+      "type": "string"
      },
      "credits": {
       "title": "Credits",
       "type": "integer"
-     },
-     "use_saved_card": {
-      "default": false,
-      "title": "Use Saved Card",
-      "type": "boolean"
      }
     },
     "required": [
-     "credits"
+     "credits",
+     "card_last4",
+     "card_expiry",
+     "card_holder"
     ],
     "title": "CheckoutRequest",
     "type": "object"
@@ -1198,30 +1175,6 @@
     "title": "RuleUpdateRequest",
     "type": "object"
    },
-   "SavedCardRequest": {
-    "description": "Save or update the user's payment method on file.",
-    "properties": {
-     "card_expiry": {
-      "title": "Card Expiry",
-      "type": "string"
-     },
-     "card_holder": {
-      "title": "Card Holder",
-      "type": "string"
-     },
-     "card_last4": {
-      "title": "Card Last4",
-      "type": "string"
-     }
-    },
-    "required": [
-     "card_last4",
-     "card_expiry",
-     "card_holder"
-    ],
-    "title": "SavedCardRequest",
-    "type": "object"
-   },
    "ScreeningResult": {
     "description": "Result of the full compliance pipeline.",
     "properties": {
@@ -1580,22 +1533,83 @@
     "title": "ValidationError",
     "type": "object"
    },
-   "WebhookRequest": {
+   "WebhookCreateRequest": {
     "properties": {
-     "event_type": {
-      "title": "Event Type",
-      "type": "string"
+     "event_types": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Event Types",
+      "type": "array"
      },
-     "payload": {
-      "title": "Payload",
-      "type": "object"
+     "url": {
+      "title": "Url",
+      "type": "string"
      }
     },
     "required": [
-     "event_type",
-     "payload"
+     "url",
+     "event_types"
     ],
-    "title": "WebhookRequest",
+    "title": "WebhookCreateRequest",
+    "type": "object"
+   },
+   "WebhookResponse": {
+    "properties": {
+     "consecutive_failures": {
+      "title": "Consecutive Failures",
+      "type": "integer"
+     },
+     "created_at": {
+      "title": "Created At",
+      "type": "string"
+     },
+     "delivery_count": {
+      "title": "Delivery Count",
+      "type": "integer"
+     },
+     "event_types": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Event Types",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "is_active": {
+      "title": "Is Active",
+      "type": "boolean"
+     },
+     "last_delivered_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Delivered At"
+     },
+     "url": {
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "url",
+     "event_types",
+     "is_active",
+     "consecutive_failures",
+     "delivery_count",
+     "last_delivered_at",
+     "created_at"
+    ],
+    "title": "WebhookResponse",
     "type": "object"
    }
   },
@@ -1886,6 +1900,26 @@
      }
     },
     "summary": "Readiness Probe",
+    "tags": [
+     "System"
+    ]
+   }
+  },
+  "/api/health/worker": {
+   "get": {
+    "description": "Worker health check \u2014 verifies Celery worker is responsive (S4.1).",
+    "operationId": "worker_health_api_health_worker_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Worker Health",
     "tags": [
      "System"
     ]
@@ -2623,74 +2657,6 @@
     ]
    }
   },
-  "/api/v1/billing/saved-card": {
-   "delete": {
-    "description": "Remove the saved payment method.",
-    "operationId": "remove_saved_card_api_v1_billing_saved_card_delete",
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      },
-      "description": "Successful Response"
-     }
-    },
-    "security": [
-     {
-      "HTTPBearer": []
-     }
-    ],
-    "summary": "Remove Saved Card",
-    "tags": [
-     "Billing"
-    ]
-   },
-   "patch": {
-    "description": "Save or update the user's payment method on file.",
-    "operationId": "update_saved_card_api_v1_billing_saved_card_patch",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/SavedCardRequest"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "security": [
-     {
-      "HTTPBearer": []
-     }
-    ],
-    "summary": "Update Saved Card",
-    "tags": [
-     "Billing"
-    ]
-   }
-  },
   "/api/v1/billing/subscribe": {
    "post": {
     "description": "Change the account's subscription plan with real-world constraints.",
@@ -2731,6 +2697,26 @@
      }
     ],
     "summary": "Subscribe",
+    "tags": [
+     "Billing"
+    ]
+   }
+  },
+  "/api/v1/billing/webhooks/stripe": {
+   "post": {
+    "description": "Handle Stripe webhook events.\n\nProcesses:\n- checkout.session.completed: Credit purchase completed\n- customer.subscription.updated: Subscription status changed\n- payment_intent.payment_failed: Payment failed",
+    "operationId": "stripe_webhook_api_v1_billing_webhooks_stripe_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Stripe Webhook",
     "tags": [
      "Billing"
     ]
@@ -3277,7 +3263,7 @@
   },
   "/api/v1/credits/checkout": {
    "post": {
-    "description": "Simulated payment checkout for credit purchase. Supports saved card (Qoder-like flow).",
+    "description": "Simulated payment checkout for credit purchase. Card data is not stored (S3.5).",
     "operationId": "checkout_credits_api_v1_credits_checkout_post",
     "requestBody": {
      "content": {
@@ -5885,26 +5871,8 @@
   },
   "/api/v1/webhooks": {
    "get": {
-    "description": "List webhook events for the current user.",
-    "operationId": "list_webhook_events_api_v1_webhooks_get",
-    "parameters": [
-     {
-      "in": "query",
-      "name": "status",
-      "required": false,
-      "schema": {
-       "anyOf": [
-        {
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "title": "Status"
-      }
-     }
-    ],
+    "description": "List all webhook subscriptions for the current user.",
+    "operationId": "list_webhooks_api_v1_webhooks_get",
     "responses": {
      "200": {
       "content": {
@@ -5913,16 +5881,6 @@
        }
       },
       "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
      }
     },
     "security": [
@@ -5930,21 +5888,19 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "List Webhook Events",
+    "summary": "List Webhooks",
     "tags": [
      "Webhooks"
     ]
-   }
-  },
-  "/api/v1/webhooks/dispatch": {
+   },
    "post": {
-    "description": "Dispatch a webhook event (queued for delivery).",
-    "operationId": "dispatch_webhook_event_api_v1_webhooks_dispatch_post",
+    "description": "Create a new webhook subscription.",
+    "operationId": "create_webhook_api_v1_webhooks_post",
     "requestBody": {
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/WebhookRequest"
+        "$ref": "#/components/schemas/WebhookCreateRequest"
        }
       }
      },
@@ -5954,7 +5910,9 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/WebhookResponse"
+        }
        }
       },
       "description": "Successful Response"
@@ -5975,23 +5933,23 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "Dispatch Webhook Event",
+    "summary": "Create Webhook",
     "tags": [
      "Webhooks"
     ]
    }
   },
-  "/api/v1/webhooks/{event_id}/retry": {
-   "post": {
-    "description": "Retry a failed webhook event.",
-    "operationId": "retry_webhook_event_api_v1_webhooks__event_id__retry_post",
+  "/api/v1/webhooks/{webhook_id}": {
+   "delete": {
+    "description": "Delete a webhook subscription.",
+    "operationId": "delete_webhook_api_v1_webhooks__webhook_id__delete",
     "parameters": [
      {
       "in": "path",
-      "name": "event_id",
+      "name": "webhook_id",
       "required": true,
       "schema": {
-       "title": "Event Id",
+       "title": "Webhook Id",
        "type": "string"
       }
      }
@@ -6021,9 +5979,121 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "Retry Webhook Event",
+    "summary": "Delete Webhook",
     "tags": [
      "Webhooks"
+    ]
+   },
+   "get": {
+    "description": "Get a specific webhook subscription.",
+    "operationId": "get_webhook_api_v1_webhooks__webhook_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "webhook_id",
+      "required": true,
+      "schema": {
+       "title": "Webhook Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WebhookResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Webhook",
+    "tags": [
+     "Webhooks"
+    ]
+   }
+  },
+  "/api/v1/webhooks/{webhook_id}/replay": {
+   "post": {
+    "description": "Reset webhook failure counter and reactivate.",
+    "operationId": "replay_webhook_api_v1_webhooks__webhook_id__replay_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "webhook_id",
+      "required": true,
+      "schema": {
+       "title": "Webhook Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Replay Webhook",
+    "tags": [
+     "Webhooks"
+    ]
+   }
+  },
+  "/metrics": {
+   "get": {
+    "description": "Prometheus metrics endpoint (S4.4).",
+    "operationId": "prometheus_metrics_metrics_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Prometheus Metrics",
+    "tags": [
+     "System"
     ]
    }
   }

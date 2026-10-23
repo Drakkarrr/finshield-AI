@@ -24,6 +24,7 @@ from app.api import (
     billing,
     breakers,
     cases,
+    events,
     filings,
     health,
     keys,
@@ -70,6 +71,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.middleware.security import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 app.state.limiter = limiter
 
 

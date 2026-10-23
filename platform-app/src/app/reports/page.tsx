@@ -41,7 +41,7 @@ export default function ReportsPage() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+          <div className="p-3 rounded-xl bg-danger-bg border border-danger-light text-danger text-sm">{error}</div>
         )}
 
         {total === 0 ? (
@@ -70,10 +70,10 @@ export default function ReportsPage() {
               <h3 className="text-sm font-semibold text-ink mb-4">Decision Breakdown</h3>
               <div className="space-y-4">
                 {[
-                  { label: 'Approved', value: stats?.approved ?? 0, color: 'bg-emerald-500' },
-                  { label: 'Flagged', value: stats?.flagged ?? 0, color: 'bg-amber-500' },
-                  { label: 'In Review', value: stats?.in_review ?? 0, color: 'bg-blue-500' },
-                  { label: 'Blocked', value: stats?.blocked ?? 0, color: 'bg-red-500' },
+                  { label: 'Approved', value: stats?.approved ?? 0, color: 'bg-success' },
+                  { label: 'Flagged', value: stats?.flagged ?? 0, color: 'bg-warning' },
+                  { label: 'In Review', value: stats?.in_review ?? 0, color: 'bg-info' },
+                  { label: 'Blocked', value: stats?.blocked ?? 0, color: 'bg-danger' },
                 ].map((row) => (
                   <div key={row.label}>
                     <div className="flex items-center justify-between mb-1.5">

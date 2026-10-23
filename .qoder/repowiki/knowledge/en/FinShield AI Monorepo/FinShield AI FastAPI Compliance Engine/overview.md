@@ -1,0 +1,1 @@
+FastAPI service implementing the 7-stage transaction compliance pipeline (sanctions/PEP/threshold/geography rules, behavioral scoring, ML classification, risk scoring) backed by PostgreSQL with pgvector RAG.
