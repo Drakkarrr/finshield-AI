@@ -557,3 +557,42 @@ class TestRootEndpoint:
         data = resp.json()
         assert data["service"] == "FinShield AI"
         assert data["version"] == "2.4.0"
+
+
+# =============================================
+# Regression Tests (S0.5)
+# =============================================
+
+class TestS05Regression:
+    """Regression tests for S0.5 latent bugs."""
+
+    @pytest.mark.asyncio
+    async def test_export_route_not_shadowed(self, session_auth_client):
+        """GET /api/v1/transactions/export must return CSV, not 404/422 from /{tx_id} match."""
+        resp = await session_auth_client.get("/api/v1/transactions/export")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "finshield_transactions.csv" in resp.headers.get("content-disposition", "")
+
+    @pytest.mark.asyncio
+    async def test_update_baseline_no_nameerror(self, session_auth_client):
+        """POST /api/v1/behavioral/update-baseline with >1 tx must not raise NameError on math.sqrt."""
+        account_id = "test_account_s05"
+        for i in range(3):
+            await session_auth_client.post("/api/v1/transactions", json={
+                "amount": 100.0 + i * 50,
+                "currency": "USD",
+                "transaction_type": "wire",
+                "sender_name": account_id,
+                "receiver_name": f"payee_{i}",
+                "destination_country": "US",
+            })
+        resp = await session_auth_client.post(
+            f"/api/v1/behavioral/update-baseline?account_id={account_id}"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["account_id"] == account_id
+        assert data["baseline_updated"] is True
+        assert "statistics" in data
+        assert "avg_amount" in data["statistics"]

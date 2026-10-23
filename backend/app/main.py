@@ -5,6 +5,7 @@ Full API with authentication, database persistence, rate limiting, and complianc
 import os
 import time
 import uuid
+import math
 import logging
 from datetime import datetime
 from typing import Optional
@@ -603,6 +604,60 @@ async def list_transactions(
     ]
 
 
+@app.get("/api/v1/transactions/export", tags=["Compliance"])
+async def export_transactions(
+    fmt: str = "csv",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Export transactions as CSV with optional date range filter."""
+    from io import StringIO
+    import csv
+    from fastapi.responses import StreamingResponse
+
+    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+
+    # Apply date range filters
+    if start_date:
+        try:
+            start_dt = datetime.fromisoformat(start_date)
+            query = query.filter(Transaction.created_at >= start_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
+    if end_date:
+        try:
+            end_dt = datetime.fromisoformat(end_date)
+            query = query.filter(Transaction.created_at <= end_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
+
+    txs = query.order_by(Transaction.created_at.desc()).all()
+    if fmt != "csv":
+        raise HTTPException(status_code=400, detail="Only CSV format supported")
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Amount", "Currency", "Type", "Sender", "Receiver",
+        "Country", "Status", "Risk Score", "Credit Tier", "Credits Used", "Created At",
+    ])
+    for t in txs:
+        writer.writerow([
+            t.id, t.amount, t.currency, t.transaction_type,
+            t.sender_name, t.receiver_name, t.destination_country or "",
+            t.status, t.risk_score, t.credit_tier, t.credits_consumed,
+            t.created_at.isoformat(),
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=finshield_transactions.csv"},
+    )
+
+
 @app.get("/api/v1/transactions/{tx_id}", tags=["Compliance"])
 async def get_transaction(
     tx_id: str,
@@ -661,60 +716,6 @@ async def delete_transaction(
     db.delete(tx)
     db.commit()
     return {"deleted": tx_id}
-
-
-@app.get("/api/v1/transactions/export", tags=["Compliance"])
-async def export_transactions(
-    fmt: str = "csv",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Export transactions as CSV with optional date range filter."""
-    from io import StringIO
-    import csv
-    from fastapi.responses import StreamingResponse
-
-    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
-
-    # Apply date range filters
-    if start_date:
-        try:
-            start_dt = datetime.fromisoformat(start_date)
-            query = query.filter(Transaction.created_at >= start_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
-    if end_date:
-        try:
-            end_dt = datetime.fromisoformat(end_date)
-            query = query.filter(Transaction.created_at <= end_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
-
-    txs = query.order_by(Transaction.created_at.desc()).all()
-    if fmt != "csv":
-        raise HTTPException(status_code=400, detail="Only CSV format supported")
-
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "ID", "Amount", "Currency", "Type", "Sender", "Receiver",
-        "Country", "Status", "Risk Score", "Credit Tier", "Credits Used", "Created At",
-    ])
-    for t in txs:
-        writer.writerow([
-            t.id, t.amount, t.currency, t.transaction_type,
-            t.sender_name, t.receiver_name, t.destination_country or "",
-            t.status, t.risk_score, t.credit_tier, t.credits_consumed,
-            t.created_at.isoformat(),
-        ])
-    output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=finshield_transactions.csv"},
-    )
 
 
 # ============================================================
@@ -2174,7 +2175,6 @@ async def score_transaction_behavior(
     db: Session = Depends(get_db),
 ):
     """Score a transaction against account's behavioral baseline."""
-    import math
     
     # Get or create baseline
     baseline = db.query(AccountBaseline).filter(
