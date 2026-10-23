@@ -10,6 +10,11 @@ Embedding strategy (local-first, no heavy ML runtime required):
 - Optional: if `sentence-transformers` is installed, it is used automatically
   for higher-quality semantic embeddings. The vector dimension must match the
   pgvector column (384) — all-MiniLM-L6-v2 is 384-dim, so both paths align.
+
+Model versioning:
+- EMBEDDING_MODEL_VERSION tracks which model produced the vectors
+- All vectors in the database must use the same model version
+- Changing models requires re-embedding all documents (migration)
 """
 
 import hashlib
@@ -27,6 +32,10 @@ from app.db_models import EMBEDDING_DIM, ComplianceDocument, PrecedentDecision, 
 
 logger = logging.getLogger(__name__)
 
+# Model versioning - increment when changing embedding strategy
+EMBEDDING_MODEL_VERSION = "1.0"
+EMBEDDING_MODEL_NAME = "hashing-v1"  # or "all-MiniLM-L6-v2" if sentence-transformers enabled
+
 # Detect optional sentence-transformers at import time
 _ST_MODEL = None
 _ST_AVAILABLE = False
@@ -36,6 +45,7 @@ try:
         from sentence_transformers import SentenceTransformer
         _ST_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
         _ST_AVAILABLE = True
+        EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
         logger.info("RAG using sentence-transformers (all-MiniLM-L6-v2)")
 except Exception as e:  # pragma: no cover - optional dependency
     logger.warning(f"sentence-transformers unavailable, using hashing embeddings: {e}")
