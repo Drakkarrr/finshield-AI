@@ -141,6 +141,7 @@ class Case(Base):
 
 
 class AuditLog(Base):
+    """Immutable audit log with hash chain for tamper detection (S3.2)."""
     __tablename__ = "audit_logs"
 
     id = Column(String, primary_key=True, default=generate_uuid)
@@ -150,7 +151,59 @@ class AuditLog(Base):
     resource_id = Column(String, nullable=True)
     details = Column(JSON, nullable=True)
     ip_address = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Hash chain for immutability (S3.2)
+    prev_hash = Column(String, nullable=True)  # Hash of previous entry
+    entry_hash = Column(String, nullable=True, index=True)  # Hash of this entry
+    chain_sequence = Column(Integer, nullable=True, index=True)  # Sequential number
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# SQLAlchemy event listener to auto-compute hash chain on insert
+from sqlalchemy.orm import Session as OrmSession
+from sqlalchemy import event, text
+import hashlib
+import json
+
+@event.listens_for(AuditLog, 'before_insert')
+def compute_audit_hash(mapper, connection, target):
+    """Automatically compute hash chain for new audit log entries."""
+    # Get next sequence and previous hash
+    result = connection.execute(text("SELECT MAX(chain_sequence) FROM audit_logs")).fetchone()
+    max_seq = result[0] if result and result[0] is not None else 0
+    
+    target.chain_sequence = max_seq + 1
+    
+    # Get previous hash
+    if max_seq > 0:
+        prev_result = connection.execute(
+            text(f"SELECT entry_hash FROM audit_logs WHERE chain_sequence = {max_seq}")
+        ).fetchone()
+        target.prev_hash = prev_result[0] if prev_result else None
+    else:
+        target.prev_hash = None
+    
+    # Compute entry hash
+    if not target.id:
+        target.id = f"audit-{target.chain_sequence}"
+    if not target.created_at:
+        target.created_at = datetime.utcnow()
+    
+    data = {
+        "id": target.id,
+        "user_id": target.user_id,
+        "action": target.action,
+        "resource_type": target.resource_type,
+        "resource_id": target.resource_id,
+        "details": target.details,
+        "ip_address": target.ip_address,
+        "created_at": target.created_at.isoformat() if target.created_at else None,
+        "prev_hash": target.prev_hash,
+        "chain_sequence": target.chain_sequence,
+    }
+    json_str = json.dumps(data, sort_keys=True, default=str)
+    target.entry_hash = hashlib.sha256(json_str.encode("utf-8")).hexdigest()
 
 
 class Notification(Base):
