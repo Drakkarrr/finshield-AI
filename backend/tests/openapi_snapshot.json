@@ -1180,6 +1180,20 @@
    "ScreeningResult": {
     "description": "Result of the full compliance pipeline.",
     "properties": {
+     "behavioral_reasons": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Behavioral Reasons"
+     },
      "behavioral_score": {
       "anyOf": [
        {

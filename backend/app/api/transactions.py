@@ -79,7 +79,7 @@ def screen_transaction(
     screening_cfg = config_service.screening_config(db)
     user_rule_configs = config_service.rule_overrides(db, current_user.id)
 
-    result = engine.screen(tx, rule_configs=user_rule_configs, config=screening_cfg)
+    result = engine.screen(tx, rule_configs=user_rule_configs, config=screening_cfg, db=db, user_id=current_user.id)
 
     # RAG enrichment: retrieve relevant compliance context (policies, sanctions, precedents).
     # Non-blocking — if RAG is unavailable, screening still completes normally.

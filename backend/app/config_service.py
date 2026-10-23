@@ -197,6 +197,8 @@ class ScreeningConfig:
     bands: dict
     credit_cost: dict
     behavioral_enabled: bool
+    behavioral_cold_start_threshold: float
+    behavioral_warm_threshold: float
     ml_enabled: bool
 
     @classmethod
@@ -208,6 +210,8 @@ class ScreeningConfig:
             bands=SETTINGS["decision.bands"][0],
             credit_cost=SETTINGS["billing.credit_cost"][0],
             behavioral_enabled=True,
+            behavioral_cold_start_threshold=0.5,
+            behavioral_warm_threshold=0.7,
             ml_enabled=True,
         )
 
@@ -220,6 +224,8 @@ def screening_config(db: Session) -> ScreeningConfig:
         bands=get_setting(db, "decision.bands"),
         credit_cost=get_setting(db, "billing.credit_cost"),
         behavioral_enabled=get_flag(db, "screening.behavioral"),
+        behavioral_cold_start_threshold=float(get_setting(db, "behavioral.trigger.cold_start")),
+        behavioral_warm_threshold=float(get_setting(db, "behavioral.trigger.warm")),
         ml_enabled=get_flag(db, "screening.ml"),
     )
 

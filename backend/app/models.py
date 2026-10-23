@@ -110,6 +110,7 @@ class ScreeningResult(BaseModel):
     credits_consumed: float
     rule_results: list[RuleResult]
     behavioral_score: Optional[float] = None
+    behavioral_reasons: Optional[list[str]] = None
     ml_classification: Optional[str] = None
     ml_confidence: Optional[float] = None
     total_latency_ms: float

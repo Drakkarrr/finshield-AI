@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import random
 import time
+from typing import TYPE_CHECKING
 
 from app.config_service import ScreeningConfig
+from app.domain.behavioral import score_behavioral
 from app.models import (
     CreditTier,
     RuleResult,
@@ -16,6 +18,9 @@ from app.models import (
     ScreeningStatus,
     TransactionRequest,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 # --- Simulated sanctions / PEP lists ---
 SANCTIONED_ENTITIES = {"globalremit", "darkfund", "terrorfin"}
@@ -86,6 +91,8 @@ class ComplianceEngine:
         tx: TransactionRequest,
         rule_configs: dict[str, dict] | None = None,
         config: ScreeningConfig | None = None,
+        db: Session | None = None,
+        user_id: str | None = None,
     ) -> ScreeningResult:
         """Run the full compliance pipeline on a transaction.
 
@@ -115,8 +122,9 @@ class ComplianceEngine:
 
         # Stage 4: Behavioral analysis (if warranted)
         behavioral_score = None
+        behavioral_reasons = None
         if config.behavioral_enabled and credit_tier in (CreditTier.BEHAVIORAL, CreditTier.FULL_ML):
-            behavioral_score = self._behavioral_score(tx)
+            behavioral_score, behavioral_reasons = self._behavioral_score(tx, db, user_id, config)
             stages.append("behavioral_analysis")
 
         # Stage 5: ML classification (if warranted)
@@ -145,6 +153,7 @@ class ComplianceEngine:
             credits_consumed=credits,
             rule_results=rule_results,
             behavioral_score=round(behavioral_score, 4) if behavioral_score is not None else None,
+            behavioral_reasons=behavioral_reasons,
             ml_classification=ml_class,
             ml_confidence=round(ml_conf, 4) if ml_conf is not None else None,
             total_latency_ms=round(total_latency, 2),
@@ -275,20 +284,50 @@ class ComplianceEngine:
         return {"triggered": False}
 
     # --- Stage 4: Behavioral Analysis ---
-    def _behavioral_score(self, tx: TransactionRequest) -> float:
-        """Simulate behavioral scoring (0-1, higher = more suspicious)."""
+    def _behavioral_score(
+        self,
+        tx: TransactionRequest,
+        db: Session | None,
+        user_id: str | None,
+        config: ScreeningConfig,
+    ) -> tuple[float, list[str] | None]:
+        """Behavioral scoring via domain module (S2.1).
+
+        Returns (anomaly_score, reasons[]).
+        Falls back to heuristic scoring if db/user_id not provided.
+        """
+        account_id = tx.sender_id or tx.sender_name
+
+        if db is not None and user_id is not None:
+            result = score_behavioral(
+                db=db,
+                user_id=user_id,
+                account_id=account_id,
+                amount=tx.amount,
+                transaction_type=tx.transaction_type.value,
+                destination_country=tx.destination_country,
+                receiver_name=tx.receiver_name,
+                cold_start_threshold=config.behavioral_cold_start_threshold,
+                warm_threshold=config.behavioral_warm_threshold,
+            )
+            return result.anomaly_score, result.reasons if result.reasons else None
+
+        # Fallback: heuristic scoring without DB (for tests or when db not passed)
         score = 0.0
+        reasons = []
         if tx.amount > 50000:
             score += 0.3
+            reasons.append(f"High amount: {tx.amount}")
         elif tx.amount > 10000:
             score += 0.15
-        if tx.transaction_type == "international":
+            reasons.append(f"Elevated amount: {tx.amount}")
+        if tx.transaction_type.value == "international":
             score += 0.1
+            reasons.append("International transaction type")
         if tx.destination_country in HIGH_RISK_COUNTRIES:
             score += 0.25
-        # Add some randomness to simulate ML inference
-        score += random.uniform(0, 0.15)
-        return min(score, 1.0)
+            reasons.append(f"High-risk country: {tx.destination_country}")
+        return min(score, 1.0), reasons if reasons else None
 
     # --- Stage 5: ML Classification ---
     def _ml_classify(self, tx: TransactionRequest, behavioral: float) -> tuple[str, float]:
