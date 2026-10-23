@@ -75,12 +75,13 @@ class TestHealthEndpoint:
         assert data["version"] == "2.4.0"
 
     @pytest.mark.asyncio
-    async def test_health_includes_all_services(self, client):
+    async def test_health_reports_only_probed_services(self, client):
         resp = await client.get("/api/health")
         services = resp.json()["services"]
-        assert "rule_engine" in services
-        assert "behavioral_ml" in services
-        assert "database" in services
+        # Only real probes; no static "healthy" entries for things nothing checks.
+        assert set(services) == {"database", "rag_service"}
+        assert services["database"] == "healthy"
+        assert services["rag_service"] == "disabled"  # no RAG_DATABASE_URL under test
 
     @pytest.mark.asyncio
     async def test_health_uptime_positive(self, client):
@@ -625,3 +626,49 @@ class TestS04HealthProbes:
         data = resp.json()
         assert data["status"] == "healthy"
         assert data["services"]["database"] == "healthy"
+
+    @pytest.mark.asyncio
+    async def test_ready_and_health_503_when_db_unreachable(self, client):
+        from sqlalchemy.exc import OperationalError
+
+        from app.database import get_db
+
+        class _DeadSession:
+            def execute(self, *args, **kwargs):
+                raise OperationalError("SELECT 1", {}, Exception("password=s3cret host=db"))
+
+        app.dependency_overrides[get_db] = lambda: _DeadSession()
+        try:
+            ready = await client.get("/api/health/ready")
+            health = await client.get("/api/health")
+            live = await client.get("/api/health/live")
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+        assert ready.status_code == 503
+        assert ready.json()["status"] == "not_ready"
+        assert ready.json()["services"]["database"] == "unavailable"
+        assert health.status_code == 503
+        assert health.json()["status"] == "degraded"
+        assert "s3cret" not in ready.text and "s3cret" not in health.text
+        assert live.status_code == 200  # liveness must not flap on DB failure
+
+    @pytest.mark.asyncio
+    async def test_ready_503_when_rag_postgres_unreachable(self, client):
+        class _DeadEngine:
+            def connect(self):
+                raise ConnectionError("rag postgres down")
+
+        class _FakeRag:
+            engine = _DeadEngine()
+
+        previous = getattr(app.state, "rag_service", None)
+        app.state.rag_service = _FakeRag()
+        try:
+            resp = await client.get("/api/health/ready")
+        finally:
+            app.state.rag_service = previous
+
+        assert resp.status_code == 503
+        assert resp.json()["services"]["rag_service"] == "unavailable"
+        assert resp.json()["services"]["database"] == "healthy"

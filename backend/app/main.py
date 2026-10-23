@@ -2827,93 +2827,69 @@ async def multi_hop_retrieval(
 # SYSTEM ROUTES
 # ============================================================
 
+def _probe_dependencies(db: Session) -> tuple[dict[str, str], bool]:
+    """Probe real dependencies. Returns (per-dependency status, all_ok).
+
+    Exception detail is logged, never returned: these endpoints are unauthenticated.
+    """
+    services: dict[str, str] = {}
+    all_ok = True
+
+    try:
+        db.execute(text("SELECT 1"))
+        services["database"] = "healthy"
+    except Exception:
+        logger.exception("Health probe failed: database")
+        services["database"] = "unavailable"
+        all_ok = False
+
+    rag_service = getattr(app.state, "rag_service", None)
+    if rag_service is None:
+        services["rag_service"] = "disabled"
+    else:
+        try:
+            with rag_service.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            services["rag_service"] = "healthy"
+        except Exception:
+            logger.exception("Health probe failed: rag_service")
+            services["rag_service"] = "unavailable"
+            all_ok = False
+
+    return services, all_ok
+
+
 @app.get("/api/health/live", tags=["System"])
 async def liveness_probe():
-    """Liveness probe — returns 200 if the process is up. No dependency checks."""
+    """Liveness probe — 200 while the process is up. Deliberately checks no dependencies."""
     return {"status": "alive"}
 
 
 @app.get("/api/health/ready", tags=["System"])
 async def readiness_probe(db: Session = Depends(get_db)):
-    """Readiness probe — checks primary DB and RAG Postgres (if enabled)."""
-    services = {}
-    overall_healthy = True
-    
-    # Check primary database
-    try:
-        db.execute(text("SELECT 1"))
-        services["database"] = "healthy"
-    except Exception as e:
-        services["database"] = f"unhealthy: {str(e)}"
-        overall_healthy = False
-    
-    # Check RAG Postgres (if RAG service is initialized)
-    rag_service = getattr(app.state, "rag_service", None)
-    if rag_service is not None:
-        try:
-            if hasattr(rag_service, 'engine') and rag_service.engine is not None:
-                with rag_service.engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                services["rag_classifier"] = "healthy"
-            else:
-                services["rag_classifier"] = "disabled"
-        except Exception as e:
-            services["rag_classifier"] = f"degraded: {str(e)}"
-    else:
-        services["rag_classifier"] = "disabled"
-    
-    status_code = 200 if overall_healthy else 503
+    """Readiness probe — 503 with a per-dependency body when any probe fails."""
+    services, all_ok = _probe_dependencies(db)
     return JSONResponse(
-        status_code=status_code,
+        status_code=200 if all_ok else 503,
         content={
-            "status": "ready" if overall_healthy else "not_ready",
+            "status": "ready" if all_ok else "not_ready",
             "services": services,
             "uptime_seconds": round(time.monotonic() - start_time, 2),
-        }
+        },
     )
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
 async def health_check(db: Session = Depends(get_db)):
-    """Health check endpoint with real dependency probes."""
-    services = {}
-    overall_healthy = True
-    
-    # Check primary database
-    try:
-        db.execute(text("SELECT 1"))
-        services["database"] = "healthy"
-    except Exception as e:
-        services["database"] = f"unhealthy: {str(e)}"
-        overall_healthy = False
-    
-    # Check RAG service
-    rag_service = getattr(app.state, "rag_service", None)
-    if rag_service is not None:
-        try:
-            if hasattr(rag_service, 'engine') and rag_service.engine is not None:
-                with rag_service.engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                services["rag_classifier"] = "healthy"
-            else:
-                services["rag_classifier"] = "disabled"
-        except Exception as e:
-            services["rag_classifier"] = f"degraded: {str(e)}"
-    else:
-        services["rag_classifier"] = "disabled"
-    
-    # Other services are in-process (no external deps to probe)
-    services["rule_engine"] = "healthy"
-    services["behavioral_ml"] = "healthy"
-    services["case_manager"] = "healthy"
-    services["api_gateway"] = "healthy"
-    
-    return HealthResponse(
-        status="healthy" if overall_healthy else "degraded",
+    """System health: same shape as before, but every service entry is a real probe result."""
+    services, all_ok = _probe_dependencies(db)
+    body = HealthResponse(
+        status="healthy" if all_ok else "degraded",
         version="2.4.0",
         services=services,
         uptime_seconds=round(time.monotonic() - start_time, 2),
     )
+    return JSONResponse(status_code=200 if all_ok else 503, content=body.model_dump())
 
 
 @app.get("/", tags=["System"])
