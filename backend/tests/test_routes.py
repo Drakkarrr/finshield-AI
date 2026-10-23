@@ -3,9 +3,8 @@ import json
 import re
 from pathlib import Path
 
-from fastapi.routing import APIRoute
-
 from app.main import app
+from tests.conftest import effective_routes
 
 SNAPSHOT = Path(__file__).with_name("openapi_snapshot.json")
 
@@ -24,7 +23,8 @@ def test_openapi_matches_snapshot():
 def test_no_route_is_shadowed_by_an_earlier_route():
     """FastAPI matches in registration order: a literal path registered after a
     parameterised one with the same method is unreachable (the S0.5 /export bug)."""
-    routes = [r for r in app.routes if isinstance(r, APIRoute)]
+    routes = effective_routes(app)
+    assert len(routes) >= 70  # guards against walking an empty route list
     shadowed = []
     for i, route in enumerate(routes):
         concrete = re.sub(r"\{[^}]+\}", "sample-value", route.path)

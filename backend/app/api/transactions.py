@@ -55,7 +55,7 @@ def screen_transaction(
 
     # Idempotency: if this key was already screened, return the stored result (no crash, no double-charge)
     existing_tx = db.query(Transaction).filter(
-        Transaction.idempotency_key == tx.idempotency_key, Transaction.user_id == current_user.id
+        Transaction.idempotency_key == tx.idempotency_key, Transaction.tenant_id == current_user.tenant_id
     ).first()
     if existing_tx and existing_tx.decision:
         return TransactionResponse(success=True, data=ScreeningResult.model_validate(existing_tx.decision))
@@ -78,7 +78,7 @@ def screen_transaction(
         ))
 
     # Pure pipeline over inputs resolved through circuit breakers (lists, history, RAG, model)
-    outcome = screening_service.run(db, current_user.id, tx, getattr(request.app.state, "rag_service", None))
+    outcome = screening_service.run(db, current_user.tenant_id, tx, getattr(request.app.state, "rag_service", None))
     result = outcome.result
 
     # Update user credits
@@ -118,7 +118,7 @@ def screen_transaction(
     result.transaction_id = db_tx.id
     db_tx.decision = result.model_dump(mode="json")
     if result.account_key:
-        screening_service.refresh_baseline(db, current_user.id, result.account_key)
+        screening_service.refresh_baseline(db, current_user.tenant_id, current_user.id, result.account_key)
     db.commit()
     db.refresh(db_tx)
 
@@ -166,7 +166,7 @@ def list_transactions(
     """List recent transactions for the current user."""
     txs = (
         db.query(Transaction)
-        .filter(Transaction.user_id == current_user.id)
+        .filter(Transaction.tenant_id == current_user.tenant_id)
         .order_by(Transaction.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -203,7 +203,7 @@ def export_transactions(
 
     from fastapi.responses import StreamingResponse
 
-    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    query = db.query(Transaction).filter(Transaction.tenant_id == current_user.tenant_id)
 
     # Apply date range filters
     if start_date:
@@ -252,7 +252,7 @@ def get_transaction(
 ):
     """Get full transaction detail including rule results and ML scores (for explainability)."""
     tx = db.query(Transaction).filter(
-        Transaction.id == tx_id, Transaction.user_id == current_user.id
+        Transaction.id == tx_id, Transaction.tenant_id == current_user.tenant_id
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -294,7 +294,7 @@ def delete_transaction(
 ):
     """Delete a transaction and its associated cases."""
     tx = db.query(Transaction).filter(
-        Transaction.id == tx_id, Transaction.user_id == current_user.id
+        Transaction.id == tx_id, Transaction.tenant_id == current_user.tenant_id
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")

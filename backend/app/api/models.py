@@ -29,7 +29,6 @@ def _out(row: ModelVersion) -> dict:
             "activated_at": row.activated_at.isoformat() if row.activated_at else None}
 
 
-# TODO(S3.1): require_role("admin")
 @router.get("/api/v1/models", tags=["Models"])
 def list_models(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Every model version, newest first."""
@@ -37,7 +36,6 @@ def list_models(current_user: User = Depends(get_current_user), db: Session = De
     return [_out(r) for r in rows]
 
 
-# TODO(S3.1): require_role("admin")
 @router.post("/api/v1/models", status_code=201, tags=["Models"])
 def register_model(req: ModelRegisterRequest, current_user: User = Depends(get_current_user),
                    db: Session = Depends(get_db)):
@@ -50,7 +48,6 @@ def register_model(req: ModelRegisterRequest, current_user: User = Depends(get_c
     return _out(row)
 
 
-# TODO(S3.1): require_role("admin")
 @router.post("/api/v1/models/{version_id}/promote", tags=["Models"])
 def promote_model(version_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Make this version the single active one (the previous active version is retired)."""

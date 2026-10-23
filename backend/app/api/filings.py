@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import permissions
 from app.auth import (
     get_current_user,
 )
@@ -62,7 +63,7 @@ def create_filing(
 ):
     """Create a new SAR/STR filing draft for a case."""
     # Verify case exists and belongs to user
-    case = db.query(Case).filter(Case.id == filing.case_id, Case.user_id == current_user.id).first()
+    case = db.query(Case).filter(Case.id == filing.case_id, Case.tenant_id == current_user.tenant_id).first()
     if not case:
         raise HTTPException(404, "Case not found")
 
@@ -136,7 +137,7 @@ def list_filings(
     db: Session = Depends(get_db),
 ):
     """List all filings for the current user."""
-    query = db.query(Filing).filter(Filing.user_id == current_user.id)
+    query = db.query(Filing).filter(Filing.tenant_id == current_user.tenant_id)
 
     if status:
         query = query.filter(Filing.status == status)
@@ -173,7 +174,7 @@ def get_filing(
     db: Session = Depends(get_db),
 ):
     """Get a specific filing by ID."""
-    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.tenant_id == current_user.tenant_id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
 
@@ -203,7 +204,7 @@ def update_filing(
     db: Session = Depends(get_db),
 ):
     """Update a filing (narrative, status, reference number)."""
-    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.tenant_id == current_user.tenant_id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
 
@@ -212,6 +213,8 @@ def update_filing(
         filing.narrative = update.narrative
 
     if update.status is not None:
+        if update.status in ("submitted", "confirmed"):
+            permissions.require(current_user, "supervisor")  # submission to a regulator is an approval
         old_status = filing.status
         filing.status = update.status
 
@@ -267,7 +270,7 @@ def delete_filing(
     db: Session = Depends(get_db),
 ):
     """Delete a draft filing."""
-    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.user_id == current_user.id).first()
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.tenant_id == current_user.tenant_id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
 

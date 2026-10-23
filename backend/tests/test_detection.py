@@ -9,7 +9,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app import resilience
 from app.config_service import ScreeningConfig
-from app.database import SessionLocal
 from app.db_models import ModelVersion, Transaction
 from app.domain import behavioral
 from app.domain.models_registry import V1_PARAMS, registry
@@ -17,6 +16,7 @@ from app.domain.rag.embedders import HashEmbedder
 from app.domain.screening import ScreeningContext, gating, screen
 from app.main import app
 from app.models import RuleResult, RuleType, ScreeningStatus, TransactionRequest, TransactionType
+from tests.conftest import system_session
 
 COUNTRIES = frozenset({"KP", "IR", "SY", "CU", "RU"})
 
@@ -207,7 +207,7 @@ async def test_replay_returns_the_stored_decision(client):
 
 
 async def test_shadow_scored_and_stored_but_never_decides_then_promotion_does(client):
-    db = SessionLocal()
+    db = system_session()
     try:
         active_before = db.query(ModelVersion).filter(ModelVersion.status == "active").count()
     finally:
@@ -218,7 +218,7 @@ async def test_shadow_scored_and_stored_but_never_decides_then_promotion_does(cl
     assert reg.status_code == 201 and reg.json()["status"] == "shadow"
     try:
         out = (await client.post("/api/v1/transactions", json={**FULL_ML, "idempotency_key": uuid.uuid4().hex})).json()["data"]
-        db = SessionLocal()
+        db = system_session()
         try:
             row = db.get(Transaction, out["transaction_id"])
             assert row.shadow_result["model_version"] == reg.json()["label"]
@@ -232,13 +232,13 @@ async def test_shadow_scored_and_stored_but_never_decides_then_promotion_does(cl
         after = (await client.post("/api/v1/transactions", json={**FULL_ML, "idempotency_key": uuid.uuid4().hex})).json()["data"]
         assert after["model_version"] == reg.json()["label"]
         assert after["ml_confidence"] > out["ml_confidence"]
-        db = SessionLocal()
+        db = system_session()
         try:
             assert db.query(ModelVersion).filter(ModelVersion.status == "active").count() == max(active_before, 1)
         finally:
             db.close()
     finally:
-        db = SessionLocal()
+        db = system_session()
         try:
             for row in db.query(ModelVersion).filter(ModelVersion.name == "test-aggressive").all():
                 db.delete(row)

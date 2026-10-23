@@ -12,6 +12,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Float,
@@ -32,10 +33,21 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
+class Tenant(Base):
+    """An organisation. Every owned row carries tenant_id; Postgres RLS enforces the boundary (D3)."""
+    __tablename__ = "tenants"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    name: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("role IN ('analyst', 'investigator', 'supervisor', 'admin')", name="ck_users_role"),)
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     first_name = Column(String, nullable=False)
@@ -46,6 +58,8 @@ class User(Base):
     used_credits = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    # analyst < investigator < supervisor < admin (app.permissions). The tenant's first user is admin.
+    role: Mapped[str] = mapped_column(String, default="analyst", server_default="analyst")
     # Trial
     is_trial = Column(Boolean, default=True)
     trial_expires_at = Column(DateTime, nullable=True)
@@ -73,6 +87,7 @@ class ApiKey(Base):
     __tablename__ = "api_keys"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     key_hash = Column(String, unique=True, nullable=False)
@@ -89,6 +104,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     idempotency_key = Column(String, unique=True, index=True, nullable=False)
     amount = Column(Float, nullable=False)
@@ -130,6 +146,7 @@ class Case(Base):
     __tablename__ = "cases"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     transaction_id = Column(String, ForeignKey("transactions.id"), nullable=False)
     status = Column(String, default="open")  # open, under_review, escalated, resolved, closed
@@ -163,6 +180,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=True)
     action = Column(String, nullable=False)
     resource_type = Column(String, nullable=True)
@@ -176,6 +194,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     type = Column(String, nullable=False)  # blocked_tx, new_case, credit_alert, system, plan_change
     title = Column(String, nullable=False)
@@ -191,6 +210,7 @@ class NotificationPreference(Base):
     __tablename__ = "notification_preferences"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
     email_blocked_tx = Column(Boolean, default=True)
     email_new_cases = Column(Boolean, default=True)
@@ -207,6 +227,7 @@ class RuleConfig(Base):
     __tablename__ = "rule_configs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
     rule_id: Mapped[str] = mapped_column(String)  # e.g. RULE-001
     enabled: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
@@ -234,6 +255,7 @@ class CaseComment(Base):
     __tablename__ = "case_comments"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     case_id = Column(String, ForeignKey("cases.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     body = Column(Text, nullable=False)
@@ -248,6 +270,7 @@ class CaseNote(Base):
     __tablename__ = "case_notes"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     case_id = Column(String, ForeignKey("cases.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     note = Column(Text, nullable=False)
@@ -263,6 +286,7 @@ class Filing(Base):
     __tablename__ = "filings"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     case_id = Column(String, ForeignKey("cases.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
@@ -319,6 +343,7 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     event_type = Column(String, nullable=False)  # transaction.flagged, case.created, etc.
     payload = Column(JSON, nullable=False)
@@ -339,9 +364,10 @@ class WebhookEvent(Base):
 class AccountBaseline(Base):
     """Per-account behavioral baseline, refreshed after every screening of that account."""
     __tablename__ = "account_baselines"
-    __table_args__ = (UniqueConstraint("user_id", "account_id", name="uq_account_baselines_user_account"),)
+    __table_args__ = (UniqueConstraint("tenant_id", "account_id", name="uq_account_baselines_tenant_account"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
     account_id: Mapped[str] = mapped_column(String)  # transactions.account_id key
 

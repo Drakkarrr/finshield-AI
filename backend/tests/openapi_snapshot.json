@@ -1638,6 +1638,82 @@
     "title": "TransactionType",
     "type": "string"
    },
+   "UserCreate": {
+    "properties": {
+     "email": {
+      "title": "Email",
+      "type": "string"
+     },
+     "first_name": {
+      "minLength": 1,
+      "title": "First Name",
+      "type": "string"
+     },
+     "last_name": {
+      "minLength": 1,
+      "title": "Last Name",
+      "type": "string"
+     },
+     "password": {
+      "minLength": 8,
+      "title": "Password",
+      "type": "string"
+     },
+     "role": {
+      "default": "analyst",
+      "enum": [
+       "analyst",
+       "investigator",
+       "supervisor",
+       "admin"
+      ],
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "password",
+     "first_name",
+     "last_name"
+    ],
+    "title": "UserCreate",
+    "type": "object"
+   },
+   "UserUpdate": {
+    "properties": {
+     "is_active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Active"
+     },
+     "role": {
+      "anyOf": [
+       {
+        "enum": [
+         "analyst",
+         "investigator",
+         "supervisor",
+         "admin"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Role"
+     }
+    },
+    "title": "UserUpdate",
+    "type": "object"
+   },
    "ValidationError": {
     "properties": {
      "ctx": {
@@ -1986,6 +2062,130 @@
     "summary": "Readiness Probe",
     "tags": [
      "System"
+    ]
+   }
+  },
+  "/api/v1/admin/users": {
+   "get": {
+    "description": "Users of the caller's organisation.",
+    "operationId": "list_users_api_v1_admin_users_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Users",
+    "tags": [
+     "Admin"
+    ]
+   },
+   "post": {
+    "description": "Add a user to the caller's organisation with the given role.",
+    "operationId": "create_user_api_v1_admin_users_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UserCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Create User",
+    "tags": [
+     "Admin"
+    ]
+   }
+  },
+  "/api/v1/admin/users/{user_id}": {
+   "patch": {
+    "description": "Change a user's role or (de)activate them. The organisation always keeps an active admin.",
+    "operationId": "update_user_api_v1_admin_users__user_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UserUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Update User",
+    "tags": [
+     "Admin"
     ]
    }
   },

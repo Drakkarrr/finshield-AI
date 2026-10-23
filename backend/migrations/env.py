@@ -2,9 +2,14 @@
 from logging.config import fileConfig
 
 from alembic import context
+from sqlalchemy import create_engine
 
 import app.db_models  # noqa: F401  (registers every model on Base.metadata)
-from app.database import Base, engine
+from app.database import DATABASE_URL, Base
+
+# Its own engine: migrations need owner rights, and app.database.engine drops to the RLS-bound
+# application role (which the migrations themselves create).
+engine = create_engine(DATABASE_URL)
 
 config = context.config
 if config.config_file_name is not None:

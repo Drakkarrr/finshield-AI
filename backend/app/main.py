@@ -10,13 +10,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app.api import (
+    admin,
     auth,
     behavioral,
     billing,
@@ -40,6 +41,7 @@ from app.api import (
 from app.core import limiter, logger
 from app.domain.rag.embedders import load_embedder
 from app.domain.rag.service import RAGRetrievalService
+from app.permissions import authorize
 
 
 @asynccontextmanager
@@ -140,5 +142,9 @@ app.add_exception_handler(Exception, global_exception_handler)
 app.middleware("http")(request_logging_middleware)
 
 # Registration order is route-matching order; it follows the original main.py section order.
-for _module in (auth, keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral, breakers, webhooks, privacy, rag, settings, lists, models, health):
-    app.include_router(_module.router)
+# Every router except auth (register/login/self-profile) and health runs the RBAC check.
+app.include_router(auth.router)
+for _module in (keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral,
+                breakers, webhooks, privacy, rag, settings, lists, models, admin):
+    app.include_router(_module.router, dependencies=[Depends(authorize)])
+app.include_router(health.router)

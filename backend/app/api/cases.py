@@ -43,7 +43,7 @@ def create_case(
     """Create a new compliance case."""
     # Referential integrity: the transaction must exist and belong to this user
     tx_exists = db.query(Transaction).filter(
-        Transaction.id == req.transaction_id, Transaction.user_id == current_user.id
+        Transaction.id == req.transaction_id, Transaction.tenant_id == current_user.tenant_id
     ).first()
     if not tx_exists:
         raise HTTPException(status_code=404, detail="Transaction not found for this account")
@@ -95,7 +95,7 @@ def get_case(
 ):
     """Get a specific case."""
     case = db.query(Case).filter(
-        Case.id == case_id, Case.user_id == current_user.id
+        Case.id == case_id, Case.tenant_id == current_user.tenant_id
     ).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -112,7 +112,7 @@ def list_cases(
     db: Session = Depends(get_db),
 ):
     """List all cases for the current user."""
-    cases = db.query(Case).filter(Case.user_id == current_user.id).order_by(Case.created_at.desc()).all()
+    cases = db.query(Case).filter(Case.tenant_id == current_user.tenant_id).order_by(Case.created_at.desc()).all()
     return [
         CaseResponse(
             case_id=c.id, transaction_id=c.transaction_id,
@@ -147,7 +147,7 @@ def update_case(
     db: Session = Depends(get_db),
 ):
     """Update case status, assignment, or priority."""
-    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == current_user.tenant_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -189,7 +189,7 @@ def list_case_comments(
     db: Session = Depends(get_db),
 ):
     """List comments on a case."""
-    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == current_user.tenant_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     comments = db.query(CaseComment).filter(CaseComment.case_id == case_id).order_by(CaseComment.created_at.asc()).all()
@@ -207,7 +207,7 @@ def add_case_comment(
     db: Session = Depends(get_db),
 ):
     """Add a comment to a case."""
-    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == current_user.tenant_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     if not req.body.strip():
@@ -232,7 +232,7 @@ def list_case_notes(
     db: Session = Depends(get_db),
 ):
     """List investigator notes on a case (ephemeral, not audit-logged)."""
-    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == current_user.tenant_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     notes = db.query(CaseNote).filter(CaseNote.case_id == case_id).order_by(CaseNote.created_at.asc()).all()
@@ -256,7 +256,7 @@ def add_case_note(
     db: Session = Depends(get_db),
 ):
     """Add an investigator note to a case (ephemeral, not audit-logged)."""
-    case = db.query(Case).filter(Case.id == case_id, Case.user_id == current_user.id).first()
+    case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == current_user.tenant_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     if not req.note.strip():
@@ -285,7 +285,7 @@ def check_sla_escalation(
 
     # Find cases approaching SLA (within 15 minutes of deadline)
     approaching_sla = db.query(Case).filter(
-        Case.user_id == current_user.id,
+        Case.tenant_id == current_user.tenant_id,
         Case.status.in_(["open", "under_review"]),
         Case.sla_deadline.isnot(None),
         Case.sla_deadline <= now + timedelta(minutes=15),
@@ -295,7 +295,7 @@ def check_sla_escalation(
 
     # Find cases that have breached SLA
     breached_sla = db.query(Case).filter(
-        Case.user_id == current_user.id,
+        Case.tenant_id == current_user.tenant_id,
         Case.status.in_(["open", "under_review"]),
         Case.sla_deadline.isnot(None),
         Case.sla_deadline <= now,
@@ -336,7 +336,7 @@ def aggregate_case(
     # Get transaction to find account
     tx = db.query(Transaction).filter(
         Transaction.id == transaction_id,
-        Transaction.user_id == current_user.id
+        Transaction.tenant_id == current_user.tenant_id
     ).first()
     if not tx:
         raise HTTPException(404, "Transaction not found")
@@ -344,12 +344,12 @@ def aggregate_case(
     # Check for existing open case for this transaction's sender
     # In a real system, you'd match on account_id, but we're using sender_name as a proxy
     existing_case = db.query(Case).filter(
-        Case.user_id == current_user.id,
+        Case.tenant_id == current_user.tenant_id,
         Case.status.in_(["open", "under_review", "created"]),
         Case.transaction_id.in_(
             db.query(Transaction.id).filter(
                 Transaction.sender_name == tx.sender_name,
-                Transaction.user_id == current_user.id
+                Transaction.tenant_id == current_user.tenant_id
             )
         )
     ).first()
@@ -406,7 +406,7 @@ def delete_case(
 ):
     """Delete a case and its comments."""
     case = db.query(Case).filter(
-        Case.id == case_id, Case.user_id == current_user.id
+        Case.id == case_id, Case.tenant_id == current_user.tenant_id
     ).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")

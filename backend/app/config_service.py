@@ -132,26 +132,36 @@ def _cached(kind: str, key: str, load: Callable[[], Any]) -> Any:
     return value
 
 
+def _scope(db: Session) -> str:
+    """The bound tenant (S3.4); unbound sessions (system jobs) read the global scope."""
+    return db.info.get("tenant_id") or GLOBAL
+
+
 def get_setting(db: Session, key: str) -> Any:
+    """Tenant override, else the global value, else the code default."""
     if key not in SETTINGS:
         raise UnknownKey(key)
+    scope = _scope(db)
 
     def load() -> Any:
-        row = db.query(Setting).filter(Setting.key == key, Setting.scope == GLOBAL).first()
-        return row.value if row is not None else SETTINGS[key][0]
+        rows = {r.scope: r.value for r in
+                db.query(Setting).filter(Setting.key == key, Setting.scope.in_({scope, GLOBAL}))}
+        return rows.get(scope, rows.get(GLOBAL, SETTINGS[key][0]))
 
-    return _cached("setting", key, load)
+    return _cached("setting", f"{scope}:{key}", load)
 
 
 def get_flag(db: Session, key: str) -> bool:
     if key not in FLAGS:
         raise UnknownKey(key)
+    scope = _scope(db)
 
     def load() -> bool:
-        row = db.query(FeatureFlag).filter(FeatureFlag.key == key, FeatureFlag.scope == GLOBAL).first()
-        return bool(row.enabled) if row is not None else FLAGS[key][0]
+        rows = {r.scope: r.enabled for r in
+                db.query(FeatureFlag).filter(FeatureFlag.key == key, FeatureFlag.scope.in_({scope, GLOBAL}))}
+        return bool(rows.get(scope, rows.get(GLOBAL, FLAGS[key][0])))
 
-    return _cached("flag", key, load)
+    return _cached("flag", f"{scope}:{key}", load)
 
 
 def set_setting(db: Session, key: str, value: Any, actor_id: str) -> Any:
@@ -160,9 +170,10 @@ def set_setting(db: Session, key: str, value: Any, actor_id: str) -> Any:
     if not SETTINGS[key][1](value):
         raise InvalidValue(f"invalid value for {key}: {SETTINGS[key][2]}")
     before = get_setting(db, key)
-    row = db.query(Setting).filter(Setting.key == key, Setting.scope == GLOBAL).first()
+    scope = _scope(db)
+    row = db.query(Setting).filter(Setting.key == key, Setting.scope == scope).first()
     if row is None:
-        row = Setting(key=key, scope=GLOBAL)
+        row = Setting(key=key, scope=scope)
         db.add(row)
     row.value = value
     row.updated_by = actor_id
@@ -178,9 +189,10 @@ def set_flag(db: Session, key: str, enabled: bool, actor_id: str) -> bool:
     if key not in FLAGS:
         raise UnknownKey(key)
     before = get_flag(db, key)
-    row = db.query(FeatureFlag).filter(FeatureFlag.key == key, FeatureFlag.scope == GLOBAL).first()
+    scope = _scope(db)
+    row = db.query(FeatureFlag).filter(FeatureFlag.key == key, FeatureFlag.scope == scope).first()
     if row is None:
-        row = FeatureFlag(key=key, scope=GLOBAL)
+        row = FeatureFlag(key=key, scope=scope)
         db.add(row)
     row.enabled = enabled
     row.updated_by = actor_id
@@ -254,8 +266,8 @@ def override_is_active(rc: RuleConfig, now: datetime) -> bool:
     return True
 
 
-def rule_overrides(db: Session, user_id: str, now: datetime | None = None) -> dict[str, dict]:
-    """The user's rule overrides that are in effect at `now`, in the shape the engine expects."""
+def rule_overrides(db: Session, tenant_id: str, now: datetime | None = None) -> dict[str, dict]:
+    """The tenant's rule overrides that are in effect at `now`, in the shape the engine expects."""
     now = now or datetime.utcnow()
     return {
         rc.rule_id: {
@@ -264,6 +276,6 @@ def rule_overrides(db: Session, user_id: str, now: datetime | None = None) -> di
             "priority": rc.priority if rc.priority is not None else 100,
             "version": rc.version,
         }
-        for rc in db.query(RuleConfig).filter(RuleConfig.user_id == user_id).all()
+        for rc in db.query(RuleConfig).filter(RuleConfig.tenant_id == tenant_id).all()
         if override_is_active(rc, now)
     }

@@ -60,3 +60,36 @@ def fixture_watchlist():
 
     sdn, sdn_version, pep, pep_version = _fixture_entries()
     return WatchlistSnapshot(entries=sdn + pep, versions={"FIXTURE-OFAC": sdn_version, "FIXTURE-PEP": pep_version})
+
+
+def system_session():
+    """A session that may read across tenants (RLS bypass), for assertions on stored rows."""
+    from app.database import SessionLocal
+
+    s = SessionLocal()
+    s.info["rls_bypass"] = True
+    return s
+
+
+def effective_routes(app) -> list:
+    """Every HTTP route as FastAPI will match it, in matching order.
+
+    FastAPI >= 0.13x keeps included routers as `_IncludedRouter` wrappers, so `app.routes` holds no
+    APIRoute at all and a naive walk passes vacuously. Each item exposes .path, .methods,
+    .path_regex and the combined .dependencies.
+    """
+    from fastapi.routing import APIRoute
+
+    out = []
+
+    def walk(routes, resolve):
+        for r in routes:
+            if isinstance(r, APIRoute):
+                out.append(r)
+            elif type(r).__name__ == "_IncludedRouter":
+                walk(r.effective_candidates(), True)
+            elif resolve and type(r).__name__ == "_EffectiveRouteContext":
+                out.append(r)
+
+    walk(app.routes, False)
+    return out

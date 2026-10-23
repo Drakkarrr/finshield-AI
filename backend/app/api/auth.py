@@ -13,10 +13,11 @@ from app.auth import (
     verify_password,
 )
 from app.core import limiter, logger
-from app.database import get_db
+from app.database import bind_tenant, get_db, rls_bypass
 from app.db_models import (
     AuditLog,
     Notification,
+    Tenant,
     User,
 )
 
@@ -48,15 +49,22 @@ class TokenResponse(BaseModel):
 @limiter.limit("5/minute")
 def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new account with 14-day free trial (Starter plan, 1,000 credits)."""
-    existing = db.query(User).filter(User.email == req.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    with rls_bypass(db):  # email uniqueness is global, across tenants
+        if db.query(User).filter(User.email == req.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered")
 
     now = datetime.utcnow()
     trial_expiry = now + timedelta(days=14)
 
+    # A self-serve signup creates its organisation; the first user administers it.
+    tenant = Tenant(name=req.company or req.email)
+    with rls_bypass(db):
+        db.add(tenant)
+    bind_tenant(db, tenant.id)
+
     # Create user on Starter trial
     user = User(
+        role="admin",
         email=req.email,
         hashed_password=hash_password(req.password),
         first_name=req.first_name,
@@ -97,6 +105,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
             "first_name": user.first_name,
             "last_name": user.last_name,
             "company": user.company,
+            "role": user.role,
             "plan": user.plan,
             "credits_remaining": user.total_credits,
             "is_trial": True,
@@ -109,11 +118,14 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
 @limiter.limit("10/minute")
 def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate and receive a JWT token."""
-    user = db.query(User).filter(User.email == req.email).first()
-    if not user or not verify_password(req.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account is disabled")
+    with rls_bypass(db):  # the tenant is unknown until the user is found
+        user = db.query(User).filter(User.email == req.email).first()
+        if not user or not verify_password(req.password, user.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is disabled")
+        tenant_id = user.tenant_id
+    bind_tenant(db, tenant_id)
 
     # Create audit log
     audit = AuditLog(user_id=user.id, action="user_login")
@@ -131,6 +143,7 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
             "first_name": user.first_name,
             "last_name": user.last_name,
             "company": user.company,
+            "role": user.role,
             "plan": user.plan,
             "credits_remaining": user.total_credits - round(user.used_credits),
         },
@@ -146,6 +159,8 @@ def get_me(current_user: User = Depends(get_current_user)):
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "company": current_user.company,
+        "role": current_user.role,
+        "tenant_id": current_user.tenant_id,
         "plan": current_user.plan,
         "total_credits": current_user.total_credits,
         "used_credits": round(current_user.used_credits),

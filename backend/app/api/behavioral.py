@@ -41,8 +41,8 @@ def score_transaction_behavior(
     """Score an amount against the account's baseline: the same function screening uses."""
     now = datetime.utcnow()
     since = now - timedelta(days=screening_service.HISTORY_DAYS)
-    baseline = behavioral.compute_baseline(screening_service.history(db, current_user.id, req.account_id, since))
-    population = screening_service.population(db, current_user.id, since)
+    baseline = behavioral.compute_baseline(screening_service.history(db, current_user.tenant_id, req.account_id, since))
+    population = screening_service.population(db, current_user.tenant_id, since)
     cfg = config_service.screening_config(db)
     result = behavioral.score(req.amount, req.destination_country, req.receiver_name, baseline, population,
                               behavioral.BehavioralConfig(cfg.behavioral_trigger_warm, cfg.behavioral_trigger_cold_start,
@@ -72,7 +72,7 @@ def update_account_baseline(
     db: Session = Depends(get_db),
 ):
     """Recompute the account's baseline from its transaction history (keyed on account_id)."""
-    baseline = screening_service.refresh_baseline(db, current_user.id, account_id)
+    baseline = screening_service.refresh_baseline(db, current_user.tenant_id, current_user.id, account_id)
     if baseline is None:
         raise HTTPException(404, "No transactions found for this account")
     db.commit()
@@ -99,7 +99,7 @@ def get_account_baseline(
 ):
     """Get behavioral baseline for an account."""
     baseline = db.query(AccountBaseline).filter(
-        AccountBaseline.user_id == current_user.id,
+        AccountBaseline.tenant_id == current_user.tenant_id,
         AccountBaseline.account_id == account_id
     ).first()
 

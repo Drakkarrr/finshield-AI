@@ -36,7 +36,7 @@ def global_search(
     txs = (
         db.query(Transaction)
         .filter(
-            Transaction.user_id == current_user.id,
+            Transaction.tenant_id == current_user.tenant_id,
             (Transaction.sender_name.ilike(pattern))
             | (Transaction.receiver_name.ilike(pattern))
             | (Transaction.id.ilike(pattern))
@@ -54,7 +54,7 @@ def global_search(
     cases = (
         db.query(Case)
         .filter(
-            Case.user_id == current_user.id,
+            Case.tenant_id == current_user.tenant_id,
             (Case.id.ilike(pattern))
             | (Case.reason.ilike(pattern))
             | (Case.transaction_id.ilike(pattern))

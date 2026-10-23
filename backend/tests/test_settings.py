@@ -6,9 +6,9 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.database import SessionLocal
 from app.db_models import AuditLog
 from app.main import app
+from tests.conftest import system_session
 
 
 @pytest_asyncio.fixture
@@ -57,7 +57,7 @@ async def test_threshold_change_takes_effect_without_restart_and_is_audited(fres
     finally:
         await fresh_client.put("/api/v1/settings/rules.threshold.wire", json={"value": 10000.0})
 
-    db = SessionLocal()
+    db = system_session()
     try:
         row = (db.query(AuditLog)
                .filter(AuditLog.action == "setting_changed", AuditLog.resource_id == "rules.threshold.wire",
@@ -134,7 +134,7 @@ async def test_rule_update_bumps_version_and_audits_before_after(fresh_client):
         "effective_to": (datetime.utcnow() - timedelta(days=1)).isoformat(),
     })
     assert bad.status_code == 422
-    db = SessionLocal()
+    db = system_session()
     try:
         rows = (db.query(AuditLog).filter(AuditLog.action == "rule_updated", AuditLog.resource_id == "RULE-002",
                                           AuditLog.user_id == fresh_client.user_id).order_by(AuditLog.created_at).all())

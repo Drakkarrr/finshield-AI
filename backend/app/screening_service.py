@@ -35,22 +35,22 @@ def account_key(tx: TransactionRequest) -> tuple[str, str]:
     return tx.sender_name, "sender_name"
 
 
-def history(db: Session, user_id: str, key: str, since: datetime) -> list[behavioral.HistoryRow]:
+def history(db: Session, tenant_id: str, key: str, since: datetime) -> list[behavioral.HistoryRow]:
     rows = (db.query(Transaction.amount, Transaction.created_at, Transaction.destination_country,
                      Transaction.receiver_name, Transaction.transaction_type)
-            .filter(Transaction.user_id == user_id, Transaction.account_id == key, Transaction.created_at >= since)
+            .filter(Transaction.tenant_id == tenant_id, Transaction.account_id == key, Transaction.created_at >= since)
             .order_by(Transaction.created_at.desc(), Transaction.id).limit(HISTORY_LIMIT).all())
     return [behavioral.HistoryRow(*r) for r in rows]
 
 
-def population(db: Session, user_id: str, since: datetime) -> Optional[behavioral.Population]:
+def population(db: Session, tenant_id: str, since: datetime) -> Optional[behavioral.Population]:
     amounts = [a for (a,) in db.query(Transaction.amount)
-               .filter(Transaction.user_id == user_id, Transaction.created_at >= since)
+               .filter(Transaction.tenant_id == tenant_id, Transaction.created_at >= since)
                .order_by(Transaction.created_at.desc(), Transaction.id).limit(POPULATION_LIMIT).all()]
     return behavioral.compute_population(amounts)
 
 
-def build_context(db: Session, user_id: str, tx: TransactionRequest, rag_service: Any,
+def build_context(db: Session, tenant_id: str, tx: TransactionRequest, rag_service: Any,
                   now: Optional[datetime] = None) -> ScreeningContext:
     now = now or datetime.utcnow()
     cfg = config_service.screening_config(db)
@@ -90,31 +90,32 @@ def build_context(db: Session, user_id: str, tx: TransactionRequest, rag_service
 
     key, key_source = account_key(tx)
     since = now - timedelta(days=HISTORY_DAYS)
-    rows = history(db, user_id, key, since)
+    rows = history(db, tenant_id, key, since)
     velocity = sum(1 for h in rows if h.created_at >= now - timedelta(hours=24))
     return ScreeningContext(
         config=cfg, model=model, shadow_model=shadow,
-        rule_configs=config_service.rule_overrides(db, user_id, now),
+        rule_configs=config_service.rule_overrides(db, tenant_id, now),
         watchlist=watchlist, high_risk_countries=lists.high_risk_countries(db),
         account_key=key, account_key_source=key_source,
-        baseline=behavioral.compute_baseline(rows), population=population(db, user_id, since),
+        baseline=behavioral.compute_baseline(rows), population=population(db, tenant_id, since),
         velocity_24h=velocity, rag_context=rag_context, rag_status=rag_status,
         failed_dependencies=tuple(failed),
     )
 
 
-def run(db: Session, user_id: str, tx: TransactionRequest, rag_service: Any) -> ScreeningOutcome:
-    return screen(tx, build_context(db, user_id, tx, rag_service))
+def run(db: Session, tenant_id: str, tx: TransactionRequest, rag_service: Any) -> ScreeningOutcome:
+    return screen(tx, build_context(db, tenant_id, tx, rag_service))
 
 
-def refresh_baseline(db: Session, user_id: str, key: str, now: Optional[datetime] = None) -> Optional[AccountBaseline]:
+def refresh_baseline(db: Session, tenant_id: str, user_id: str, key: str,
+                     now: Optional[datetime] = None) -> Optional[AccountBaseline]:
     """Recompute and store the account's baseline from its history (also used by the
     /behavioral/update-baseline endpoint, so the two can never disagree)."""
     now = now or datetime.utcnow()
-    stats = behavioral.compute_baseline(history(db, user_id, key, now - timedelta(days=HISTORY_DAYS)))
+    stats = behavioral.compute_baseline(history(db, tenant_id, key, now - timedelta(days=HISTORY_DAYS)))
     if stats is None:
         return None
-    row = db.query(AccountBaseline).filter(AccountBaseline.user_id == user_id,
+    row = db.query(AccountBaseline).filter(AccountBaseline.tenant_id == tenant_id,
                                            AccountBaseline.account_id == key).first()
     if row is None:
         row = AccountBaseline(user_id=user_id, account_id=key)

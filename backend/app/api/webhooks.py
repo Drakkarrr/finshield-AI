@@ -61,7 +61,7 @@ def list_webhook_events(
     db: Session = Depends(get_db),
 ):
     """List webhook events for the current user."""
-    query = db.query(WebhookEvent).filter(WebhookEvent.user_id == current_user.id)
+    query = db.query(WebhookEvent).filter(WebhookEvent.tenant_id == current_user.tenant_id)
 
     if status:
         query = query.filter(WebhookEvent.status == status)
@@ -92,7 +92,7 @@ def retry_webhook_event(
     """Retry a failed webhook event."""
     event = db.query(WebhookEvent).filter(
         WebhookEvent.id == event_id,
-        WebhookEvent.user_id == current_user.id
+        WebhookEvent.tenant_id == current_user.tenant_id
     ).first()
 
     if not event:

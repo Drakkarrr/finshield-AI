@@ -41,7 +41,6 @@ def get_overall_health_status(current_user: User = Depends(get_current_user)):
     }
 
 
-# TODO(S3.1): require_role("admin")
 @router.post("/api/v1/health/circuit-breakers/{dependency}/reset", tags=["System"])
 def reset_circuit_breaker(dependency: str, current_user: User = Depends(get_current_user)):
     """Manually close a breaker after an incident is resolved (audited in S3.1/S3.2)."""

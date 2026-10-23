@@ -26,7 +26,7 @@ def get_stats(
     db: Session = Depends(get_db),
 ):
     """Aggregate dashboard metrics computed from the user's real data."""
-    base = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    base = db.query(Transaction).filter(Transaction.tenant_id == current_user.tenant_id)
     total = base.count()
     blocked = base.filter(Transaction.status == "blocked").count()
     flagged = base.filter(Transaction.status == "flagged").count()
@@ -35,13 +35,13 @@ def get_stats(
 
     open_cases = (
         db.query(Case)
-        .filter(Case.user_id == current_user.id, Case.status.notin_(["resolved", "closed"]))
+        .filter(Case.tenant_id == current_user.tenant_id, Case.status.notin_(["resolved", "closed"]))
         .count()
     )
 
     # Average risk score across all screened transactions
     avg_risk = db.query(func.avg(Transaction.risk_score)).filter(
-        Transaction.user_id == current_user.id
+        Transaction.tenant_id == current_user.tenant_id
     ).scalar() or 0.0
 
     return {

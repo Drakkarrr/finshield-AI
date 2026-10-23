@@ -22,10 +22,12 @@ class FlagUpdate(BaseModel):
 
 
 def _rows(db: Session, model) -> dict:
-    return {r.key: r for r in db.query(model).filter(model.scope == config_service.GLOBAL).all()}
+    """Effective override per key for the caller's tenant: tenant scope wins over global."""
+    tenant = db.info.get("tenant_id") or config_service.GLOBAL
+    rows = db.query(model).filter(model.scope.in_({tenant, config_service.GLOBAL})).all()
+    return {r.key: r for r in sorted(rows, key=lambda r: r.scope == tenant)}
 
 
-# TODO(S3.1): require_role("admin")
 @router.get("/api/v1/settings", tags=["Settings"])
 def list_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Every runtime setting with its effective value, default and provenance."""
@@ -44,7 +46,6 @@ def list_settings(current_user: User = Depends(get_current_user), db: Session = 
     ]
 
 
-# TODO(S3.1): require_role("admin")
 @router.put("/api/v1/settings/{key}", tags=["Settings"])
 def update_setting(
     key: str,
@@ -62,7 +63,6 @@ def update_setting(
     return {"key": key, "value": value}
 
 
-# TODO(S3.1): require_role("admin")
 @router.get("/api/v1/flags", tags=["Settings"])
 def list_flags(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Every feature flag with its effective state and provenance."""
@@ -80,7 +80,6 @@ def list_flags(current_user: User = Depends(get_current_user), db: Session = Dep
     ]
 
 
-# TODO(S3.1): require_role("admin")
 @router.put("/api/v1/flags/{key}", tags=["Settings"])
 def update_flag(
     key: str,

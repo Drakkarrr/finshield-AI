@@ -8,9 +8,11 @@ The schema is owned by Alembic (backend/migrations); create_all is test-only.
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from typing import Iterator
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 APP_ENV = os.getenv("APP_ENV", "production")
 
@@ -38,6 +40,61 @@ else:
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# --- Tenant isolation (S3.4, ruling D3) ---------------------------------------------------------
+# Postgres RLS policies (migration 0005) filter every tenant-owned table on app.tenant_id unless
+# app.rls_bypass is on. Superusers bypass RLS, so request connections drop to the non-login
+# APP_DB_ROLE created by the migration; Alembic uses its own engine and keeps owner rights.
+APP_DB_ROLE = os.getenv("APP_DB_ROLE", "finshield_app")
+TENANT_KEY = "tenant_id"
+BYPASS_KEY = "rls_bypass"
+
+if not IS_SQLITE and APP_DB_ROLE:
+    @event.listens_for(engine, "connect")
+    def _use_app_role(dbapi_conn, _record):
+        with dbapi_conn.cursor() as cur:
+            cur.execute(f'SET ROLE "{APP_DB_ROLE}"')
+
+
+@event.listens_for(SessionLocal, "after_begin")
+def _apply_tenant(session, _transaction, connection):
+    """Re-applied at the start of every transaction, so it survives mid-request commits."""
+    if connection.dialect.name != "postgresql":
+        return
+    connection.exec_driver_sql(
+        "SELECT set_config('app.tenant_id', %s, true), set_config('app.rls_bypass', %s, true)",
+        (session.info.get(TENANT_KEY) or "", "on" if session.info.get(BYPASS_KEY) else "off"),
+    )
+
+
+@event.listens_for(SessionLocal, "before_flush")
+def _stamp_tenant(session, _ctx, _instances):
+    """New tenant-owned rows inherit the session's tenant; a row with no tenant fails loudly."""
+    for obj in session.new:
+        if hasattr(obj, "tenant_id") and obj.tenant_id is None:
+            tenant = session.info.get(TENANT_KEY)
+            if tenant is None:
+                raise RuntimeError(f"{type(obj).__name__} has no tenant_id and the session is not bound to a tenant")
+            obj.tenant_id = tenant
+
+
+def bind_tenant(session: Session, tenant_id: str) -> None:
+    """Scope the session to one tenant from the next transaction on (ends any open one)."""
+    session.commit()
+    session.info[TENANT_KEY] = tenant_id
+    session.info.pop(BYPASS_KEY, None)
+
+
+@contextmanager
+def rls_bypass(session: Session) -> Iterator[Session]:
+    """Cross-tenant access for auth bootstrap (login / token lookup) and system jobs only."""
+    session.commit()
+    session.info[BYPASS_KEY] = True
+    try:
+        yield session
+    finally:
+        session.commit()
+        session.info.pop(BYPASS_KEY, None)
 
 # Bookkeeping that runs while a request already holds a connection (circuit-breaker state) uses
 # its own small pool. Taking a second connection from the request pool deadlocks under load:

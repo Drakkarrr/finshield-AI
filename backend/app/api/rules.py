@@ -65,7 +65,7 @@ def update_rule(
         raise HTTPException(status_code=404, detail="Rule not found")
 
     config = db.query(RuleConfig).filter(
-        RuleConfig.user_id == current_user.id, RuleConfig.rule_id == rule_id
+        RuleConfig.tenant_id == current_user.tenant_id, RuleConfig.rule_id == rule_id
     ).first()
     if not config:
         config = RuleConfig(user_id=current_user.id, rule_id=rule_id, enabled=True, priority=100, version=0)
@@ -109,7 +109,7 @@ def list_rules(
     """List rules with the user's overrides applied, in execution (priority) order."""
     definitions = _definitions(db)
     now = datetime.utcnow()
-    config_map = {c.rule_id: c for c in db.query(RuleConfig).filter(RuleConfig.user_id == current_user.id).all()}
+    config_map = {c.rule_id: c for c in db.query(RuleConfig).filter(RuleConfig.tenant_id == current_user.tenant_id).all()}
 
     for rule in definitions:
         config = config_map.get(rule["rule_id"])
@@ -154,7 +154,7 @@ def simulate_rule(
     # Get transactions from last N days
     cutoff = datetime.utcnow() - timedelta(days=req.days)
     transactions = db.query(Transaction).filter(
-        Transaction.user_id == current_user.id,
+        Transaction.tenant_id == current_user.tenant_id,
         Transaction.created_at >= cutoff
     ).all()
 
@@ -205,7 +205,7 @@ def get_rule_stats(
     """Get hit statistics for a specific rule."""
     config = db.query(RuleConfig).filter(
         RuleConfig.rule_id == rule_id,
-        RuleConfig.user_id == current_user.id
+        RuleConfig.tenant_id == current_user.tenant_id
     ).first()
 
     if not config:
@@ -240,7 +240,7 @@ def record_rule_hit(
     """Record a rule hit (called by compliance engine)."""
     config = db.query(RuleConfig).filter(
         RuleConfig.rule_id == rule_id,
-        RuleConfig.user_id == current_user.id
+        RuleConfig.tenant_id == current_user.tenant_id
     ).first()
 
     if not config:
@@ -269,7 +269,7 @@ def record_false_positive(
     """Record a false positive for a rule."""
     config = db.query(RuleConfig).filter(
         RuleConfig.rule_id == rule_id,
-        RuleConfig.user_id == current_user.id
+        RuleConfig.tenant_id == current_user.tenant_id
     ).first()
 
     if not config:

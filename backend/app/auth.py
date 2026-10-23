@@ -15,7 +15,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import bind_tenant, get_db, rls_bypass
 from app.db_models import ApiKey, User
 
 # --- Configuration ---
@@ -76,7 +76,16 @@ def get_current_user(
         )
 
     token = credentials.credentials
+    # Who the caller is must be resolved before their tenant is known: look up across tenants,
+    # then bind the session to the caller's tenant for everything that follows in the request.
+    with rls_bypass(db):
+        user = _resolve(token, db)
+        tenant_id = user.tenant_id
+    bind_tenant(db, tenant_id)
+    return user
 
+
+def _resolve(token: str, db: Session) -> User:
     # Path 1: API key (starts with the fsk_ prefix)
     if token.startswith("fsk_"):
         prefix = token[:12] + "..."
@@ -92,7 +101,6 @@ def get_current_user(
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
         matched.last_used_at = datetime.utcnow()
-        db.commit()
         return user
 
     # Path 2: JWT bearer token
@@ -113,7 +121,6 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
-
     return user
 
 
