@@ -596,3 +596,32 @@ class TestS05Regression:
         assert data["baseline_updated"] is True
         assert "statistics" in data
         assert "avg_amount" in data["statistics"]
+
+
+class TestS04HealthProbes:
+    """Tests for S0.4 real health probes."""
+
+    @pytest.mark.asyncio
+    async def test_liveness_probe(self, client):
+        """GET /api/health/live returns 200 with no dependency checks."""
+        resp = await client.get("/api/health/live")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "alive"
+
+    @pytest.mark.asyncio
+    async def test_readiness_probe_healthy(self, client):
+        """GET /api/health/ready returns 200 when DB is reachable."""
+        resp = await client.get("/api/health/ready")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ready"
+        assert data["services"]["database"] == "healthy"
+
+    @pytest.mark.asyncio
+    async def test_health_endpoint_probes_db(self, client):
+        """GET /api/health reflects real DB state."""
+        resp = await client.get("/api/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "healthy"
+        assert data["services"]["database"] == "healthy"

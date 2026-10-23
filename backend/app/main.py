@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -2827,20 +2827,91 @@ async def multi_hop_retrieval(
 # SYSTEM ROUTES
 # ============================================================
 
+@app.get("/api/health/live", tags=["System"])
+async def liveness_probe():
+    """Liveness probe — returns 200 if the process is up. No dependency checks."""
+    return {"status": "alive"}
+
+
+@app.get("/api/health/ready", tags=["System"])
+async def readiness_probe(db: Session = Depends(get_db)):
+    """Readiness probe — checks primary DB and RAG Postgres (if enabled)."""
+    services = {}
+    overall_healthy = True
+    
+    # Check primary database
+    try:
+        db.execute(text("SELECT 1"))
+        services["database"] = "healthy"
+    except Exception as e:
+        services["database"] = f"unhealthy: {str(e)}"
+        overall_healthy = False
+    
+    # Check RAG Postgres (if RAG service is initialized)
+    rag_service = getattr(app.state, "rag_service", None)
+    if rag_service is not None:
+        try:
+            if hasattr(rag_service, 'engine') and rag_service.engine is not None:
+                with rag_service.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                services["rag_classifier"] = "healthy"
+            else:
+                services["rag_classifier"] = "disabled"
+        except Exception as e:
+            services["rag_classifier"] = f"degraded: {str(e)}"
+    else:
+        services["rag_classifier"] = "disabled"
+    
+    status_code = 200 if overall_healthy else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ready" if overall_healthy else "not_ready",
+            "services": services,
+            "uptime_seconds": round(time.monotonic() - start_time, 2),
+        }
+    )
+
+
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
-async def health_check():
-    """Health check endpoint."""
+async def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint with real dependency probes."""
+    services = {}
+    overall_healthy = True
+    
+    # Check primary database
+    try:
+        db.execute(text("SELECT 1"))
+        services["database"] = "healthy"
+    except Exception as e:
+        services["database"] = f"unhealthy: {str(e)}"
+        overall_healthy = False
+    
+    # Check RAG service
+    rag_service = getattr(app.state, "rag_service", None)
+    if rag_service is not None:
+        try:
+            if hasattr(rag_service, 'engine') and rag_service.engine is not None:
+                with rag_service.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                services["rag_classifier"] = "healthy"
+            else:
+                services["rag_classifier"] = "disabled"
+        except Exception as e:
+            services["rag_classifier"] = f"degraded: {str(e)}"
+    else:
+        services["rag_classifier"] = "disabled"
+    
+    # Other services are in-process (no external deps to probe)
+    services["rule_engine"] = "healthy"
+    services["behavioral_ml"] = "healthy"
+    services["case_manager"] = "healthy"
+    services["api_gateway"] = "healthy"
+    
     return HealthResponse(
-        status="healthy",
+        status="healthy" if overall_healthy else "degraded",
         version="2.4.0",
-        services={
-            "rule_engine": "healthy",
-            "behavioral_ml": "healthy",
-            "rag_classifier": "healthy",
-            "case_manager": "healthy",
-            "api_gateway": "healthy",
-            "database": "healthy",
-        },
+        services=services,
         uptime_seconds=round(time.monotonic() - start_time, 2),
     )
 
