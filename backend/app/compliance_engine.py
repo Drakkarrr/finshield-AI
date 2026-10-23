@@ -4,7 +4,7 @@ FinShield AI — Core Compliance Engine
 """
 from __future__ import annotations
 
-import random
+import hashlib
 import time
 from typing import TYPE_CHECKING
 
@@ -145,7 +145,7 @@ class ComplianceEngine:
         total_latency = (time.monotonic() - pipeline_start) * 1000
 
         result = ScreeningResult(
-            transaction_id=f"TX-{random.randint(10000, 99999)}",
+            transaction_id=f"TX-{hashlib.sha256(tx.idempotency_key.encode()).hexdigest()[:8]}",
             idempotency_key=tx.idempotency_key,
             status=status,
             risk_score=round(risk_score, 4),
@@ -331,13 +331,19 @@ class ComplianceEngine:
 
     # --- Stage 5: ML Classification ---
     def _ml_classify(self, tx: TransactionRequest, behavioral: float) -> tuple[str, float]:
-        """Simulate ML classification via RAG + LoRA."""
+        """Simulate ML classification via RAG + LoRA (deterministic)."""
         if behavioral > 0.6:
-            return "high_risk", min(0.7 + random.uniform(0, 0.25), 0.99)
+            # High behavioral score → high_risk with confidence proportional to score
+            confidence = min(0.7 + (behavioral - 0.6) * 0.75, 0.99)
+            return "high_risk", confidence
         elif behavioral > 0.3:
-            return "medium_risk", min(0.5 + random.uniform(0, 0.3), 0.85)
+            # Medium behavioral score → medium_risk with confidence proportional to distance from 0.3
+            confidence = min(0.5 + (behavioral - 0.3) * 1.17, 0.85)
+            return "medium_risk", confidence
         else:
-            return "low_risk", min(0.6 + random.uniform(0, 0.3), 0.95)
+            # Low behavioral score → low_risk with confidence inversely proportional to score
+            confidence = min(0.6 + (0.3 - behavioral) * 1.17, 0.95)
+            return "low_risk", confidence
 
     # --- Stage 6: Risk Scoring ---
     def _compute_risk(
