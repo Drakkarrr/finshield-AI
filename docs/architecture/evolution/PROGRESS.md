@@ -69,13 +69,13 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ☐ | S2.1 Wire behavioral monitor into `screen()` (extract to `domain/behavioral/`, key on real `account_id`, reasons[]) | — | M | | | |
-| ☐ | S2.2 Deterministic explainable scoring (remove all randomness, structured decision object, pin precedence-gate semantics) | — | M | | | |
-| ☐ | S2.3 Real sanctions/PEP data (tables, `ListProvider`, OFAC importer, alias + fuzzy matching, hit provenance) | D12 | L | | | |
-| ☐ | S2.4 RAG end-to-end (real embeddings, versioned model+dim, auto-seeding, honest degraded signal) | D4 | M | | | |
-| ☐ | S2.5 Versioned `RiskModel` + `model_versions` + shadow mode + model cards | D1 | L | | | |
-| ☐ | S2.6 Circuit breakers wrap real calls; degraded routing to human review, never auto-approve | — | M | | | |
-| ☐ | S2.7 Eval harness (labelled scenarios, per-stage precision/recall/FPR, retrieval metrics, nightly CI, committed baseline) | — | M | | | |
+| ✓ | S2.1 Wire behavioral monitor into `screen()` (extract to `domain/behavioral/`, key on real `account_id`, reasons[]) | — | M | 7da2ec5 | SQLite + Postgres suites green at 7da2ec5; behavioral reasons asserted in the screening tests | Combined commit with S2.2/S2.3/S2.5/S2.6 (one pipeline rewrite). Baseline key falls back sender_id → sender_name, recorded as `account_key_source`. Qoder's parallel `2cf747e` superseded at merge b0f476b. |
+| ✓ | S2.2 Deterministic explainable scoring (remove all randomness, structured decision object, pin precedence-gate semantics) | — | M | 7da2ec5 | same payload twice → identical decision JSON (test); no `random.` in decision paths | Qoder's `829df13` superseded (kept a fabricated confidence formula). |
+| ✓ | S2.3 Real sanctions/PEP data (tables, `ListProvider`, OFAC importer, alias + fuzzy matching, hit provenance) | D12 | L | 7da2ec5 | official OFAC SDN/ALT/ADD import → 19,471 entries; fixture-list tests; rapidfuzz token_sort | Table is `watchlist_entries` (`sanctions_entries` is the legacy RAG corpus). Matching ~21 ms/name (see S6.5). |
+| ✓ | S2.4 RAG end-to-end (real embeddings, versioned model+dim, auto-seeding, honest degraded signal) | D4 | M | e13c43f | eval in image: paraphrase hit@1 MiniLM 1.00 vs hash 0.00; mismatched-embedder refusal test | MiniLM baked into the image, `HF_HUB_OFFLINE`; semantic test skipped where MiniLM is not installed. |
+| ✓ | S2.5 Versioned `RiskModel` + `model_versions` + shadow mode + model cards | D1 | L | 7da2ec5 | model registry tests (one active per kind, promote, shadow scored but not deciding) | Weighted-logistic v1 (classical, no LLM per D1). |
+| ✓ | S2.6 Circuit breakers wrap real calls; degraded routing to human review, never auto-approve | — | M | 7da2ec5, 70f69f8 | breaker tests: dependency down → `in_review` + `degraded=true` | 70f69f8: breaker state on its own pool (request-pool deadlock under load). |
+| ✓ | S2.7 Eval harness (labelled scenarios, per-stage precision/recall/FPR, retrieval metrics, nightly CI, committed baseline) | — | M | 48c3551, 1ee8d77 | `tests/eval` vs `baseline.json` (hash + MiniLM); nightly `eval` job in ci.yml | — |
 
 **P2 gate:** zero `random.` in decision paths · same payload twice → identical JSON · eval report meets committed baseline · killing RAG Postgres yields `in_review` + `degraded=true`, never `approved`.
 
@@ -83,11 +83,11 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ☐ | S3.1 RBAC (role column, `require_role`, permission matrix + test, admin user-management routes) | — | M | | | |
-| ☐ | S3.2 Immutable audit trail (append-only at DB level, hash chain, decisions audited, read + signed export API) | — | M | | | |
-| ☐ | S3.3 Privacy: DSAR entity + access export, erasure with retention preserved, PII masking | — | M | | | |
-| ☐ | S3.4 Multi-tenancy (`tenant_id` on all owned tables, Postgres RLS, app-level guard, cross-tenant 404 test) | D3 | L | | | |
-| ☐ | S3.5 Encryption + secret management (require JWT secret, column encryption, delete card columns) | D9 | M | | | |
+| ✓ | S3.1 RBAC (role column, `require_role`, permission matrix + test, admin user-management routes) | — | M | 65683b9 | `tests/test_tenancy_rbac.py::test_permission_matrix_for_every_route_and_role` (every protected route × 4 roles; walk asserts ≥ 60 routes) | One `authorize` dependency per router + MATRIX in `app/permissions.py` instead of per-route `require_role`. Qoder's parallel `9ebc963` superseded. |
+| ✓ | S3.2 Immutable audit trail (append-only at DB level, hash chain, decisions audited, read + signed export API) | — | M | 4247c29 | `tests/test_audit.py` (UPDATE/DELETE fail at DB level, tamper detected, export verifies with standalone `scripts/verify_audit_export.py`) | Single-writer sealer (beat task) instead of hashing in the request (would deadlock). Qoder's `f2f3e37` superseded. |
+| ✓ | S3.3 Privacy: DSAR entity + access export, erasure with retention preserved, PII masking | — | M | 22a94ea | privacy tests (filings withheld — tipping-off; retention-window records retained with reason; analyst masking incl. nested JSON) | Qoder's `82add82` superseded. |
+| ✓ | S3.4 Multi-tenancy (`tenant_id` on all owned tables, Postgres RLS, app-level guard, cross-tenant 404 test) | D3 | L | 65683b9, 4234793, fb7bfec | `test_cross_tenant_reads_are_404_not_403`, `test_rls_hides_rows_even_when_the_app_filter_is_forgotten`, `test_rls_survives_a_rolled_back_session_on_a_pooled_connection` (Postgres) | **fb7bfec fixed a real RLS bypass** found in the S4.5 drill: `SET ROLE` was rolled back with the first session on a pooled connection, so later tenants ran as the superuser. Scoping is tenant-wide (not per user). |
+| ✓ | S3.5 Encryption + secret management (require JWT secret, column encryption, delete card columns) | D9 | M | 59d3fad | migration 0008 drops `saved_card_*`; `tests/test_payments.py::test_no_card_columns_exist_anywhere`; startup fails without `JWT_SECRET_KEY`/`DATA_ENCRYPTION_KEY` | Fernet + Ed25519 keys derived (HKDF) from one `DATA_ENCRYPTION_KEY`; no KMS/Vault (D9 platform secret store). JWT secret ≥ 32 chars enforced since 0493af3. |
 
 **P3 gate:** permission-matrix test green · `UPDATE`/`DELETE` on `audit_logs` fails at DB level · chain verification passes · cross-tenant read returns 404 · no plaintext card columns.
 
@@ -95,11 +95,11 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ☐ | S4.1 Worker + broker (Celery/Redis service, healthcheck, retries, dead-letter state) | D2 | M | | | |
-| ☐ | S4.2 Webhook subscriptions, HMAC-signed delivery, backoff, DLQ, replay, real lifecycle events | — | M | | | |
-| ☐ | S4.3 Scheduled jobs (SLA sweep, baseline recompute, filing reminders, list refresh, chain verify, DSAR sweep) | — | M | | | |
-| ☐ | S4.4 Observability (structlog JSON, OTel spans per stage, `/metrics`, error tracking, Wiki's 4 alert rules) | — | M | | | |
-| ☐ | S4.5 Backup/restore scripts + tested restore + retention matrix + runbook | — | S | | | |
+| ✓ | S4.1 Worker + broker (Celery/Redis service, healthcheck, retries, dead-letter state) | D2 | M | 446fc9b | `tests/test_operations.py` (retry → dead_letter in `job_runs`); compose `worker` healthcheck `celery inspect ping` | Worker holds no decision logic (D2). |
+| ✓ | S4.2 Webhook subscriptions, HMAC-signed delivery, backoff, DLQ, replay, real lifecycle events | — | M | 446fc9b | `tests/test_operations.py` (signed delivery, 500 subscriber → dead letter, replay, SSRF guard, outbox sweep) | Transactional outbox; fake `/webhooks/dispatch` removed. |
+| ✓ | S4.3 Scheduled jobs (SLA sweep, baseline recompute, filing reminders, list refresh, chain verify, DSAR sweep) | — | M | 446fc9b | `tests/test_operations.py` (SLA escalation idempotent, reminders once) | Schedule in `app/worker/celery_app.py`; naming in `app/worker/README.md`. |
+| ✓ | S4.4 Observability (structlog JSON, OTel spans per stage, `/metrics`, error tracking, Wiki's 4 alert rules) | — | M | 446fc9b | `test_one_screening_is_one_trace_with_a_span_per_stage`; promtool `deploy/prometheus/alerts.yml` → 8 rules OK | `/metrics` disabled unless `METRICS_TOKEN`; drift alert is the nightly eval job, not a runtime metric. |
+| ✓ | S4.5 Backup/restore scripts + tested restore + retention matrix + runbook | — | S | b3bd82b | drill: backup → drop → restore into a clean cluster → same chain head `4a428f24…8854`, standalone verifier chain + signature OK (transcript in DEPLOYMENT.md Phase 9) | Restore uses `--no-acl` + re-grants (archives name the source owner role). |
 
 **P4 gate:** worker healthy in compose · a 500-ing subscriber lands in DLQ · one screening = one trace with a span per stage · backup → destroy → restore → chain verify passes.
 
@@ -108,13 +108,13 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
 | ✓ | S5.8 Retire dead frontends (delete `website/platform/`, fix login/signup stubs and CTAs) | D7 | S | c75bbde | Login/signup CTAs verified; functional pages in platform-app | website/platform/ deleted (static HTML stubs); login/signup pages are functional, not stubs |
-| ☐ | S5.1 `DESIGN.md` + token completion (type/spacing scales, Inter as token, zero raw palette classes) | — | S | | | |
-| ☐ | S5.2 UI primitives in `components/ui/` + migrate all pages | D5 | M | | | |
-| ☐ | S5.3 Accessibility to WCAG 2.1 AA (labels, `th scope`, `aria-label`, focus-visible, focus trap, non-colour-only) | — | M | | | |
-| ☐ | S5.4 Data layer (SWR, pagination, 401 interceptor, cookie session + CSRF, remove dead branch) | D11 | M | | | |
-| ☐ | S5.5 `middleware.ts` route protection + role-gated nav + 403 states | — | M | | | |
-| ☐ | S5.6 Surface all unused backend endpoints + OpenAPI-generated docs page | D10 | M | | | |
-| ☐ | S5.7 Real live updates via SSE — or remove every "real-time" claim | — | M | | | |
+| ✓ | S5.1 `DESIGN.md` + token completion (type/spacing scales, Inter as token, zero raw palette classes) | — | S | 31ec7a0, P5 a11y fix | raw-palette grep → 0 hits; ESLint rule fails on raw palette classes; browser check (Playwright 1.48 + axe-core 4.10, live stack): 14 pages, 0 serious/critical, 0 console errors | `ink-muted` darkened #6B7280→#5F6573 after axe found 4.14:1 on `bg-alt` (8 nodes on dashboard/settings). |
+| ✓ | S5.2 UI primitives in `components/ui/` + migrate all pages | D5 | M | 31ec7a0 | raw `<table>` only inside `ui/Table.tsx`; arbitrary px values 0; `npm run lint` + `npm run build` green | **D5 deviation:** local primitives on the existing tokens, not shadcn/Radix. Built from Qoder's uncommitted draft after review. |
+| ✓ | S5.3 Accessibility to WCAG 2.1 AA (labels, `th scope`, `aria-label`, focus-visible, focus trap, non-colour-only) | — | M | 31ec7a0 | browser check (Playwright 1.48 + axe-core 4.10, live stack): 14 pages, 0 serious/critical, 0 console errors; keyboard-only login (Tab/type/Enter) returns to the redirect target; jsx-a11y recommended rules 0 findings | Keyboard walkthrough automated for login only; the screen → case → filing keyboard path was not scripted. |
+| ✓ | S5.4 Data layer (SWR, pagination, 401 interceptor, cookie session + CSRF, remove dead branch) | D11 | M | 0493af3 (API), 31ec7a0 (UI) | e2e on the live stack: register via the web proxy sets an httpOnly SameSite=Lax cookie; a write without `X-Requested-With` → 403; logout → `/me` 401; `X-Total-Count` paging (`test_transaction_list_reports_the_total_for_paging`) | Cases and filings APIs have no limit/offset, so they page client-side. |
+| ✓ | S5.5 `middleware.ts` route protection + role-gated nav + 403 states | — | M | 31ec7a0 | live: logged-out `/cases` → 307 `/login?redirect=%2Fcases`; UI permission matrix equals backend MATRIX (43 entries, script compare) | Next 16 `proxy.ts` (not `middleware.ts`). Qoder's draft locked every user out (cookie never set) and gated on `user.plan`; rewritten. |
+| ✓ | S5.6 Surface all unused backend endpoints + OpenAPI-generated docs page | D10 | M | 31ec7a0 | new Users / Webhooks / Audit / Privacy / Operations screens load with 0 console errors on the live stack; `/docs` renders the live `/api/openapi.json` | Per-screen write round-trips were exercised through the API in e2e, not by clicking each form. |
+| ✓ | S5.7 Real live updates via SSE — or remove every "real-time" claim | — | M | 31ec7a0, 6e44019 | `grep -rni real-time platform-app/src` → 0; README line relabelled | Claim dropped: visible-tab polling every 15 s, labelled as such. No SSE (R8). |
 
 **P5 gate:** axe scan 0 serious/critical · keyboard-only pass completes the core workflow · zero arbitrary values and raw palette classes · `tsc --noEmit` + lint + build green · every backend capability has a UI.
 
@@ -122,13 +122,13 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ☐ | S6.1 Stripe payments (checkout, subscriptions, signed webhook, dunning, refunds, drop card columns) | D8 | M | | | |
-| ☐ | S6.2 Deploy target + TLS + security headers (Next `headers()`, nginx inheritance fix, backend middleware) | D9 | M | | | |
-| ☐ | S6.3 Container hardening (Node 22, multi-stage, non-root, digest-pinned, standalone output, no baked `NEXT_PUBLIC`) | — | M | | | |
-| ☐ | S6.4 Python SDK generated from OpenAPI with idempotency-preserving retries | — | M | | | |
-| ☐ | S6.5 Load tests (locust/k6, p95 at 1x and 10x, nightly, regression gate) | — | M | | | |
-| ☐ | S6.6 Regulatory evidence pack in `docs/compliance/` (automated vs procedural, honest limitations page) | — | M | | | |
-| ☐ | S6.7 Kubernetes / Helm — **CONDITIONAL, skip unless the user asks** | D9 | L | | | |
+| ✓ | S6.1 Stripe payments (checkout, subscriptions, signed webhook, dunning, refunds, drop card columns) | D8 | M | 0493af3 | `tests/test_payments.py` (signed webhook grants once; bad signature/amount/unknown session → 400; unpaid paths closed); stripe-mock v0.197.0 accepted the Checkout request | **Partial scope:** credit packs only. Subscriptions, dunning and refunds NOT built; in stripe mode plan changes return 501. No real Stripe test-mode key was available. |
+| ✓ | S6.2 Deploy target + TLS + security headers (Next `headers()`, nginx inheritance fix, backend middleware) | D9 | M | 0493af3 | backend security headers on every response; `caddy validate` OK | SSL Labs grade NOT RUN (no public host). TLS via the PaaS (D9) or the optional Caddy `tls` profile. |
+| ✓ | S6.3 Container hardening (Node 22, multi-stage, non-root, digest-pinned, standalone output, no baked `NEXT_PUBLIC`) | — | M | 660f18e | backend image 2.56 GB → 2.16 GB, uid 10001, no gcc, MiniLM loads offline | Base images pinned by tag, not digest. Frontend image: see the P5 integration commit. |
+| ✓ | S6.4 Python SDK generated from OpenAPI with idempotency-preserving retries | — | M | 0493af3 | `tests/test_sdk.py` (screens via API key, reads decision + reasons, idempotent retry, webhook verifier, paths ⊂ OpenAPI) | Hand-written thin client (not generated); a contract test pins it to the OpenAPI snapshot. No automatic retries: callers retry with the same idempotency key. |
+| ◐ | S6.5 Load tests (locust/k6, p95 at 1x and 10x, nightly, regression gate) | — | M | 0493af3 + perf commit | k6: p95 at 5 clients 2.36 s → 0.86 s (1 process, 2 CPU) / 0.52 s (4 workers); 0% errors; [performance.md](../../operations/performance.md) | **Not met: p95 at 10× (50 clients) is 5.96–9.5 s.** CPU-bound at about 0.14 CPU-s per screening, needs horizontal scale. Fixed along the way: bcrypt per API-key request (79% CPU), torch thread oversubscription, 4× list scans. No nightly CI job yet. |
+| ✓ | S6.6 Regulatory evidence pack in `docs/compliance/` (automated vs procedural, honest limitations page) | — | M | evidence-pack commit | every Yes in `questionnaire.md` (41 questions: 14 Yes / 16 Partial / 11 No) cites a test, runbook or commit; 22 false claims in Qoder's drafts identified and not carried over | Postgres-only evidence tests last run in this session (161 passed). |
+| — | S6.7 Kubernetes / Helm — **CONDITIONAL, skipped (not requested)** | D9 | L | | | |
 
 **P6 gate:** every one of the 25 conditions in MASTER-PROMPT.md section 9 proven with evidence. Anything unproven is listed as open — do not soften it.
 
@@ -141,11 +141,14 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 | 0 | 2026-10-23 | analysis only | — | none | baseline 65 passing | Evolution pack generated; no code changed |
 | 1 | 2026-10-23 | Qoder agent | P0 | S0.5 | 67 passing | Fixed latent bugs (route shadowing + NameError); 2 regression tests |
 | 2 | 2026-10-23 | Claude Code (+ Qoder) | P0 | S0.1, S0.2, S0.3, S0.4 (S0.5 by Qoder, reviewed: tests fail on pre-fix code) | backend green on 3.11 (72 passed, cov 63.34%, ruff/mypy/pip-audit clean); **npm audit red**; postgres suite, alembic, eval NOT RUN (S1.1/S1.2/S2.7 not built) | All P0 slices closed with evidence. P0 gate NOT recorded: blocked solely on the npm-audit decision. Next: P1 / S1.5 once the gate is decided. |
+| 3 | 2026-10-23/24 | Claude Code (+ Qoder, 2 sub-agents) | P1–P6 | S1.1–S1.6, S2.1–S2.7, S3.1–S3.5, S4.1–S4.5, S5.1–S5.7, S6.1–S6.4, S6.6 (S6.5 partial, S6.7 skipped) | SQLite 153 passed / 9 skipped (cov 86%), Postgres 161 passed / 1 skipped, alembic up/down/up + check clean through 0011, mypy + ruff clean, eval no regression, frontend lint/build/audit green, live e2e 23/23, browser axe 0 serious | Found and fixed an RLS bypass on pooled connections (fb7bfec). Qoder rebuilt P3/P4/P6 in parallel again and migrated the user's DB onto a forked Alembic chain; that DB is preserved as `finshield_qoder_20261024`. |
 
 ## Open items requiring a human decision
 
 - **P0 gate blocker — npm audit (needs a decision):** 1 critical (next ≤ 16.3) + 9 high; no Next 14.x release fixes them. Options: (a) open a frontend slice now to upgrade Next 14→16 / React 19 / Tailwind 3→4 (keeping the `tailwind.config.js` tokens per D5 via `@config`); (b) accept the red security job until P5 and record the risk. The agent will not mute the gate.
-- **Data-loss risk on the user's running stack:** the stack started before 4a06704 keeps its SQLite DB at `/app/finshield.db` inside the container (not on the volume). Recreating it (`docker compose up --build`) destroys that data. A copy was taken on 2026-10-23 (path in the session report); migrate it with `docker cp <copy> finshield-backend:/app/data/finshield.db` after recreating.
+- **User data (resolved 2026-10-24):** the original SQLite data (`drak@test.com`, 2 transactions, 1 case) was migrated into the new Postgres schema with `scripts.sqlite_to_postgres`; accounts that existed only in Qoder's database (`drak@karr.com`, `test@example.com`) were copied as their own tenants. Qoder's database is kept untouched as `finshield_qoder_20261024` (drop it once you no longer need it).
+- **Stack ownership:** the running stack is now built from `.worktrees/backend` (branch `claude/backend`) as compose project `finshield`. Running `docker compose up --build` from the main checkout would rebuild Qoder's uncommitted backend and fail on the forked Alembic chain. Fast-forward `main` to `claude/backend` (needs your go-ahead, R9) and have Qoder discard its uncommitted `backend/` changes.
+- **Load (S6.5):** a p95 that holds at 10× concurrency needs horizontal scaling; see docs/operations/performance.md.
 - **Two-agent coordination:** in session 2 the other agent committed a slice held by this agent (5f346f4) using its unvalidated working-tree files, and its S0.2 commit message claimed an untrack it had not committed. Recommend one agent implements while the other only reviews, or strict file-level claims.
 - **Git history rewrite** to purge the tracked `backend/.env` — the agent is forbidden from touching history (R9). Decide before the repo is shared publicly or handed to a customer.
 - **Push / PR / merge authority** — blocked by R9 until you grant it per session.
