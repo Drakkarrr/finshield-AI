@@ -1,11 +1,12 @@
 """FinShield AI — Tenant user management (S3.1). Admin only (app.permissions.MATRIX)."""
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, hash_password
+from app.core import client_ip_pseudonymised
 from app.database import get_db, rls_bypass
 from app.db_models import AuditLog, User
 
@@ -40,7 +41,7 @@ def list_users(current_user: User = Depends(get_current_user), db: Session = Dep
 
 
 @router.post("/api/v1/admin/users", status_code=201, tags=["Admin"])
-def create_user(req: UserCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_user(request: Request, req: UserCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Add a user to the caller's organisation with the given role."""
     with rls_bypass(db):  # email uniqueness is global
         if db.query(User).filter(User.email == req.email).first():
@@ -50,15 +51,16 @@ def create_user(req: UserCreate, current_user: User = Depends(get_current_user),
                 is_trial=current_user.is_trial, trial_expires_at=current_user.trial_expires_at)
     db.add(user)
     db.flush()
+    ip_pseudo = client_ip_pseudonymised(request)
     db.add(AuditLog(user_id=current_user.id, action="user_created", resource_type="user", resource_id=user.id,
-                    details={"role": req.role}))
+                    details={"role": req.role}, ip_address=ip_pseudo))
     db.commit()
     db.refresh(user)
     return _out(user)
 
 
 @router.patch("/api/v1/admin/users/{user_id}", tags=["Admin"])
-def update_user(user_id: str, req: UserUpdate, current_user: User = Depends(get_current_user),
+def update_user(request: Request, user_id: str, req: UserUpdate, current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     """Change a user's role or (de)activate them. The organisation always keeps an active admin."""
     user = db.query(User).filter(User.id == user_id, User.tenant_id == current_user.tenant_id).first()
@@ -76,7 +78,9 @@ def update_user(user_id: str, req: UserUpdate, current_user: User = Depends(get_
         user.role = req.role
     if req.is_active is not None:
         user.is_active = req.is_active
+    ip_pseudo = client_ip_pseudonymised(request)
     db.add(AuditLog(user_id=current_user.id, action="user_updated", resource_type="user", resource_id=user.id,
-                    details={"before": before, "after": {"role": user.role, "is_active": user.is_active}}))
+                    details={"before": before, "after": {"role": user.role, "is_active": user.is_active}},
+                    ip_address=ip_pseudo))
     db.commit()
     return _out(user)

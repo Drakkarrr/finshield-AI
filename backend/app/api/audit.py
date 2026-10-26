@@ -2,11 +2,12 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app import crypto
 from app.auth import get_current_user
+from app.core import client_ip_pseudonymised
 from app.database import get_db
 from app.db_models import AuditLog, User
 from app.domain import audit
@@ -51,11 +52,13 @@ def verify_audit(current_user: User = Depends(get_current_user), db: Session = D
 
 
 @router.get("/api/v1/audit/export", tags=["Audit"])
-def export_audit(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def export_audit(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Signed chain-of-custody bundle; verify offline with scripts/verify_audit_export.py."""
     bundle = audit.export(db, current_user.tenant_id)
+    ip_pseudo = client_ip_pseudonymised(request)
     db.add(AuditLog(user_id=current_user.id, action="audit_exported", resource_type="audit",
-                    details={"count": bundle["count"], "head": bundle["verification"].get("head_hash")}))
+                    details={"count": bundle["count"], "head": bundle["verification"].get("head_hash")},
+                    ip_address=ip_pseudo))
     db.commit()
     return bundle
 

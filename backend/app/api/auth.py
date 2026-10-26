@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app import crypto
 from app.auth import (
     clear_session_cookie,
     create_access_token,
@@ -14,7 +15,7 @@ from app.auth import (
     set_session_cookie,
     verify_password,
 )
-from app.core import limiter, logger
+from app.core import client_ip_pseudonymised, limiter, logger
 from app.database import bind_tenant, get_db, rls_bypass
 from app.db_models import (
     AuditChainHead,
@@ -53,6 +54,7 @@ class TokenResponse(BaseModel):
 @limiter.limit("5/minute")
 def register(request: Request, response: Response, req: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new account with 14-day free trial (Starter plan, 1,000 credits)."""
+    ip_pseudo = client_ip_pseudonymised(request)
     with rls_bypass(db):  # email uniqueness is global, across tenants
         if db.query(User).filter(User.email == req.email).first():
             raise HTTPException(status_code=400, detail="Email already registered")
@@ -85,7 +87,7 @@ def register(request: Request, response: Response, req: RegisterRequest, db: Ses
     db.refresh(user)
 
     # Audit log
-    audit = AuditLog(user_id=user.id, action="user_registered", details={"trial": True})
+    audit = AuditLog(user_id=user.id, action="user_registered", details={"trial": True}, ip_address=ip_pseudo)
     db.add(audit)
 
     # Welcome notification
@@ -124,17 +126,48 @@ def register(request: Request, response: Response, req: RegisterRequest, db: Ses
 @limiter.limit("10/minute")
 def login(request: Request, response: Response, req: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate and receive a JWT token."""
+    ip_pseudo = client_ip_pseudonymised(request)
+    email_pseudo = crypto.pseudonym(req.email)
     with rls_bypass(db):  # the tenant is unknown until the user is found
         user = db.query(User).filter(User.email == req.email).first()
         if not user or not verify_password(req.password, user.hashed_password):
+            # Audit failed login with pseudonymised email
+            # For unknown emails, use system tenant; for known users, use their tenant
+            tenant_id = user.tenant_id if user else None
+            if tenant_id:
+                bind_tenant(db, tenant_id)
+            else:
+                # Unknown email: audit under system tenant
+                system_tenant = db.query(Tenant).filter(Tenant.id == "system").first()
+                if not system_tenant:
+                    system_tenant = Tenant(id="system", name="system")
+                    db.add(system_tenant)
+                    db.flush()
+                bind_tenant(db, "system")
+            db.add(AuditLog(
+                user_id=user.id if user else None,
+                action="login_failed",
+                details={"reason": "invalid_credentials", "email_pseudo": email_pseudo},
+                ip_address=ip_pseudo
+            ))
+            db.commit()
             raise HTTPException(status_code=401, detail="Invalid email or password")
         if not user.is_active:
+            # Audit disabled account login attempt
+            bind_tenant(db, user.tenant_id)
+            db.add(AuditLog(
+                user_id=user.id,
+                action="login_failed",
+                details={"reason": "account_disabled", "email_pseudo": email_pseudo},
+                ip_address=ip_pseudo
+            ))
+            db.commit()
             raise HTTPException(status_code=403, detail="Account is disabled")
         tenant_id = user.tenant_id
     bind_tenant(db, tenant_id)
 
     # Create audit log
-    audit = AuditLog(user_id=user.id, action="user_login")
+    audit = AuditLog(user_id=user.id, action="user_login", ip_address=ip_pseudo)
     db.add(audit)
     db.commit()
 
@@ -227,6 +260,7 @@ def update_profile(
 
 @router.post("/api/auth/change-password", tags=["Auth"])
 def change_password(
+    request: Request,
     req: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -238,7 +272,8 @@ def change_password(
         raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
     current_user.hashed_password = hash_password(req.new_password)
     db.commit()
-    audit = AuditLog(user_id=current_user.id, action="password_changed")
+    ip_pseudo = client_ip_pseudonymised(request)
+    audit = AuditLog(user_id=current_user.id, action="password_changed", ip_address=ip_pseudo)
     db.add(audit)
     db.commit()
     return {"detail": "Password updated successfully"}

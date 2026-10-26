@@ -9,7 +9,7 @@ from app import config_service, crypto, metrics, screening_service
 from app.auth import (
     get_current_user,
 )
-from app.core import SCREENING_RATE_LIMIT, credential_key, limiter, logger
+from app.core import SCREENING_RATE_LIMIT, client_ip_pseudonymised, credential_key, limiter, logger
 from app.database import get_db
 from app.db_models import (
     AuditLog,
@@ -234,6 +234,7 @@ def list_transactions(
 
 @router.get("/api/v1/transactions/export", tags=["Compliance"])
 def export_transactions(
+    request: Request,
     fmt: str = "csv",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -265,6 +266,17 @@ def export_transactions(
     txs = query.order_by(Transaction.created_at.desc()).all()
     if fmt != "csv":
         raise HTTPException(status_code=400, detail="Only CSV format supported")
+
+    # Audit the export
+    ip_pseudo = client_ip_pseudonymised(request)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="transactions_exported",
+        resource_type="transaction",
+        details={"count": len(txs), "format": fmt, "start_date": start_date, "end_date": end_date},
+        ip_address=ip_pseudo
+    ))
+    db.commit()
 
     output = StringIO()
     writer = csv.writer(output)

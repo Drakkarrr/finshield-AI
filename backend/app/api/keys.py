@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -11,10 +11,11 @@ from app.auth import (
     generate_api_key,
     get_current_user,
 )
-from app.core import logger
+from app.core import client_ip_pseudonymised, logger
 from app.database import get_db
 from app.db_models import (
     ApiKey,
+    AuditLog,
     User,
 )
 
@@ -39,6 +40,7 @@ class ApiKeyResponse(BaseModel):
 
 @router.post("/api/v1/keys", response_model=dict, status_code=201, tags=["API Keys"])
 def create_api_key(
+    request: Request,
     req: ApiKeyCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -54,6 +56,17 @@ def create_api_key(
         key_prefix=key_prefix,
     )
     db.add(api_key)
+    db.commit()
+
+    ip_pseudo = client_ip_pseudonymised(request)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="api_key_created",
+        resource_type="api_key",
+        resource_id=api_key.id,
+        details={"name": req.name, "key_prefix": key_prefix},
+        ip_address=ip_pseudo
+    ))
     db.commit()
 
     logger.info(f"API key created for user {current_user.email}: {req.name}")
@@ -86,6 +99,7 @@ def list_api_keys(
 
 @router.delete("/api/v1/keys/{key_id}", tags=["API Keys"])
 def revoke_api_key(
+    request: Request,
     key_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -97,6 +111,16 @@ def revoke_api_key(
     if not api_key:
         raise HTTPException(status_code=404, detail="API key not found")
     api_key.is_active = False
+
+    ip_pseudo = client_ip_pseudonymised(request)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="api_key_revoked",
+        resource_type="api_key",
+        resource_id=key_id,
+        details={"name": api_key.name},
+        ip_address=ip_pseudo
+    ))
     db.commit()
     logger.info(f"API key revoked: {key_id}")
     return {"detail": "API key revoked"}

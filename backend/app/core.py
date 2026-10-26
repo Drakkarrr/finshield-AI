@@ -7,7 +7,7 @@ import time
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from app import observability
+from app import crypto, observability
 
 observability.configure()
 logger = logging.getLogger("finshield")
@@ -25,5 +25,17 @@ def credential_key(request) -> str:
     if cred:
         return "cred:" + hashlib.sha256(cred.encode("utf-8")).hexdigest()[:32]
     return get_remote_address(request)
+
+
+def client_ip_pseudonymised(request) -> str | None:
+    """Extract client IP from request and pseudonymise it.
+
+    Uses request.client.host which is set by uvicorn after validating trusted proxies
+    (when running with --proxy-headers and FORWARDED_ALLOW_IPS). This prevents IP spoofing
+    via X-Forwarded-For headers from untrusted sources.
+    """
+    ip = request.client.host if request.client else None
+    return crypto.pseudonym(ip) if ip else None
+
 
 start_time = time.monotonic()

@@ -2,12 +2,13 @@
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import config_service, crypto
 from app.auth import get_current_user
+from app.core import client_ip_pseudonymised
 from app.database import get_db
 from app.db_models import AuditLog, PrivacyRequest, User
 from app.domain import privacy
@@ -89,7 +90,7 @@ def get_privacy_request(request_id: str, current_user: User = Depends(get_curren
 
 
 @router.post("/api/v1/privacy/requests/{request_id}/execute", tags=["Privacy"])
-def execute_privacy_request(request_id: str, current_user: User = Depends(get_current_user),
+def execute_privacy_request(request_id: str, request: Request, current_user: User = Depends(get_current_user),
                             db: Session = Depends(get_db)):
     """Run the request: an access export, or an erasure that retains what regulation requires."""
     row = db.query(PrivacyRequest).filter(PrivacyRequest.id == request_id,
@@ -107,10 +108,12 @@ def execute_privacy_request(request_id: str, current_user: User = Depends(get_cu
     row.status = "completed"
     row.completed_at = datetime.utcnow()
     row.handled_by = current_user.id
+    ip_pseudo = client_ip_pseudonymised(request)
     db.add(AuditLog(user_id=current_user.id, action="privacy_request_completed", resource_type="privacy_request",
                     resource_id=row.id, details={"type": row.request_type, "subject": row.subject_ref_hash,
                                                  "erased": len(outcome.get("erased", [])),
-                                                 "retained": len(outcome.get("retained", []))}))
+                                                 "retained": len(outcome.get("retained", []))},
+                    ip_address=ip_pseudo))
     db.commit()
     return _out(row, with_outcome=True)
 
