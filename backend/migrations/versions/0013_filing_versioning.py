@@ -42,6 +42,23 @@ def upgrade() -> None:
         op.execute(f"CREATE POLICY tenant_isolation ON filing_versions USING ({POLICY}) WITH CHECK ({POLICY})")
         op.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE filing_versions TO {APP_ROLE}")
 
+    # Backfill version 1 for existing submitted/confirmed filings (pre-existing data protection)
+    # Use a system user ID or the filing's submitted_by if available
+    op.execute("""
+        INSERT INTO filing_versions (id, filing_id, tenant_id, version_number, narrative, changed_by, changed_at, change_reason)
+        SELECT
+            gen_random_uuid()::text,
+            f.id,
+            f.tenant_id,
+            1,
+            f.narrative,
+            COALESCE(f.submitted_by, f.created_by),
+            f.submitted_at,
+            'Backfilled version 1 for pre-existing filing'
+        FROM filings f
+        WHERE f.status IN ('submitted', 'confirmed')
+    """)
+
 
 def downgrade() -> None:
     bind = op.get_bind()

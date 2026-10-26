@@ -215,22 +215,33 @@ def update_filing(
     if not filing:
         raise HTTPException(404, "Filing not found")
 
-    # Track if we create a version (to avoid double-audit)
-    version_created = False
     old_status = filing.status
 
     # S7.3: If filing is submitted/confirmed and narrative is being changed, create a version
     if filing.status in ("submitted", "confirmed") and update.narrative is not None and update.narrative != filing.narrative:
-        # Require amendment_reason
+        # Require amendment_reason (422 for validation error)
         if not update.amendment_reason:
-            raise HTTPException(400, "amendment_reason is required when amending submitted/confirmed filings")
+            raise HTTPException(422, "amendment_reason is required when amending submitted/confirmed filings")
 
         # Get the latest version number for this filing
         latest_version = db.query(FilingVersion).filter(
             FilingVersion.filing_id == filing_id
         ).order_by(FilingVersion.version_number.desc()).first()
 
-        next_version_num = (latest_version.version_number + 1) if latest_version else 1
+        # Defensively snapshot current narrative as version 1 if no versions exist (pre-existing filings)
+        if not latest_version:
+            version = FilingVersion(
+                filing_id=filing_id,
+                tenant_id=current_user.tenant_id,
+                version_number=1,
+                narrative=filing.narrative,
+                changed_by=current_user.id,
+                change_reason="Backfilled version 1 snapshot",
+            )
+            db.add(version)
+            next_version_num = 2
+        else:
+            next_version_num = latest_version.version_number + 1
 
         # Create a new version record
         version = FilingVersion(
@@ -242,18 +253,17 @@ def update_filing(
             change_reason=update.amendment_reason,
         )
         db.add(version)
-        version_created = True
 
         # Update the filing's narrative
         filing.narrative = update.narrative
 
-        # Audit the version creation
+        # Audit the version creation (version_number only, no free text)
         db.add(AuditLog(
             user_id=current_user.id,
             action="filing_version_created",
             resource_type="filing",
             resource_id=filing.id,
-            details={"version_number": next_version_num, "fields": ["narrative"], "reason": update.amendment_reason},
+            details={"version_number": next_version_num, "fields": ["narrative"]},
         ))
     else:
         # Normal update path (not submitted/confirmed, or no narrative change)
@@ -281,14 +291,13 @@ def update_filing(
                 change_reason="Initial submission snapshot",
             )
             db.add(version)
-            version_created = True
 
             db.add(AuditLog(
                 user_id=current_user.id,
                 action="filing_version_created",
                 resource_type="filing",
                 resource_id=filing.id,
-                details={"version_number": 1, "fields": ["narrative"], "reason": "Initial submission snapshot"},
+                details={"version_number": 1, "fields": ["narrative"]},
             ))
 
             webhooks.emit(db, current_user.tenant_id, "filing.submitted",
@@ -305,16 +314,15 @@ def update_filing(
 
     filing.updated_at = datetime.utcnow()
 
-    # Audit log (only if we didn't already audit a version creation)
-    if not version_created:
-        db.add(AuditLog(
-            user_id=current_user.id,
-            action="filing_updated",
-            resource_type="filing",
-            resource_id=filing.id,
-            # field names and status only: the narrative may name people and the log cannot be edited
-            details={"fields": sorted(update.model_dump(exclude_unset=True)), "status": update.status},
-        ))
+    # Always audit the status/field changes (filing_version_created is additional, not a replacement)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="filing_updated",
+        resource_type="filing",
+        resource_id=filing.id,
+        # field names and status only: the narrative may name people and the log cannot be edited
+        details={"fields": sorted(update.model_dump(exclude_unset=True)), "status": update.status},
+    ))
 
     db.commit()
     db.refresh(filing)

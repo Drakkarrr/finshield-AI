@@ -21,7 +21,7 @@ export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Compliance',
     items: [
       { href: '/rules', icon: 'shield-check', label: 'Rules' },
-      { href: '/filings', icon: 'document-text', label: 'Filings' },
+      { href: '/filings', icon: 'document-text', label: 'Filings', requires: ['GET', '/api/v1/filings'] },
       { href: '/reports', icon: 'chart', label: 'Reports' },
     ],
   },

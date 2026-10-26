@@ -105,13 +105,20 @@ function FilingModal({ filing, onClose, onChanged }: { filing: Filing; onClose: 
   const { user } = useAuth();
   const [narrative, setNarrative] = useState(filing.narrative ?? '');
   const [reference, setReference] = useState(filing.reference_number ?? '');
+  const [amendmentReason, setAmendmentReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const canEdit = can(['PATCH', '/api/v1/filings/{filing_id}']);
   const canApprove = canEdit && hasRole(user?.role, FILING_APPROVAL_ROLE);
   const canDelete = can(['DELETE', '/api/v1/filings/{filing_id}']) && filing.status === 'draft';
+  const isAmendable = ['submitted', 'confirmed'].includes(filing.status);
 
-  const update = async (label: string, changes: { status?: string; narrative?: string; reference_number?: string }) => {
+  const versions = useSWR(
+    isAmendable ? ['filing-versions', filing.id] : null,
+    () => api.listFilingVersions(filing.id)
+  );
+
+  const update = async (label: string, changes: { status?: string; narrative?: string; reference_number?: string; amendment_reason?: string }) => {
     setBusy(label);
     setError('');
     try {
@@ -166,6 +173,9 @@ function FilingModal({ filing, onClose, onChanged }: { filing: Filing; onClose: 
       }
     >
       <div className="space-y-4">
+        <Alert tone="info">
+          <strong>Disclaimer:</strong> FinShield does not file with regulators on your behalf. All filings are prepared and submitted by your organization.
+        </Alert>
         <StatusBadge status={filing.status} />
         {error && <Alert tone="danger">{error}</Alert>}
         <dl className="grid grid-cols-2 gap-4 rounded-lg border border-border-light bg-surface-hover p-4">
@@ -181,10 +191,48 @@ function FilingModal({ filing, onClose, onChanged }: { filing: Filing; onClose: 
             <Textarea label="Narrative" rows={6} value={narrative} onChange={(e) => setNarrative(e.target.value)} />
             <Button variant="secondary" size="sm" onClick={() => update('Narrative saved', { narrative })} loading={busy === 'Narrative saved'}>Save narrative</Button>
           </div>
+        ) : canEdit && isAmendable ? (
+          <div className="space-y-2">
+            <Textarea label="Narrative" rows={6} value={narrative} onChange={(e) => setNarrative(e.target.value)} />
+            <Input
+              label="Amendment reason"
+              value={amendmentReason}
+              onChange={(e) => setAmendmentReason(e.target.value)}
+              helpText="Required when amending a submitted or confirmed filing."
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => update('Narrative amended', { narrative, amendment_reason: amendmentReason })}
+              loading={busy === 'Narrative amended'}
+              disabled={!amendmentReason.trim()}
+            >
+              Amend narrative
+            </Button>
+          </div>
         ) : (
           <section aria-labelledby="narrative-h">
             <h3 id="narrative-h" className="text-sm font-medium text-ink mb-1">Narrative</h3>
             <p className="whitespace-pre-wrap text-sm text-ink-secondary rounded-lg border border-border p-3">{filing.narrative || 'No narrative provided.'}</p>
+          </section>
+        )}
+
+        {isAmendable && versions.data && versions.data.length > 0 && (
+          <section aria-labelledby="versions-h">
+            <h3 id="versions-h" className="text-sm font-medium text-ink mb-2">Version history</h3>
+            <ul className="space-y-2">
+              {versions.data.map((v) => (
+                <li key={v.id} className="rounded-lg border border-border-light bg-surface-hover p-3">
+                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                    <span className="font-semibold">Version {v.version_number}</span>
+                    <span>·</span>
+                    <span>{formatDateTime(v.changed_at)}</span>
+                  </div>
+                  {v.change_reason && <p className="mt-1 text-xs text-ink-secondary">{v.change_reason}</p>}
+                  {v.narrative && <p className="mt-2 text-sm text-ink-secondary whitespace-pre-wrap line-clamp-3">{v.narrative}</p>}
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 

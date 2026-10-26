@@ -238,6 +238,16 @@ export interface Filing {
   updated_at: string;
 }
 
+export interface FilingVersion {
+  id: string;
+  filing_id: string;
+  version_number: number;
+  narrative: string | null;
+  changed_by: string;
+  changed_at: string;
+  change_reason: string | null;
+}
+
 // ── Health / stats ──
 export interface HealthData {
   status: string;
@@ -674,9 +684,11 @@ export const api = {
     request<Filing[]>(`/v1/filings${query({ status, filing_type: filingType })}`),
   createFiling: (caseId: string, filingType: string, narrative?: string) =>
     request<Filing>('/v1/filings', json('POST', { case_id: caseId, filing_type: filingType, narrative })),
-  updateFiling: (filingId: string, updates: { status?: string; narrative?: string; reference_number?: string }) =>
+  updateFiling: (filingId: string, updates: { status?: string; narrative?: string; reference_number?: string; amendment_reason?: string }) =>
     request<Filing>(`/v1/filings/${enc(filingId)}`, json('PATCH', updates)),
   deleteFiling: (filingId: string) => request<{ deleted: string }>(`/v1/filings/${enc(filingId)}`, json('DELETE')),
+  listFilingVersions: (filingId: string) =>
+    request<FilingVersion[]>(`/v1/filings/${enc(filingId)}/versions`),
 
   // Rules
   listRules: () => request<RuleDefinition[]>('/v1/rules'),
