@@ -102,11 +102,14 @@ class ApiKey(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_transactions_tenant_idempotency"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
-    idempotency_key: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String, index=True, nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[Optional[str]] = mapped_column(String, default="USD")
     transaction_type: Mapped[str] = mapped_column(String, nullable=False)
