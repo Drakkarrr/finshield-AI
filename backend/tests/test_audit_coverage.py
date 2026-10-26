@@ -207,6 +207,7 @@ async def test_forged_x_forwarded_for_is_ignored():
         assert r.status_code == 200
 
     # Check audit log - IP should NOT be the forged value
+    from app import crypto
     db = system_session()
     try:
         user = db.query(User).filter(User.email == email).first()
@@ -216,8 +217,10 @@ async def test_forged_x_forwarded_for_is_ignored():
         ).first()
         assert audit is not None
         assert audit.ip_address is not None
-        # The pseudonymised IP should not match the forged values
-        # (we can't check the exact value since it's pseudonymised, but we verify it's captured)
+        # Under ASGITransport the client host is 127.0.0.1
+        assert audit.ip_address == crypto.pseudonym("127.0.0.1")
+        # Must NOT match the forged values
+        assert audit.ip_address not in (crypto.pseudonym("1.2.3.4"), crypto.pseudonym("5.6.7.8"))
     finally:
         db.close()
 
