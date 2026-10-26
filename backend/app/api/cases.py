@@ -24,7 +24,7 @@ from app.db_models import (
     User,
 )
 from app.domain import cases as case_sla
-from app.domain import webhooks
+from app.domain import privacy, webhooks
 from app.models import (
     CaseCreateRequest,
     CaseResponse,
@@ -402,7 +402,6 @@ def delete_case(
         )
 
     # Check retention window (5 years from resolution or creation)
-    from app.domain import privacy
     reference_date = case.resolved_at or case.created_at
     within_retention, eligible_from = privacy.is_within_retention(db, reference_date)
     if within_retention:

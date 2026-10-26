@@ -136,7 +136,7 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 | ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
 |---|---|---|---|---|---|---|
-| ✓ | S7.1 Retention-safe deletes (transactions + cases refuse inside window or if linked; pseudonymise instead of hard delete) | — | M | pending | `APP_ENV=test python -m pytest tests/test_retention_deletes.py -v` → 9 passed | Refactored privacy.py to expose `is_within_retention()` and `pseudonymise_transaction()` helpers; frontend confirm text updated to reflect retention behavior |
+| ✓ | S7.1 Retention-safe deletes (transactions + cases refuse inside window or if linked; pseudonymise instead of hard delete) | — | M | 37de8d2 | Container (python:3.11-slim): `APP_ENV=test python -m pytest tests/ -q` → SQLite 161 passed, 9 skipped, 1 failed (test_sdk.py idempotency_key isolation, pre-existing), 1 deselected; OpenAPI snapshot test passes in container | Refactored privacy.py to expose `is_within_retention()` and `pseudonymise_transaction()` helpers; `erase()` now uses these helpers (DRY); frontend confirm text updated; SDK test failure is pre-existing test isolation issue (hardcoded idempotency_key "sdk-1" not cleaned between runs) |
 
 ---
 

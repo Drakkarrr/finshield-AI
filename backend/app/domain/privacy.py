@@ -133,7 +133,6 @@ def _scrub(value: Any, needles: list[str]) -> Any:
 def erase(db: Session, tenant_id: str, subject_type: str, subject: str, now: datetime | None = None) -> dict:
     now = now or datetime.utcnow()
     years = float(config_service.get_setting(db, "privacy.retention_years"))
-    cutoff = now - timedelta(days=365.25 * years)
     erased: list[str] = []
     retained: list[dict] = []
     if subject_type == "user":
@@ -158,21 +157,14 @@ def erase(db: Session, tenant_id: str, subject_type: str, subject: str, now: dat
     for t in txs:
         if t.id in linked:
             retained.append({"record": f"transaction:{t.id}", "reason": "linked case/filing", "legal_basis": FILING_BASIS})
-        elif t.created_at and t.created_at >= cutoff:
-            retained.append({"record": f"transaction:{t.id}", "reason": f"within {years:g}-year retention",
-                             "legal_basis": RETENTION_BASIS,
-                             "eligible_from": (t.created_at + timedelta(days=365.25 * years)).date().isoformat()})
         else:
-            needles = [x for x in {t.sender_name, t.receiver_name, t.account_id} if x and x.casefold() == subject.casefold()]
-            for field in ("sender_name", "receiver_name"):
-                if (getattr(t, field) or "").casefold() == subject.casefold():
-                    setattr(t, field, ERASED)
-            if (t.account_id or "").casefold() == subject.casefold():
-                t.account_id = crypto.pseudonym(t.account_id)
-            t.description = _scrub(t.description, needles)
-            for col in ("decision", "reasons", "rule_results", "rag_context"):
-                setattr(t, col, _scrub(getattr(t, col), needles))
-            erased.append(f"transaction:{t.id}")
+            within, eligible_from = is_within_retention(db, t.created_at, years, now)
+            if within:
+                retained.append({"record": f"transaction:{t.id}", "reason": f"within {years:g}-year retention",
+                                 "legal_basis": RETENTION_BASIS, "eligible_from": eligible_from})
+            else:
+                pseudonymise_transaction(t, subject=subject)
+                erased.append(f"transaction:{t.id}")
     return {"found": bool(txs), "erased": erased, "retained": retained,
             "audit_entries_referencing_subject": _audit_refs(db, tenant_id, subject),
             "audit_note": "audit entries hold pseudonyms only and are append-only; nothing to erase there"}
@@ -185,7 +177,7 @@ def classification(db: Session) -> dict:
             "dsar_due_days": config_service.get_setting(db, "privacy.dsar_due_days")}
 
 
-def is_within_retention(db: Session, record_date: datetime | None, years: float | None = None) -> tuple[bool, str | None]:
+def is_within_retention(db: Session, record_date: datetime | None, years: float | None = None, now: datetime | None = None) -> tuple[bool, str | None]:
     """Check if a record is within the retention window.
 
     Returns:
@@ -195,26 +187,44 @@ def is_within_retention(db: Session, record_date: datetime | None, years: float 
     """
     if not record_date:
         return False, None
+    now = now or datetime.utcnow()
     years = years if years is not None else float(config_service.get_setting(db, "privacy.retention_years"))
-    cutoff = datetime.utcnow() - timedelta(days=365.25 * years)
+    cutoff = now - timedelta(days=365.25 * years)
     if record_date >= cutoff:
         eligible_from = (record_date + timedelta(days=365.25 * years)).date().isoformat()
         return True, eligible_from
     return False, None
 
 
-def pseudonymise_transaction(tx: Transaction) -> None:
+def pseudonymise_transaction(tx: Transaction, subject: str | None = None) -> None:
     """Pseudonymise a transaction record by scrubbing PII fields.
+
+    Args:
+        tx: The transaction to pseudonymise
+        subject: If provided, only scrub fields matching this subject (case-insensitive).
+                 If None, scrub all PII fields.
 
     Replaces names with [erased], account_id with a pseudonym, and scrubs
     description/decision/reasons/rule_results/rag_context fields.
     """
-    needles = [x for x in {tx.sender_name, tx.receiver_name, tx.account_id} if x]
-    for field in ("sender_name", "receiver_name"):
-        if getattr(tx, field):
-            setattr(tx, field, ERASED)
-    if tx.account_id:
-        tx.account_id = crypto.pseudonym(tx.account_id)
+    if subject:
+        # DSAR erasure: only scrub fields matching the subject
+        subject_cf = subject.casefold()
+        needles = [x for x in {tx.sender_name, tx.receiver_name, tx.account_id}
+                   if x and x.casefold() == subject_cf]
+        for field in ("sender_name", "receiver_name"):
+            if (getattr(tx, field) or "").casefold() == subject_cf:
+                setattr(tx, field, ERASED)
+        if (tx.account_id or "").casefold() == subject_cf:
+            tx.account_id = crypto.pseudonym(tx.account_id)
+    else:
+        # Retention-safe delete: scrub all PII fields
+        needles = [x for x in {tx.sender_name, tx.receiver_name, tx.account_id} if x]
+        for field in ("sender_name", "receiver_name"):
+            if getattr(tx, field):
+                setattr(tx, field, ERASED)
+        if tx.account_id:
+            tx.account_id = crypto.pseudonym(tx.account_id)
     tx.description = _scrub(tx.description, needles)
     for col in ("decision", "reasons", "rule_results", "rag_context"):
         val = getattr(tx, col)
