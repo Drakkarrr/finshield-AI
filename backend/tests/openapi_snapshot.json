@@ -1729,13 +1729,6 @@
    },
    "ValidationError": {
     "properties": {
-     "ctx": {
-      "title": "Context",
-      "type": "object"
-     },
-     "input": {
-      "title": "Input"
-     },
      "loc": {
       "items": {
        "anyOf": [
@@ -2855,7 +2848,7 @@
   },
   "/api/v1/cases/{case_id}": {
    "delete": {
-    "description": "Delete a case and its comments.",
+    "description": "Delete a case and its comments/notes (retention-safe).",
     "operationId": "delete_case_api_v1_cases__case_id__delete",
     "parameters": [
      {
@@ -5230,7 +5223,7 @@
   },
   "/api/v1/transactions/{tx_id}": {
    "delete": {
-    "description": "Delete a transaction and its associated cases.",
+    "description": "Delete a transaction (retention-safe: refuses inside window or if linked).",
     "operationId": "delete_transaction_api_v1_transactions__tx_id__delete",
     "parameters": [
      {

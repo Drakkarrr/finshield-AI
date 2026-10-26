@@ -183,3 +183,40 @@ def classification(db: Session) -> dict:
             "masked_roles": config_service.get_setting(db, "privacy.mask_roles"),
             "retention_years": config_service.get_setting(db, "privacy.retention_years"),
             "dsar_due_days": config_service.get_setting(db, "privacy.dsar_due_days")}
+
+
+def is_within_retention(db: Session, record_date: datetime | None, years: float | None = None) -> tuple[bool, str | None]:
+    """Check if a record is within the retention window.
+
+    Returns:
+        tuple: (is_within, eligible_from_date)
+            - is_within: True if record cannot be deleted yet
+            - eligible_from_date: ISO date string when deletion becomes allowed (None if already allowed)
+    """
+    if not record_date:
+        return False, None
+    years = years if years is not None else float(config_service.get_setting(db, "privacy.retention_years"))
+    cutoff = datetime.utcnow() - timedelta(days=365.25 * years)
+    if record_date >= cutoff:
+        eligible_from = (record_date + timedelta(days=365.25 * years)).date().isoformat()
+        return True, eligible_from
+    return False, None
+
+
+def pseudonymise_transaction(tx: Transaction) -> None:
+    """Pseudonymise a transaction record by scrubbing PII fields.
+
+    Replaces names with [erased], account_id with a pseudonym, and scrubs
+    description/decision/reasons/rule_results/rag_context fields.
+    """
+    needles = [x for x in {tx.sender_name, tx.receiver_name, tx.account_id} if x]
+    for field in ("sender_name", "receiver_name"):
+        if getattr(tx, field):
+            setattr(tx, field, ERASED)
+    if tx.account_id:
+        tx.account_id = crypto.pseudonym(tx.account_id)
+    tx.description = _scrub(tx.description, needles)
+    for col in ("decision", "reasons", "rule_results", "rag_context"):
+        val = getattr(tx, col)
+        if val:
+            setattr(tx, col, _scrub(val, needles))

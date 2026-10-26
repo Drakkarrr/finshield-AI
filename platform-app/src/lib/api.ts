@@ -647,7 +647,7 @@ export const api = {
     return { items, total: header !== null ? Number(header) : offset + items.length };
   },
   getTransaction: (txId: string) => request<TransactionDetail>(`/v1/transactions/${enc(txId)}`),
-  deleteTransaction: (txId: string) => request<{ deleted: string }>(`/v1/transactions/${enc(txId)}`, json('DELETE')),
+  deleteTransaction: (txId: string) => request<{ pseudonymised: string }>(`/v1/transactions/${enc(txId)}`, json('DELETE')),
   exportTransactionsUrl: (startDate?: string, endDate?: string) =>
     `${API_BASE}/v1/transactions/export${query({ fmt: 'csv', start_date: startDate, end_date: endDate })}`,
   behavioralBaseline: (accountId: string) => request<BehavioralBaseline>(`/v1/behavioral/baseline/${enc(accountId)}`),

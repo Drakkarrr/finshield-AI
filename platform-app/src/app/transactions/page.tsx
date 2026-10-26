@@ -50,7 +50,7 @@ function Transactions() {
   const canDelete = can(['DELETE', '/api/v1/transactions/{tx_id}']);
 
   const handleDelete = async (txId: string) => {
-    if (!window.confirm('Delete this transaction and its associated cases? This cannot be undone.')) return;
+    if (!window.confirm('This will pseudonymise the transaction (remove PII) if outside the retention window. Continue?')) return;
     try {
       await api.deleteTransaction(txId);
       setDetailId(null);

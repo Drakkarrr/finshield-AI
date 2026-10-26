@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
-from app import crypto, metrics, screening_service
+from app import config_service, crypto, metrics, screening_service
 from app.auth import (
     get_current_user,
 )
@@ -14,7 +14,7 @@ from app.database import get_db
 from app.db_models import (
     AuditLog,
     Case,
-    CaseComment,
+    Filing,
     Notification,
     Transaction,
     User,
@@ -340,19 +340,65 @@ def delete_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a transaction and its associated cases."""
+    """Delete a transaction (retention-safe: refuses inside window or if linked)."""
     tx = db.query(Transaction).filter(
         Transaction.id == tx_id, Transaction.tenant_id == current_user.tenant_id
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    # Delete associated cases first (FK constraint)
-    db.query(Case).filter(Case.transaction_id == tx_id).delete()
-    db.query(CaseComment).filter(
-        CaseComment.case_id.in_(
-            db.query(Case.id).filter(Case.transaction_id == tx_id)
+
+    # Check if linked to a case or filing
+    linked_case = db.query(Case).filter(Case.transaction_id == tx_id).first()
+    linked_filing = db.query(Filing).join(Case, Filing.case_id == Case.id).filter(Case.transaction_id == tx_id).first() if linked_case else None
+
+    if linked_case or linked_filing:
+        reason = "linked case" if linked_case else "linked filing"
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="delete_refused",
+            resource_type="transaction",
+            resource_id=tx_id,
+            details={
+                "reason": reason,
+                "case_id": linked_case.id if linked_case else None,
+                "filing_id": linked_filing.id if linked_filing else None,
+            }
+        ))
+        db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: transaction is {reason}. Remove linked records first."
         )
-    ).delete()
-    db.delete(tx)
+
+    # Check retention window
+    within_retention, eligible_from = privacy.is_within_retention(db, tx.created_at)
+    if within_retention:
+        years = float(config_service.get_setting(db, "privacy.retention_years"))
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="delete_refused",
+            resource_type="transaction",
+            resource_id=tx_id,
+            details={
+                "reason": f"within {years:g}-year retention window",
+                "eligible_from": eligible_from,
+            }
+        ))
+        db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: within {years:g}-year retention window. Eligible from {eligible_from}."
+        )
+
+    # Outside retention window: pseudonymise instead of hard delete
+    privacy.pseudonymise_transaction(tx)
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="transaction_pseudonymised",
+        resource_type="transaction",
+        resource_id=tx_id,
+        details={"reason": "outside retention window", "method": "pseudonymise"}
+    ))
     db.commit()
-    return {"deleted": tx_id}
+    return {"pseudonymised": tx_id}

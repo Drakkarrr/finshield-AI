@@ -132,6 +132,12 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 **P6 gate:** every one of the 25 conditions in MASTER-PROMPT.md section 9 proven with evidence. Anything unproven is listed as open — do not soften it.
 
+## P7 — Record-keeping integrity
+
+| ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
+|---|---|---|---|---|---|---|
+| ✓ | S7.1 Retention-safe deletes (transactions + cases refuse inside window or if linked; pseudonymise instead of hard delete) | — | M | pending | `APP_ENV=test python -m pytest tests/test_retention_deletes.py -v` → 9 passed | Refactored privacy.py to expose `is_within_retention()` and `pseudonymise_transaction()` helpers; frontend confirm text updated to reflect retention behavior |
+
 ---
 
 ## Session log
