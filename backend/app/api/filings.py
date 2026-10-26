@@ -15,6 +15,7 @@ from app.db_models import (
     AuditLog,
     Case,
     Filing,
+    FilingVersion,
     Transaction,
     User,
 )
@@ -37,6 +38,7 @@ class FilingUpdate(BaseModel):
     narrative: Optional[str] = None
     status: Optional[str] = None  # draft, under_review, submitted, confirmed, rejected
     reference_number: Optional[str] = None
+    amendment_reason: Optional[str] = None  # Required when amending submitted/confirmed filings
 
 
 class FilingResponse(BaseModel):
@@ -204,25 +206,91 @@ def update_filing(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update a filing (narrative, status, reference number)."""
+    """Update a filing (narrative, status, reference number).
+
+    S7.3: For submitted/confirmed filings, narrative changes create a new version instead of modifying in place.
+    Requires amendment_reason for amendments.
+    """
     filing = db.query(Filing).filter(Filing.id == filing_id, Filing.tenant_id == current_user.tenant_id).first()
     if not filing:
         raise HTTPException(404, "Filing not found")
 
-    # Update fields
-    if update.narrative is not None:
+    # Track if we create a version (to avoid double-audit)
+    version_created = False
+    old_status = filing.status
+
+    # S7.3: If filing is submitted/confirmed and narrative is being changed, create a version
+    if filing.status in ("submitted", "confirmed") and update.narrative is not None and update.narrative != filing.narrative:
+        # Require amendment_reason
+        if not update.amendment_reason:
+            raise HTTPException(400, "amendment_reason is required when amending submitted/confirmed filings")
+
+        # Get the latest version number for this filing
+        latest_version = db.query(FilingVersion).filter(
+            FilingVersion.filing_id == filing_id
+        ).order_by(FilingVersion.version_number.desc()).first()
+
+        next_version_num = (latest_version.version_number + 1) if latest_version else 1
+
+        # Create a new version record
+        version = FilingVersion(
+            filing_id=filing_id,
+            tenant_id=current_user.tenant_id,
+            version_number=next_version_num,
+            narrative=update.narrative,
+            changed_by=current_user.id,
+            change_reason=update.amendment_reason,
+        )
+        db.add(version)
+        version_created = True
+
+        # Update the filing's narrative
         filing.narrative = update.narrative
+
+        # Audit the version creation
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="filing_version_created",
+            resource_type="filing",
+            resource_id=filing.id,
+            details={"version_number": next_version_num, "fields": ["narrative"], "reason": update.amendment_reason},
+        ))
+    else:
+        # Normal update path (not submitted/confirmed, or no narrative change)
+        if update.narrative is not None:
+            filing.narrative = update.narrative
 
     if update.status is not None:
         if update.status in ("submitted", "confirmed"):
             permissions.require(current_user, "supervisor")  # submission to a regulator is an approval
-        old_status = filing.status
+
         filing.status = update.status
 
-        # Track submission
+        # S7.3: Snapshot narrative as version 1 when filing becomes submitted
         if update.status == "submitted" and old_status != "submitted":
             filing.submitted_at = datetime.utcnow()
             filing.submitted_by = current_user.id
+
+            # Create version 1 snapshot
+            version = FilingVersion(
+                filing_id=filing.id,
+                tenant_id=current_user.tenant_id,
+                version_number=1,
+                narrative=filing.narrative,
+                changed_by=current_user.id,
+                change_reason="Initial submission snapshot",
+            )
+            db.add(version)
+            version_created = True
+
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="filing_version_created",
+                resource_type="filing",
+                resource_id=filing.id,
+                details={"version_number": 1, "fields": ["narrative"], "reason": "Initial submission snapshot"},
+            ))
+
             webhooks.emit(db, current_user.tenant_id, "filing.submitted",
                           {"filing_id": filing.id, "case_id": filing.case_id, "filing_type": filing.filing_type},
                           user_id=current_user.id)
@@ -237,15 +305,16 @@ def update_filing(
 
     filing.updated_at = datetime.utcnow()
 
-    # Audit log
-    db.add(AuditLog(
-        user_id=current_user.id,
-        action="filing_updated",
-        resource_type="filing",
-        resource_id=filing.id,
-        # field names and status only: the narrative may name people and the log cannot be edited
-        details={"fields": sorted(update.model_dump(exclude_unset=True)), "status": update.status},
-    ))
+    # Audit log (only if we didn't already audit a version creation)
+    if not version_created:
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="filing_updated",
+            resource_type="filing",
+            resource_id=filing.id,
+            # field names and status only: the narrative may name people and the log cannot be edited
+            details={"fields": sorted(update.model_dump(exclude_unset=True)), "status": update.status},
+        ))
 
     db.commit()
     db.refresh(filing)
@@ -266,6 +335,36 @@ def update_filing(
         created_at=filing.created_at.isoformat(),
         updated_at=filing.updated_at.isoformat(),
     )
+
+
+@router.get("/api/v1/filings/{filing_id}/versions", tags=["Filings"])
+def get_filing_versions(
+    filing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get the version history for a filing (S7.3)."""
+    filing = db.query(Filing).filter(Filing.id == filing_id, Filing.tenant_id == current_user.tenant_id).first()
+    if not filing:
+        raise HTTPException(404, "Filing not found")
+
+    versions = db.query(FilingVersion).filter(
+        FilingVersion.filing_id == filing_id,
+        FilingVersion.tenant_id == current_user.tenant_id
+    ).order_by(FilingVersion.version_number.desc()).all()
+
+    return [
+        {
+            "id": v.id,
+            "filing_id": v.filing_id,
+            "version_number": v.version_number,
+            "narrative": v.narrative,
+            "changed_by": v.changed_by,
+            "changed_at": v.changed_at.isoformat(),
+            "change_reason": v.change_reason,
+        }
+        for v in versions
+    ]
 
 
 @router.delete("/api/v1/filings/{filing_id}", tags=["Filings"])

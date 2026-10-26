@@ -27,6 +27,9 @@ MATRIX: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/cases/aggregate"): "investigator",
     ("POST", "/api/v1/filings"): "investigator",
     ("PATCH", "/api/v1/filings/{filing_id}"): "investigator",  # submit/confirm needs supervisor (in handler)
+    ("GET", "/api/v1/filings"): "investigator",  # S7.3: filing reads need investigator+
+    ("GET", "/api/v1/filings/{filing_id}"): "investigator",  # S7.3: filing reads need investigator+
+    ("GET", "/api/v1/filings/{filing_id}/versions"): "investigator",  # S7.3: version history
     ("POST", "/api/v1/rules/{rule_id}/record-hit"): "investigator",
     ("POST", "/api/v1/rules/{rule_id}/record-false-positive"): "investigator",
     ("POST", "/api/v1/behavioral/update-baseline"): "investigator",

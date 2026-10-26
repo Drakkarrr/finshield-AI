@@ -342,6 +342,26 @@ class Filing(Base):
     user = relationship("User")
 
 
+class FilingVersion(Base):
+    """Version history for submitted filings (S7.3)."""
+    __tablename__ = "filing_versions"
+    __table_args__ = (
+        UniqueConstraint('filing_id', 'version_number', name='uq_filing_versions_filing_version'),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    filing_id: Mapped[str] = mapped_column(String, ForeignKey("filings.id"), nullable=False, index=True)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    narrative: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    changed_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    change_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    filing = relationship("Filing")
+    user = relationship("User")
+
+
 class CircuitBreaker(Base):
     """Circuit breaker state per real dependency (see app.resilience.DEPENDENCIES)."""
     __tablename__ = "circuit_breakers"

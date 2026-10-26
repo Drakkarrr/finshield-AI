@@ -547,6 +547,17 @@
    },
    "FilingUpdate": {
     "properties": {
+     "amendment_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Amendment Reason"
+     },
      "narrative": {
       "anyOf": [
        {
@@ -3528,7 +3539,7 @@
     ]
    },
    "patch": {
-    "description": "Update a filing (narrative, status, reference number).",
+    "description": "Update a filing (narrative, status, reference number).\n\nS7.3: For submitted/confirmed filings, narrative changes create a new version instead of modifying in place.\nRequires amendment_reason for amendments.",
     "operationId": "update_filing_api_v1_filings__filing_id__patch",
     "parameters": [
      {
@@ -3579,6 +3590,52 @@
      }
     ],
     "summary": "Update Filing",
+    "tags": [
+     "Filings"
+    ]
+   }
+  },
+  "/api/v1/filings/{filing_id}/versions": {
+   "get": {
+    "description": "Get the version history for a filing (S7.3).",
+    "operationId": "get_filing_versions_api_v1_filings__filing_id__versions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "filing_id",
+      "required": true,
+      "schema": {
+       "title": "Filing Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Filing Versions",
     "tags": [
      "Filings"
     ]
