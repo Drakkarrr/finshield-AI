@@ -232,7 +232,7 @@ function CaseModal({ caseData, onClose, onChanged }: { caseData: CaseData; onClo
   const canDelete = can(['DELETE', '/api/v1/cases/{case_id}']);
 
   const remove = async () => {
-    if (!window.confirm(`Delete case ${caseData.case_id} and its comments? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete case ${caseData.case_id}? Only cases outside the retention window and without linked filings can be deleted.`)) return;
     try {
       await api.deleteCase(caseData.case_id);
       onChanged(`Case ${caseData.case_id} deleted.`);

@@ -132,6 +132,12 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 **P6 gate:** every one of the 25 conditions in MASTER-PROMPT.md section 9 proven with evidence. Anything unproven is listed as open — do not soften it.
 
+## P7 — Record-keeping integrity
+
+| ✓ | Slice | Decision | Effort | Commit | Test command run | Deviations |
+|---|---|---|---|---|---|---|
+| ✓ | S7.1 Retention-safe deletes (transactions + cases refuse inside window or if linked; pseudonymise instead of hard delete) | — | M | 37de8d2 | Container (python:3.11-slim): `APP_ENV=test python -m pytest tests/ -q` → SQLite 161 passed, 9 skipped, 1 failed (test_sdk.py idempotency_key isolation, pre-existing), 1 deselected; OpenAPI snapshot test passes in container | Refactored privacy.py to expose `is_within_retention()` and `pseudonymise_transaction()` helpers; `erase()` now uses these helpers (DRY); frontend confirm text updated; SDK test failure is pre-existing test isolation issue (hardcoded idempotency_key "sdk-1" not cleaned between runs) |
+
 ---
 
 ## Session log

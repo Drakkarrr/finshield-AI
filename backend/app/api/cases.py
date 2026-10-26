@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import config_service
 from app.auth import (
     get_current_user,
 )
@@ -17,12 +18,13 @@ from app.db_models import (
     Case,
     CaseComment,
     CaseNote,
+    Filing,
     Notification,
     Transaction,
     User,
 )
 from app.domain import cases as case_sla
-from app.domain import webhooks
+from app.domain import privacy, webhooks
 from app.models import (
     CaseCreateRequest,
     CaseResponse,
@@ -373,13 +375,62 @@ def delete_case(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a case and its comments."""
+    """Delete a case and its comments/notes (retention-safe)."""
     case = db.query(Case).filter(
         Case.id == case_id, Case.tenant_id == current_user.tenant_id
     ).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
+
+    # Check for linked filings (always refused, any age)
+    linked_filing = db.query(Filing).filter(Filing.case_id == case_id).first()
+    if linked_filing:
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="delete_refused",
+            resource_type="case",
+            resource_id=case_id,
+            details={
+                "reason": "linked filing",
+                "filing_id": linked_filing.id,
+            }
+        ))
+        db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete: case has a linked regulatory filing."
+        )
+
+    # Check retention window (5 years from resolution or creation)
+    reference_date = case.resolved_at or case.created_at
+    within_retention, eligible_from = privacy.is_within_retention(db, reference_date)
+    if within_retention:
+        years = float(config_service.get_setting(db, "privacy.retention_years"))
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="delete_refused",
+            resource_type="case",
+            resource_id=case_id,
+            details={
+                "reason": f"within {years:g}-year retention window",
+                "eligible_from": eligible_from,
+            }
+        ))
+        db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: within {years:g}-year retention window. Eligible from {eligible_from}."
+        )
+
     db.query(CaseComment).filter(CaseComment.case_id == case_id).delete()
+    db.query(CaseNote).filter(CaseNote.case_id == case_id).delete()
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="case_deleted",
+        resource_type="case",
+        resource_id=case_id,
+        details={"transaction_id": case.transaction_id}
+    ))
     db.delete(case)
     db.commit()
     return {"deleted": case_id}
