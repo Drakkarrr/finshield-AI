@@ -25,10 +25,19 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # A caller (e.g. a migration test on a throwaway database) may pass its own connection.
+    supplied = config.attributes.get("connection")
+    if supplied is not None:
+        _run(supplied)
+        return
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
-        with context.begin_transaction():
-            context.run_migrations()
+        _run(connection)
+
+
+def _run(connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    with context.begin_transaction():
+        context.run_migrations()
 
 
 if context.is_offline_mode():

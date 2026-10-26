@@ -8,7 +8,8 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
 import app.db_models  # noqa: F401
 from app.database import Base, engine
@@ -33,90 +34,58 @@ def test_migrations_match_models():
     assert diff == []
 
 
-def test_migration_0013_backfills_filing_versions():
-    """Migration 0013 backfills version 1 for existing submitted/confirmed filings."""
+def _alembic(connection) -> Config:
     cfg = Config(str(BACKEND / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    cfg.attributes["connection"] = connection  # migrate this database, not the suite's
+    return cfg
 
-    # Generate unique IDs for test data
-    filing_id_1 = f"test-filing-{uuid.uuid4().hex[:8]}"
-    filing_id_2 = f"test-filing-{uuid.uuid4().hex[:8]}"
 
-    # Downgrade to 0012 (before filing_versions table exists)
-    command.downgrade(cfg, "0012")
-
+def test_migration_0013_backfills_filing_versions():
+    """0013 snapshots the narrative of filings submitted before versioning existed, so the text
+    sent to the regulator survives the first amendment. Runs on its own throwaway database: the
+    suite's database is never downgraded, and nothing depends on data from other tests."""
+    owner_url = engine.url.render_as_string(hide_password=False)
+    name = f"fs_migtest_{uuid.uuid4().hex[:8]}"
+    admin = create_engine(owner_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        conn.execute(text(f'CREATE DATABASE "{name}"'))
+    scratch = create_engine(make_url(owner_url).set(database=name))  # owner: no RLS, no app role
     try:
-        # Insert test data: one submitted filing with submitted_at/submitted_by set,
-        # one confirmed filing with them NULL
-        with engine.connect() as conn:
-            # Enable RLS bypass for system-level operations
-            conn.execute(text("SET app.rls_bypass = 'on'"))
-            # Get a tenant and user to use
-            tenant_id = conn.execute(text("SELECT id FROM tenants LIMIT 1")).scalar()
-            user_id = conn.execute(text("SELECT id FROM users LIMIT 1")).scalar()
-            case_id = conn.execute(text("SELECT id FROM cases LIMIT 1")).scalar()
-
-            if not all([tenant_id, user_id, case_id]):
-                pytest.skip("Need at least one tenant, user, and case in the database")
-
-            # Insert a submitted filing with submitted_at and submitted_by set
+        with scratch.connect() as conn:
+            command.upgrade(_alembic(conn), "0012")
+            conn.commit()
             conn.execute(text("""
-                INSERT INTO filings (id, case_id, user_id, filing_type, status, narrative, tenant_id, submitted_at, submitted_by, created_at, updated_at)
-                VALUES (:filing_id_1, :case_id, :user_id, 'SAR', 'submitted', 'Original narrative 1', :tenant_id, now(), :user_id, now(), now())
-            """), {"filing_id_1": filing_id_1, "case_id": case_id, "user_id": user_id, "tenant_id": tenant_id})
-
-            # Insert a confirmed filing with submitted_at and submitted_by NULL
-            conn.execute(text("""
-                INSERT INTO filings (id, case_id, user_id, filing_type, status, narrative, tenant_id, created_at, updated_at)
-                VALUES (:filing_id_2, :case_id, :user_id, 'SAR', 'confirmed', 'Original narrative 2', :tenant_id, now(), now())
-            """), {"filing_id_2": filing_id_2, "case_id": case_id, "user_id": user_id, "tenant_id": tenant_id})
-
+                INSERT INTO tenants (id, name, created_at) VALUES ('t1', 't1', now());
+                INSERT INTO users (id, tenant_id, email, hashed_password, first_name, last_name, role, plan,
+                                   total_credits, used_credits, is_active, is_verified, is_trial, created_at, updated_at)
+                    VALUES ('u1', 't1', 'mig@test.io', 'x', 'M', 'T', 'admin', 'starter', 0, 0, true, false, false, now(), now());
+                INSERT INTO transactions (id, tenant_id, user_id, idempotency_key, amount, transaction_type,
+                                          sender_name, receiver_name, created_at)
+                    VALUES ('x1', 't1', 'u1', 'k1', 1, 'ach', 's', 'r', now());
+                INSERT INTO cases (id, tenant_id, transaction_id, user_id, reason, created_at)
+                    VALUES ('c1', 't1', 'x1', 'u1', 'r', now());
+                INSERT INTO filings (id, tenant_id, case_id, user_id, filing_type, status, narrative,
+                                     submitted_at, submitted_by, created_at, updated_at) VALUES
+                    ('f-sub', 't1', 'c1', 'u1', 'SAR', 'submitted', 'as submitted', now(), 'u1', now(), now()),
+                    ('f-conf', 't1', 'c1', 'u1', 'SAR', 'confirmed', 'as confirmed', NULL, NULL, now(), now()),
+                    ('f-draft', 't1', 'c1', 'u1', 'SAR', 'draft', 'still a draft', NULL, NULL, now(), now());
+            """))
             conn.commit()
 
-        # Upgrade to 0013 (should backfill version 1 for both filings)
-        command.upgrade(cfg, "0013")
-
-        # Verify backfill
-        with engine.connect() as conn:
-            # Check filing 1 (had submitted_at and submitted_by)
-            v1 = conn.execute(text(f"""
-                SELECT version_number, narrative, changed_by, changed_at, change_reason
-                FROM filing_versions WHERE filing_id = '{filing_id_1}' AND version_number = 1
-            """)).fetchone()
-            assert v1 is not None, f"Version 1 should exist for {filing_id_1}"
-            assert v1.narrative == "Original narrative 1"
-            assert v1.changed_by == user_id
-            assert v1.change_reason == "Backfilled version 1 for pre-existing filing"
-
-            # Check filing 2 (had submitted_at and submitted_by NULL)
-            v2 = conn.execute(text(f"""
-                SELECT version_number, narrative, changed_by, changed_at, change_reason
-                FROM filing_versions WHERE filing_id = '{filing_id_2}' AND version_number = 1
-            """)).fetchone()
-            assert v2 is not None, f"Version 1 should exist for {filing_id_2}"
-            assert v2.narrative == "Original narrative 2"
-            assert v2.changed_by == user_id  # Should fall back to user_id
-            assert v2.change_reason == "Backfilled version 1 for pre-existing filing"
-
-        # Test downgrade and upgrade again (reversibility)
-        command.downgrade(cfg, "0012")
-        command.upgrade(cfg, "0013")
-
-        # Verify backfill still works after downgrade/upgrade cycle
-        with engine.connect() as conn:
-            v1 = conn.execute(text(f"""
-                SELECT version_number, narrative FROM filing_versions WHERE filing_id = '{filing_id_1}' AND version_number = 1
-            """)).fetchone()
-            assert v1 is not None
-            assert v1.narrative == "Original narrative 1"
-
+            for _ in range(2):  # upgrade, then prove the downgrade/upgrade cycle works with data present
+                command.upgrade(_alembic(conn), "0013")
+                conn.commit()
+                rows = {r.filing_id: r for r in conn.execute(text(
+                    "SELECT filing_id, version_number, narrative, changed_by, changed_at FROM filing_versions"))}
+                assert set(rows) == {"f-sub", "f-conf"}  # drafts are not versioned
+                assert rows["f-sub"].narrative == "as submitted" and rows["f-conf"].narrative == "as confirmed"
+                assert all(r.version_number == 1 and r.changed_by == "u1" and r.changed_at is not None
+                           for r in rows.values())  # f-conf had no submitted_by / submitted_at
+                command.downgrade(_alembic(conn), "0012")
+                conn.commit()
     finally:
-        # Ensure we're at head before cleanup
-        command.upgrade(cfg, "head")
-        # Clean up test data
-        with engine.connect() as conn:
-            conn.execute(text("SET app.rls_bypass = 'on'"))
-            conn.execute(text(f"DELETE FROM filing_versions WHERE filing_id IN ('{filing_id_1}', '{filing_id_2}')"))
-            conn.execute(text(f"DELETE FROM filings WHERE id IN ('{filing_id_1}', '{filing_id_2}')"))
-            conn.commit()
-
+        scratch.dispose()
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()
