@@ -160,12 +160,18 @@ function Flags({ canEdit }: { canEdit: boolean }) {
 function Models({ canPromote }: { canPromote: boolean }) {
   const models = useSWR('models', api.listModels);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const promote = async (id: string, label: string) => {
     if (!window.confirm(`Make ${label} the active scoring model? The current active version is retired.`)) return;
     setError('');
+    setSuccess('');
     try {
-      await api.promoteModel(id);
-      models.mutate();
+      const result = await api.promoteModel(id);
+      if ('change_request_id' in result) {
+        setSuccess(result.message || 'Model promotion proposed. Awaiting approval.');
+      } else {
+        models.mutate();
+      }
     } catch (e) {
       setError(errorMessage(e, 'Promotion failed.'));
     }
@@ -173,6 +179,7 @@ function Models({ canPromote }: { canPromote: boolean }) {
   return (
     <Section id="models-h" title="Risk model versions" description="Shadow versions are scored on every eligible screening but never affect a decision until promoted.">
       {error && <div className="px-5 pb-3"><Alert tone="danger">{error}</Alert></div>}
+      {success && <div className="px-5 pb-3"><Alert tone="info">{success}</Alert></div>}
       {models.isLoading ? <LoadingState /> : models.error ? <div className="p-5"><Alert tone="danger">{errorMessage(models.error)}</Alert></div> : (models.data ?? []).length === 0 ? (
         <EmptyState title="No model versions registered." />
       ) : (

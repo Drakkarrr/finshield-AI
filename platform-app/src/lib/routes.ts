@@ -29,6 +29,7 @@ export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Governance',
     items: [
       { href: '/audit', icon: 'clipboard', label: 'Audit Trail', requires: ['GET', '/api/v1/audit'] },
+      { href: '/approvals', icon: 'shield-check', label: 'Approvals', requires: ['GET', '/api/v1/change-requests'] },
       { href: '/privacy', icon: 'lock', label: 'Privacy Requests', requires: ['GET', '/api/v1/privacy/requests'] },
       { href: '/webhooks', icon: 'bolt', label: 'Webhooks', requires: ['GET', '/api/v1/webhooks'] },
     ],

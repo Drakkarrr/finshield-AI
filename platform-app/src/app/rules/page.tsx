@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import useSWR from 'swr';
 import PlatformLayout from '@/components/PlatformLayout';
 import { useCan } from '@/contexts/AuthContext';
-import { api, errorMessage, RuleDefinition, RuleSimulation } from '@/lib/api';
+import { api, errorMessage, RuleDefinition, RuleSimulation, ChangeRequest } from '@/lib/api';
 import {
   Alert, Badge, Button, Card, InfoRow, Input, LoadingState, Modal, PageHeader, Switch, Tone, humanize,
 } from '@/components/ui';
@@ -15,24 +15,37 @@ const ACTION_TONES: Record<string, Tone> = { block: 'danger', flag: 'warning', r
 function Rules() {
   const can = useCan();
   const rules = useSWR('rules', api.listRules);
+  const changeRequests = useSWR('change-requests-pending', () => api.listChangeRequests('pending'));
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [toggling, setToggling] = useState<string | null>(null);
   const [editing, setEditing] = useState<RuleDefinition | null>(null);
   const [inspecting, setInspecting] = useState<RuleDefinition | null>(null);
   const canConfigure = can(['PATCH', '/api/v1/rules/{rule_id}']);
   const list = rules.data ?? [];
+  const pendingRequests = changeRequests.data ?? [];
 
   const toggle = async (rule: RuleDefinition) => {
     setToggling(rule.rule_id);
     setError('');
+    setSuccess('');
     try {
-      await api.updateRule(rule.rule_id, { enabled: !rule.enabled });
-      await rules.mutate();
+      const result = await api.updateRule(rule.rule_id, { enabled: !rule.enabled });
+      if ('change_request_id' in result) {
+        setSuccess(result.message || 'Change request created. Awaiting approval.');
+        await changeRequests.mutate();
+      } else {
+        await rules.mutate();
+      }
     } catch (e) {
       setError(errorMessage(e, 'Failed to change the rule.'));
     } finally {
       setToggling(null);
     }
+  };
+
+  const getPendingRequest = (ruleId: string): ChangeRequest | undefined => {
+    return pendingRequests.find(cr => cr.resource_id === ruleId);
   };
 
   return (
@@ -46,6 +59,7 @@ function Rules() {
         <Alert tone="info">Rules are configured by admins. You can review them and their hit statistics.</Alert>
       )}
       {error && <Alert tone="danger" onDismiss={() => setError('')}>{error}</Alert>}
+      {success && <Alert tone="info" onDismiss={() => setSuccess('')}>{success}</Alert>}
 
       {rules.isLoading && !rules.data ? (
         <Card><LoadingState label="Loading rules…" /></Card>
@@ -53,7 +67,10 @@ function Rules() {
         <Alert tone="danger" title="Could not load rules">{errorMessage(rules.error)}</Alert>
       ) : (
         <ul className="space-y-3">
-          {list.map((r) => (
+          {list.map((r) => {
+            const pendingRequest = getPendingRequest(r.rule_id);
+            const isRule001 = r.rule_id === 'RULE-001';
+            return (
             <li key={r.rule_id}>
               <Card>
                 <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
@@ -63,9 +80,13 @@ function Rules() {
                     <Badge tone={ACTION_TONES[r.action] ?? 'neutral'}>{humanize(r.action)}</Badge>
                     {!r.enabled && <Badge tone="neutral">Disabled</Badge>}
                     {r.is_customized && <Badge tone="accent">Customized</Badge>}
+                    {pendingRequest && <Badge tone="warning">Pending approval</Badge>}
                   </div>
-                  {canConfigure && (
-                    <Switch label={`Enable ${r.name}`} hideLabel checked={r.enabled} disabled={toggling === r.rule_id} onChange={() => toggle(r)} />
+                  {canConfigure && !isRule001 && (
+                    <Switch label={`Enable ${r.name}`} hideLabel checked={r.enabled} disabled={toggling === r.rule_id || !!pendingRequest} onChange={() => toggle(r)} />
+                  )}
+                  {isRule001 && canConfigure && (
+                    <span className="text-xs text-ink-muted italic">Cannot be disabled</span>
                   )}
                 </div>
                 <p className="text-sm text-ink-secondary mb-3">{r.description}</p>
@@ -81,14 +102,15 @@ function Rules() {
                     <Button variant="ghost" size="sm" onClick={() => setInspecting(r)} aria-label={`Statistics and simulation for ${r.name}`}>
                       Stats{can(['POST', '/api/v1/rules/simulate']) ? ' & simulate' : ''}
                     </Button>
-                    {canConfigure && r.metadata?.editable && (
+                    {canConfigure && r.metadata?.editable && !pendingRequest && (
                       <Button variant="secondary" size="sm" onClick={() => setEditing(r)} aria-label={`Edit parameters of ${r.name}`}>Edit parameters</Button>
                     )}
                   </div>
                 </div>
               </Card>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
@@ -171,6 +193,7 @@ function EditRuleModal({ rule, onClose, onSaved }: { rule: RuleDefinition; onClo
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,9 +206,17 @@ function EditRuleModal({ rule, onClose, onSaved }: { rule: RuleDefinition; onClo
     });
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
-      await api.updateRule(rule.rule_id, { custom_parameters: parsed });
-      onSaved();
+      const result = await api.updateRule(rule.rule_id, { custom_parameters: parsed });
+      if ('change_request_id' in result) {
+        setSuccess(result.message || 'Change request created. Awaiting approval.');
+        setTimeout(() => {
+          onSaved();
+        }, 2000);
+      } else {
+        onSaved();
+      }
     } catch (err) {
       setError(errorMessage(err, 'Failed to update rule parameters.'));
       setSaving(false);
@@ -207,6 +238,7 @@ function EditRuleModal({ rule, onClose, onSaved }: { rule: RuleDefinition; onClo
           />
         ))}
         {error && <Alert tone="danger">{error}</Alert>}
+        {success && <Alert tone="info">{success}</Alert>}
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" loading={saving}>Save changes</Button>

@@ -330,6 +330,20 @@ export interface ModelVersion {
   activated_at: string | null;
 }
 
+// ── Change requests (S7.4) ──
+export interface ChangeRequest {
+  id: string;
+  tenant_id: string;
+  change_type: string;
+  resource_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  proposed_by: string;
+  approved_by: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  resolved_at: string | null;
+}
+
 // ── Rules ──
 export interface RuleDefinition {
   rule_id: string;
@@ -692,8 +706,8 @@ export const api = {
 
   // Rules
   listRules: () => request<RuleDefinition[]>('/v1/rules'),
-  updateRule: (ruleId: string, data: { enabled?: boolean; custom_parameters?: Record<string, unknown> }) =>
-    request<{ rule_id: string; detail: string }>(`/v1/rules/${enc(ruleId)}`, json('PATCH', data)),
+  updateRule: (ruleId: string, data: { enabled?: boolean; custom_parameters?: Record<string, unknown>; effective_from?: string; effective_to?: string }) =>
+    request<{ rule_id: string; detail: string } | { change_request_id: string; status: string; message: string }>(`/v1/rules/${enc(ruleId)}`, json('PATCH', data)),
   simulateRule: (ruleId: string, days: number) =>
     request<RuleSimulation>('/v1/rules/simulate', json('POST', { rule_id: ruleId, days })),
   ruleStats: (ruleId: string) => request<RuleStats>(`/v1/rules/${enc(ruleId)}/stats`),
@@ -757,7 +771,15 @@ export const api = {
   updateFlag: (key: string, enabled: boolean) =>
     request<{ key: string; enabled: boolean }>(`/v1/flags/${enc(key)}`, json('PUT', { enabled })),
   listModels: () => request<ModelVersion[]>('/v1/models'),
-  promoteModel: (versionId: string) => request<ModelVersion>(`/v1/models/${enc(versionId)}/promote`, json('POST')),
+  promoteModel: (versionId: string) => request<ModelVersion | { change_request_id: string; status: string; message: string }>(`/v1/models/${enc(versionId)}/promote`, json('POST')),
+
+  // Change requests (S7.4)
+  listChangeRequests: (status?: string) => request<ChangeRequest[]>(`/v1/change-requests${status ? `?status=${status}` : ''}`),
+  getChangeRequest: (id: string) => request<ChangeRequest>(`/v1/change-requests/${enc(id)}`),
+  approveChangeRequest: (id: string, reason?: string) =>
+    request<ChangeRequest>(`/v1/change-requests/${enc(id)}/approve`, json('POST', { reason })),
+  rejectChangeRequest: (id: string, reason: string) =>
+    request<ChangeRequest>(`/v1/change-requests/${enc(id)}/reject`, json('POST', { reason })),
 };
 
 /** Message for a caught error; 403 says which role is missing (the backend's detail names it). */
