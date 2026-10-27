@@ -1,4 +1,4 @@
-"""FinShield AI — Risk model versions: list, register (shadow), promote (S2.5)."""
+"""FinShield AI — Risk model versions: list, register (shadow), promote (S2.5, S7.4)."""
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.db_models import ModelVersion, User
+from app.db_models import AuditLog, ChangeRequest, ModelVersion, User
 from app.domain.models_registry import registry
 
 router = APIRouter()
@@ -50,9 +50,42 @@ def register_model(req: ModelRegisterRequest, current_user: User = Depends(get_c
 
 @router.post("/api/v1/models/{version_id}/promote", tags=["Models"])
 def promote_model(version_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Make this version the single active one (the previous active version is retired)."""
-    try:
-        row = registry.promote(db, version_id, current_user.id)
-    except LookupError:
-        raise HTTPException(status_code=404, detail="Model version not found") from None
-    return _out(row)
+    """Propose a model promotion. Requires approval from a different supervisor or admin (S7.4)."""
+    row = db.query(ModelVersion).filter(ModelVersion.id == version_id).first()
+    if not row or row.kind != "risk":
+        raise HTTPException(status_code=404, detail="Model version not found")
+
+    # Check if there's already a pending promotion for this version
+    existing = db.query(ChangeRequest).filter(
+        ChangeRequest.tenant_id == current_user.tenant_id,
+        ChangeRequest.change_type == "model_promote",
+        ChangeRequest.resource_id == version_id,
+        ChangeRequest.status == "pending",
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="A promotion request is already pending for this version")
+
+    # Create a change request
+    cr = ChangeRequest(
+        tenant_id=current_user.tenant_id,
+        change_type="model_promote",
+        resource_id=version_id,
+        proposed_by=current_user.id,
+        payload={"model_version_id": version_id, "label": row.label},
+    )
+    db.add(cr)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="change_request_proposed",
+        resource_type="change_request",
+        resource_id=version_id,
+        details={"change_type": "model_promote", "model_version_id": version_id},
+    ))
+    db.commit()
+    db.refresh(cr)
+
+    return {
+        "change_request_id": cr.id,
+        "status": "pending",
+        "message": "Model promotion proposed. Requires approval from a different supervisor or admin.",
+    }

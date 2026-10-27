@@ -1,4 +1,4 @@
-"""FinShield AI — Hard-rule configuration, simulation and hit reporting."""
+"""FinShield AI — Hard-rule configuration, simulation and hit reporting (S7.4: four-eyes for changes)."""
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -13,6 +13,7 @@ from app.auth import (
 from app.database import get_db
 from app.db_models import (
     AuditLog,
+    ChangeRequest,
     RuleConfig,
     Transaction,
     User,
@@ -58,27 +59,83 @@ def update_rule(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Toggle or customize a compliance rule for the current user. Every change bumps the
-    override's version and is audit-logged with before/after values."""
+    """Toggle or customize a compliance rule. Disable and override changes require approval (S7.4).
+    RULE-001 (sanctions) cannot be disabled at all."""
     definitions = _definitions(db)
     if not any(r["rule_id"] == rule_id for r in definitions):
         raise HTTPException(status_code=404, detail="Rule not found")
 
+    # Block RULE-001 disable
+    if rule_id == "RULE-001" and req.enabled is False:
+        raise HTTPException(status_code=422, detail="RULE-001 (sanctions) cannot be disabled")
+
     config = db.query(RuleConfig).filter(
         RuleConfig.tenant_id == current_user.tenant_id, RuleConfig.rule_id == rule_id
     ).first()
+    before = _config_snapshot(config) if config else None
+
+    changes = req.model_dump(exclude_unset=True)
+    window_from = changes.get("effective_from", config.effective_from if config else None)
+    window_to = changes.get("effective_to", config.effective_to if config else None)
+    if window_from and window_to and window_to <= window_from:
+        raise HTTPException(status_code=422, detail="effective_to must be after effective_from")
+
+    # Check if this is a disable or override that requires approval
+    is_disable = "enabled" in changes and changes["enabled"] is False
+    is_override = "custom_parameters" in changes or "priority" in changes
+
+    # Window changes also require approval if the rule is already disabled or has an active override
+    existing_has_override = config and (
+        config.enabled is False or
+        config.custom_parameters is not None or
+        config.priority != 100
+    )
+    is_window_change = "effective_from" in changes or "effective_to" in changes
+
+    if is_disable or is_override or (is_window_change and existing_has_override):
+        # Create a change request
+        change_type = "rule_disable" if is_disable else "rule_override"
+        existing = db.query(ChangeRequest).filter(
+            ChangeRequest.tenant_id == current_user.tenant_id,
+            ChangeRequest.change_type == change_type,
+            ChangeRequest.resource_id == rule_id,
+            ChangeRequest.status == "pending",
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"A {change_type} request is already pending for this rule")
+
+        # Serialize the payload for JSON storage (converts datetime to ISO strings)
+        payload = req.model_dump(mode="json", exclude_unset=True)
+
+        cr = ChangeRequest(
+            tenant_id=current_user.tenant_id,
+            change_type=change_type,
+            resource_id=rule_id,
+            proposed_by=current_user.id,
+            payload=payload,
+        )
+        db.add(cr)
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="change_request_proposed",
+            resource_type="change_request",
+            resource_id=rule_id,
+            details={"change_type": change_type, "rule_id": rule_id},
+        ))
+        db.commit()
+        db.refresh(cr)
+
+        return {
+            "change_request_id": cr.id,
+            "status": "pending",
+            "message": f"Rule {change_type.replace('_', ' ')} proposed. Requires approval from a different supervisor or admin.",
+        }
+
+    # Direct apply for simple changes (effective window only)
     if not config:
         config = RuleConfig(user_id=current_user.id, rule_id=rule_id, enabled=True, priority=100, version=0)
         db.add(config)
-        before = None
-    else:
-        before = _config_snapshot(config)
 
-    changes = req.model_dump(exclude_unset=True)
-    window_from = changes.get("effective_from", config.effective_from)
-    window_to = changes.get("effective_to", config.effective_to)
-    if window_from and window_to and window_to <= window_from:
-        raise HTTPException(status_code=422, detail="effective_to must be after effective_from")
     for field, value in changes.items():
         setattr(config, field, value)
     config.version = (config.version or 0) + 1

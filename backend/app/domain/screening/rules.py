@@ -138,7 +138,8 @@ def run_rules(
 
     results: list[RuleResult] = []
     for rule_id in sorted(checks, key=priority):
-        if not (rule_configs.get(rule_id) or {}).get("enabled", True):
+        # RULE-001 (sanctions) always runs - cannot be disabled (S7.4)
+        if rule_id != "RULE-001" and not (rule_configs.get(rule_id) or {}).get("enabled", True):
             continue
         start = time.monotonic()
         result = checks[rule_id]()

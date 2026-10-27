@@ -362,6 +362,31 @@ class FilingVersion(Base):
     user = relationship("User")
 
 
+class ChangeRequest(Base):
+    """Four-eyes approval workflow for detection changes (S7.4). Model promotions and rule
+    disable/override require a second supervisor or admin to approve."""
+    __tablename__ = "change_requests"
+    __table_args__ = (
+        Index('uq_change_requests_one_pending_per_resource', 'tenant_id', 'resource_id',
+              unique=True, postgresql_where=text("status = 'pending'"), sqlite_where=text("status = 'pending'")),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    change_type: Mapped[str] = mapped_column(String, nullable=False)  # model_promote, rule_disable, rule_override
+    resource_id: Mapped[str] = mapped_column(String, nullable=False)  # model version id or rule_id
+    proposed_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    proposed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    approved_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending, approved, rejected
+    payload: Mapped[Any] = mapped_column(JSON, nullable=False)  # The proposed change details
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    proposer = relationship("User", foreign_keys=[proposed_by])
+    approver = relationship("User", foreign_keys=[approved_by])
+
+
 class CircuitBreaker(Base):
     """Circuit breaker state per real dependency (see app.resilience.DEPENDENCIES)."""
     __tablename__ = "circuit_breakers"

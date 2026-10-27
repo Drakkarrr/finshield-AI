@@ -464,8 +464,48 @@ class TestRules:
         geo = next(r for r in baseline["rule_results"] if r["rule_id"] == "RULE-004")
         assert geo["triggered"] is True
 
-        # Disable RULE-004
-        await auth_client.patch("/api/v1/rules/RULE-004", json={"enabled": False})
+        # Disable RULE-004 via four-eyes workflow (S7.4)
+        res = await auth_client.patch("/api/v1/rules/RULE-004", json={"enabled": False})
+        assert res.status_code == 200
+        cr_id = res.json()["change_request_id"]
+
+        # Create a second admin to approve
+        from datetime import datetime, timedelta
+
+        from app.auth import hash_password
+        from app.db_models import ChangeRequest, User
+        from tests.conftest import system_session
+        db = system_session()
+        try:
+            cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+            tenant_id = cr.tenant_id
+            admin2 = User(
+                email=f"{uuid.uuid4().hex[:8]}@test.io",
+                hashed_password=hash_password("SecurePass123!"),
+                first_name="Admin2",
+                last_name="Test",
+                company="Test Corp",
+                role="admin",
+                tenant_id=tenant_id,
+                trial_expires_at=datetime.utcnow() + timedelta(days=365),
+            )
+            db.add(admin2)
+            db.commit()
+            admin2_email = admin2.email
+        finally:
+            db.close()
+
+        # Login as admin2 and approve
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac2:
+            login_res = await ac2.post("/api/auth/login", json={"email": admin2_email, "password": "SecurePass123!"})
+            token2 = login_res.json()["access_token"]
+            ac2.headers["Authorization"] = f"Bearer {token2}"
+
+            # Approve the change request
+            res = await ac2.post(f"/api/v1/change-requests/{cr_id}/approve", json={})
+            assert res.status_code == 200
+
         tx2 = dict(tx, idempotency_key="geo-off-" + uuid.uuid4().hex)
         after = (await auth_client.post("/api/v1/transactions", json=tx2)).json()["data"]
         assert all(r["rule_id"] != "RULE-004" for r in after["rule_results"])
@@ -473,8 +513,46 @@ class TestRules:
     @pytest.mark.asyncio
     async def test_custom_threshold_param_is_honored(self, auth_client):
         """C3: engine must use user's custom threshold."""
-        # Lower wire threshold to 100; a $50 wire should then NOT trigger RULE-003
-        await auth_client.patch("/api/v1/rules/RULE-003", json={"custom_parameters": {"wire": 100}})
+        # Lower wire threshold to 100 via four-eyes workflow (S7.4)
+        res = await auth_client.patch("/api/v1/rules/RULE-003", json={"custom_parameters": {"wire": 100}})
+        assert res.status_code == 200
+        cr_id = res.json()["change_request_id"]
+
+        # Create a second admin to approve
+        from datetime import datetime, timedelta
+
+        from app.auth import hash_password
+        from app.db_models import ChangeRequest, User
+        from tests.conftest import system_session
+        db = system_session()
+        try:
+            cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+            tenant_id = cr.tenant_id
+            admin2 = User(
+                email=f"{uuid.uuid4().hex[:8]}@test.io",
+                hashed_password=hash_password("SecurePass123!"),
+                first_name="Admin2",
+                last_name="Test",
+                company="Test Corp",
+                role="admin",
+                tenant_id=tenant_id,
+                trial_expires_at=datetime.utcnow() + timedelta(days=365),
+            )
+            db.add(admin2)
+            db.commit()
+            admin2_email = admin2.email
+        finally:
+            db.close()
+
+        # Login as admin2 and approve
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac2:
+            login_res = await ac2.post("/api/auth/login", json={"email": admin2_email, "password": "SecurePass123!"})
+            token2 = login_res.json()["access_token"]
+            ac2.headers["Authorization"] = f"Bearer {token2}"
+            res = await ac2.post(f"/api/v1/change-requests/{cr_id}/approve", json={})
+            assert res.status_code == 200
+
         tx = {"amount": 50.0, "transaction_type": "wire", "sender_name": "Small",
               "receiver_name": "Recv", "idempotency_key": "thr-" + uuid.uuid4().hex}
         data = (await auth_client.post("/api/v1/transactions", json=tx)).json()["data"]

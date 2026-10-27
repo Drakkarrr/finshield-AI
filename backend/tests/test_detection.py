@@ -227,8 +227,48 @@ async def test_shadow_scored_and_stored_but_never_decides_then_promotion_does(cl
         finally:
             db.close()
 
-        promoted = await client.post(f"/api/v1/models/{reg.json()['id']}/promote")
-        assert promoted.status_code == 200 and promoted.json()["status"] == "active"
+        # Propose promotion (S7.4: four-eyes workflow)
+        proposed = await client.post(f"/api/v1/models/{reg.json()['id']}/promote")
+        assert proposed.status_code == 200 and proposed.json()["status"] == "pending"
+        cr_id = proposed.json()["change_request_id"]
+
+        # Create a second admin to approve
+        from datetime import datetime, timedelta
+
+        from app.auth import hash_password
+        from app.db_models import ChangeRequest, User
+        db = system_session()
+        try:
+            cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+            tenant_id = cr.tenant_id
+            admin2 = User(
+                email=f"{uuid.uuid4().hex[:8]}@detect.io",
+                hashed_password=hash_password("SecurePass123!"),
+                first_name="Admin2",
+                last_name="Test",
+                company="Test Corp",
+                role="admin",
+                tenant_id=tenant_id,
+                trial_expires_at=datetime.utcnow() + timedelta(days=365),
+            )
+            db.add(admin2)
+            db.commit()
+            admin2_email = admin2.email
+        finally:
+            db.close()
+
+        # Login as admin2 and approve
+        from httpx import ASGITransport, AsyncClient
+
+        from app.main import app
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac2:
+            login_res = await ac2.post("/api/auth/login", json={"email": admin2_email, "password": "SecurePass123!"})
+            token2 = login_res.json()["access_token"]
+            ac2.headers["Authorization"] = f"Bearer {token2}"
+            approved = await ac2.post(f"/api/v1/change-requests/{cr_id}/approve", json={})
+            assert approved.status_code == 200
+
         after = (await client.post("/api/v1/transactions", json={**FULL_ML, "idempotency_key": uuid.uuid4().hex})).json()["data"]
         assert after["model_version"] == reg.json()["label"]
         assert after["ml_confidence"] > out["ml_confidence"]

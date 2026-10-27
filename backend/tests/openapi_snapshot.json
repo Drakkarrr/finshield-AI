@@ -61,6 +61,23 @@
     "title": "ApiKeyResponse",
     "type": "object"
    },
+   "ApproveRejectRequest": {
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "title": "ApproveRejectRequest",
+    "type": "object"
+   },
    "BehavioralScoreRequest": {
     "properties": {
      "account_id": {
@@ -3210,6 +3227,217 @@
     ]
    }
   },
+  "/api/v1/change-requests": {
+   "get": {
+    "description": "List change requests for the tenant. Supervisors and admins can see all; others see only their own.",
+    "operationId": "list_change_requests_api_v1_change_requests_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "List Change Requests",
+    "tags": [
+     "Change Requests"
+    ]
+   }
+  },
+  "/api/v1/change-requests/{request_id}": {
+   "get": {
+    "description": "Get a single change request.",
+    "operationId": "get_change_request_api_v1_change_requests__request_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Get Change Request",
+    "tags": [
+     "Change Requests"
+    ]
+   }
+  },
+  "/api/v1/change-requests/{request_id}/approve": {
+   "post": {
+    "description": "Approve a pending change request. Must be a different supervisor or admin than the proposer.",
+    "operationId": "approve_change_request_api_v1_change_requests__request_id__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveRejectRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Approve Change Request",
+    "tags": [
+     "Change Requests"
+    ]
+   }
+  },
+  "/api/v1/change-requests/{request_id}/reject": {
+   "post": {
+    "description": "Reject a pending change request.",
+    "operationId": "reject_change_request_api_v1_change_requests__request_id__reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveRejectRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Reject Change Request",
+    "tags": [
+     "Change Requests"
+    ]
+   }
+  },
   "/api/v1/credits": {
    "get": {
     "description": "Get current credit balance.",
@@ -4036,7 +4264,7 @@
   },
   "/api/v1/models/{version_id}/promote": {
    "post": {
-    "description": "Make this version the single active one (the previous active version is retired).",
+    "description": "Propose a model promotion. Requires approval from a different supervisor or admin (S7.4).",
     "operationId": "promote_model_api_v1_models__version_id__promote_post",
     "parameters": [
      {
@@ -4757,7 +4985,7 @@
   },
   "/api/v1/rules/{rule_id}": {
    "patch": {
-    "description": "Toggle or customize a compliance rule for the current user. Every change bumps the\noverride's version and is audit-logged with before/after values.",
+    "description": "Toggle or customize a compliance rule. Disable and override changes require approval (S7.4).\nRULE-001 (sanctions) cannot be disabled at all.",
     "operationId": "update_rule_api_v1_rules__rule_id__patch",
     "parameters": [
      {

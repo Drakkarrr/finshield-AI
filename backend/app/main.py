@@ -28,6 +28,7 @@ from app.api import (
     billing,
     breakers,
     cases,
+    change_requests,
     filings,
     health,
     keys,
@@ -201,7 +202,7 @@ app.middleware("http")(request_logging_middleware)
 # Every router except auth (register/login/self-profile), provider callbacks and health runs the RBAC check.
 app.include_router(auth.router)
 for _module in (keys, transactions, cases, billing, stats, search, notifications, rules, filings, behavioral,
-                breakers, webhooks, privacy, rag, settings, lists, models, admin, audit):
+                breakers, webhooks, privacy, rag, settings, lists, models, change_requests, admin, audit):
     app.include_router(_module.router, dependencies=[Depends(authorize)])
 app.include_router(billing.provider_router)  # signature-authenticated provider callbacks
 app.include_router(health.router)
