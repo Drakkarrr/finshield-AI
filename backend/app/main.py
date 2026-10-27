@@ -172,20 +172,22 @@ async def request_logging_middleware(request: Request, call_next):
     return response
 
 
+def check_payments_config() -> None:
+    """Refuse to run production with simulated payments (credits without payment) unless the
+    operator opted in explicitly with ALLOW_SIMULATED_PAYMENTS=true (local compose does)."""
+    if (os.getenv("APP_ENV", "production").lower() == "production"
+            and os.getenv("PAYMENTS_MODE", "simulated").lower() == "simulated"
+            and os.getenv("ALLOW_SIMULATED_PAYMENTS", "false").lower() != "true"):
+        raise RuntimeError("Refusing to start: APP_ENV=production with PAYMENTS_MODE=simulated. "
+                           "Set PAYMENTS_MODE=stripe, or ALLOW_SIMULATED_PAYMENTS=true for local development only.")
+
+
 # --- Startup ---
 async def startup():  # run by lifespan()
     # Schema is managed by Alembic (`alembic upgrade head` runs in the container entrypoint).
     crypto.public_key_pem()  # fail fast: DATA_ENCRYPTION_KEY is required outside tests
 
-    # S7.5: Production fail-safes
-    app_env = os.getenv("APP_ENV", "development").lower()
-    payments_mode = os.getenv("PAYMENTS_MODE", "simulated").lower()
-    allow_simulated = os.getenv("ALLOW_SIMULATED_PAYMENTS", "false").lower() == "true"
-    if app_env == "production" and payments_mode == "simulated" and not allow_simulated:
-        raise RuntimeError(
-            "Refusing to start: APP_ENV=production with PAYMENTS_MODE=simulated. "
-            "Set ALLOW_SIMULATED_PAYMENTS=true to override (local development only)."
-        )
+    check_payments_config()  # S7.5: no free credits in production by accident
 
     # RAG is optional: without RAG_DATABASE_URL decisions report rag_status="disabled".
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")

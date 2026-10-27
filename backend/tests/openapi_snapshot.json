@@ -2085,7 +2085,7 @@
   },
   "/api/health/ready": {
    "get": {
-    "description": "Readiness probe \u2014 503 when a hard dependency (DB, RAG) fails. Compliance signals (list\nfreshness, open breakers) are reported but do not take the instance out of rotation: it still\nserves, and the gate holds affected decisions for review.",
+    "description": "Readiness probe \u2014 503 when a hard dependency (DB, RAG) fails. Compliance signals (list\nfreshness, open breakers) are reported; a stale or missing sanctions list degrades screening\ndecisions to in_review (S7.5) but does not take the instance out of rotation.",
     "operationId": "readiness_probe_api_health_ready_get",
     "responses": {
      "200": {

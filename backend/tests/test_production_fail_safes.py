@@ -1,280 +1,123 @@
-"""S7.5: Production fail-safes — startup checks and stale-list degradation."""
-import os
-
-os.environ["APP_ENV"] = "test"
+"""S7.5: production fail-safes. No simulated payments or fictional PEP data in production by
+accident, and a stale sanctions list holds decisions for human review."""
+import uuid
 
 import pytest
-import pytest_asyncio
-from datetime import datetime, timedelta
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
-from tests.conftest import system_session
-from app.db_models import ListImport, WatchlistEntry
+from app import screening_service
+from app.main import app, check_payments_config
+from scripts.bootstrap import _flag
+
+SANCTIONED = "DARKFUND"  # fictional entry in tests/fixtures/lists/sdn.csv
 
 
-@pytest_asyncio.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+def _client(token: str | None = None) -> AsyncClient:
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers)
 
 
-async def _register_and_login(client: AsyncClient, email: str, role: str = "admin") -> tuple[str, str]:
-    """Register a user and return their access token and tenant_id."""
-    import uuid
-    email = f"{uuid.uuid4().hex[:8]}@test.io"
-    res = await client.post("/api/auth/register", json={
-        "email": email,
-        "password": "SecurePass123!",
-        "first_name": "Test",
-        "last_name": "User",
-        "company": "Test Corp",
-    })
-    assert res.status_code == 201, f"Register failed: {res.status_code} {res.text}"
-    token = res.json()["access_token"]
-
-    db = system_session()
-    try:
-        from app.db_models import User
-        user = db.query(User).filter(User.email == email).first()
-        user.role = role
-        db.commit()
-        return token, user.tenant_id
-    finally:
-        db.close()
+async def _token() -> str:
+    async with _client() as anon:
+        r = await anon.post("/api/auth/register", json={"email": f"{uuid.uuid4().hex[:8]}@s75.io",
+                                                        "password": "SecurePass123!", "first_name": "S",
+                                                        "last_name": "Five", "company": "s75"})
+        assert r.status_code == 201, r.text
+        return r.json()["access_token"]
 
 
-@pytest_asyncio.fixture
-async def admin_headers(client: AsyncClient):
-    token, _ = await _register_and_login(client, "admin@test.io", "admin")
-    return {"Authorization": f"Bearer {token}"}
+async def _screen(token: str, receiver: str = "Ordinary Receiver") -> dict:
+    async with _client(token) as c:
+        r = await c.post("/api/v1/transactions", json={
+            "amount": 120.0, "currency": "USD", "transaction_type": "ach", "sender_name": "Ordinary Sender",
+            "receiver_name": receiver, "idempotency_key": uuid.uuid4().hex})
+        assert r.status_code == 200, r.text
+        return r.json()["data"]
 
 
-def test_startup_refuses_production_with_simulated_payments(monkeypatch):
-    """APP_ENV=production with PAYMENTS_MODE=simulated refuses to start unless ALLOW_SIMULATED_PAYMENTS=true."""
-    from app.main import startup
-    import asyncio
+# --- startup: payments ------------------------------------------------------------------------
 
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("PAYMENTS_MODE", "simulated")
-    monkeypatch.setenv("DATA_ENCRYPTION_KEY", "test-key-for-startup-check-must-be-32-chars!!")
-    monkeypatch.delenv("ALLOW_SIMULATED_PAYMENTS", raising=False)
-
-    with pytest.raises(RuntimeError, match="ALLOW_SIMULATED_PAYMENTS=true"):
-        asyncio.get_event_loop().run_until_complete(startup())
-
-
-def test_startup_allows_production_with_simulated_payments_when_explicitly_allowed(monkeypatch):
-    """APP_ENV=production with PAYMENTS_MODE=simulated starts when ALLOW_SIMULATED_PAYMENTS=true."""
-    from app.main import startup
-    import asyncio
-
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("PAYMENTS_MODE", "simulated")
-    monkeypatch.setenv("ALLOW_SIMULATED_PAYMENTS", "true")
-    monkeypatch.setenv("DATA_ENCRYPTION_KEY", "test-key-for-startup-check-must-be-32-chars!!")
-
-    # Should not raise
-    asyncio.get_event_loop().run_until_complete(startup())
+@pytest.mark.parametrize("env, mode, allow, refuses", [
+    ({"APP_ENV": "production"}, "simulated", None, True),
+    ({}, "simulated", None, True),  # APP_ENV unset means production
+    ({"APP_ENV": "production"}, "simulated", "true", False),
+    ({"APP_ENV": "production"}, "stripe", None, False),
+    ({"APP_ENV": "development"}, "simulated", None, False),
+])
+def test_production_refuses_simulated_payments_unless_explicitly_allowed(monkeypatch, env, mode, allow, refuses):
+    monkeypatch.delenv("APP_ENV", raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("PAYMENTS_MODE", mode)
+    if allow is None:
+        monkeypatch.delenv("ALLOW_SIMULATED_PAYMENTS", raising=False)
+    else:
+        monkeypatch.setenv("ALLOW_SIMULATED_PAYMENTS", allow)
+    if refuses:
+        with pytest.raises(RuntimeError, match="PAYMENTS_MODE=simulated"):
+            check_payments_config()
+    else:
+        check_payments_config()
 
 
-def test_startup_allows_production_with_stripe_payments(monkeypatch):
-    """APP_ENV=production with PAYMENTS_MODE=stripe starts without ALLOW_SIMULATED_PAYMENTS."""
-    from app.main import startup
-    import asyncio
+# --- bootstrap: fictional PEP fixtures --------------------------------------------------------
 
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("PAYMENTS_MODE", "stripe")
-    monkeypatch.setenv("DATA_ENCRYPTION_KEY", "test-key-for-startup-check-must-be-32-chars!!")
-    monkeypatch.delenv("ALLOW_SIMULATED_PAYMENTS", raising=False)
-
-    # Should not raise
-    asyncio.get_event_loop().run_until_complete(startup())
-
-
-def test_lists_demo_fixtures_defaults_to_false_outside_development(monkeypatch):
-    """LISTS_DEMO_FIXTURES defaults to false when APP_ENV != development."""
-    from scripts.bootstrap import _flag
-
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.delenv("LISTS_DEMO_FIXTURES", raising=False)
-
-    assert _flag("LISTS_DEMO_FIXTURES") is False
+@pytest.mark.parametrize("app_env, explicit, expected", [
+    ("production", None, False),
+    (None, None, False),  # unset means production
+    ("development", None, True),
+    ("production", "true", True),  # an explicit value always wins
+    ("development", "false", False),
+])
+def test_demo_fixtures_are_off_outside_development_by_default(monkeypatch, app_env, explicit, expected):
+    if app_env is None:
+        monkeypatch.delenv("APP_ENV", raising=False)
+    else:
+        monkeypatch.setenv("APP_ENV", app_env)
+    if explicit is None:
+        monkeypatch.delenv("LISTS_DEMO_FIXTURES", raising=False)
+    else:
+        monkeypatch.setenv("LISTS_DEMO_FIXTURES", explicit)
+    assert _flag("LISTS_DEMO_FIXTURES") is expected
 
 
-def test_lists_demo_fixtures_defaults_to_true_in_development(monkeypatch):
-    """LISTS_DEMO_FIXTURES defaults to true when APP_ENV = development."""
-    from scripts.bootstrap import _flag
+# --- screening: list freshness ----------------------------------------------------------------
+# The freshness lookup is replaced per test so the shared list data of the suite stays untouched.
 
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.delenv("LISTS_DEMO_FIXTURES", raising=False)
-
-    assert _flag("LISTS_DEMO_FIXTURES") is True
+def _freshness(monkeypatch, sources: list[dict]) -> None:
+    monkeypatch.setattr(screening_service.lists, "status", lambda db, max_age, now=None: sources)
 
 
-def test_lists_demo_fixtures_respects_explicit_value(monkeypatch):
-    """LISTS_DEMO_FIXTURES respects explicit value regardless of APP_ENV."""
-    from scripts.bootstrap import _flag
-
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("LISTS_DEMO_FIXTURES", "true")
-
-    assert _flag("LISTS_DEMO_FIXTURES") is True
-
-
-@pytest.mark.asyncio
-async def test_stale_sanctions_list_degrades_decision_to_in_review(client: AsyncClient, admin_headers: dict):
-    """A stale sanctions list (older than lists.max_age_hours) degrades the decision to in_review."""
-    from app import config_service
-
-    db = system_session()
-    try:
-        # Get admin user ID for actor_id
-        from app.db_models import User
-        admin_user = db.query(User).filter(User.role == "admin").first()
-        actor_id = admin_user.id if admin_user else "system"
-
-        # Set max_age_hours to 1 hour
-        config_service.set_setting(db, "lists.max_age_hours", 1.0, actor_id)
-
-        # Insert a sanctions list import that is 2 hours old (stale)
-        db.query(ListImport).filter(ListImport.source == "OFAC").delete()
-        db.query(WatchlistEntry).filter(WatchlistEntry.source == "OFAC").delete()
-        db.commit()
-
-        old_import = ListImport(
-            source="OFAC",
-            list_type="sanctions",
-            list_version="2024-01-01",
-            entry_count=1,
-            imported_at=datetime.utcnow() - timedelta(hours=2),
-            is_fixture=True,
-        )
-        db.add(old_import)
-        db.add(WatchlistEntry(
-            id="test-stale-1",
-            source="OFAC",
-            list_version="2024-01-01",
-            list_type="sanctions",
-            primary_name="TEST STALE",
-            aliases=[],
-            entity_type="individual",
-            country="US",
-            effective_from=datetime.utcnow() - timedelta(days=365),
-        ))
-        db.commit()
-    finally:
-        db.close()
-
-    # Screen a transaction
-    res = await client.post("/api/v1/transactions", headers=admin_headers, json={
-        "amount": 1000.0,
-        "transaction_type": "wire",
-        "sender_name": "Test User",
-        "receiver_name": "Receiver",
-        "idempotency_key": "stale-list-test-" + __import__('uuid').uuid4().hex,
-    })
-    assert res.status_code == 200
-    data = res.json()["data"]
-
-    # Decision should be in_review due to stale list
-    assert data["status"] == "in_review"
-    assert data["degraded"] is True
-    assert "list_stale" in data["degraded_dependencies"]
+async def test_stale_sanctions_list_holds_the_decision_for_review(monkeypatch):
+    token = await _token()
+    _freshness(monkeypatch, [{"list_type": "sanctions", "stale": True}, {"list_type": "pep", "stale": False}])
+    d = await _screen(token)
+    assert d["status"] == "in_review" and d["degraded"] is True
+    assert "list_stale" in d["degraded_dependencies"]
+    assert any(r["source"] == "resilience" and "list_stale" in (r.get("value") or []) for r in d["reasons"])
 
 
-@pytest.mark.asyncio
-async def test_missing_sanctions_list_degrades_decision_to_in_review(client: AsyncClient, admin_headers: dict):
-    """A missing sanctions list degrades the decision to in_review."""
-    from app import config_service
-
-    db = system_session()
-    try:
-        from app.db_models import User
-        admin_user = db.query(User).filter(User.role == "admin").first()
-        actor_id = admin_user.id if admin_user else "system"
-
-        # Set max_age_hours to 24 hours
-        config_service.set_setting(db, "lists.max_age_hours", 24.0, actor_id)
-
-        # Delete all sanctions list imports
-        db.query(ListImport).filter(ListImport.list_type == "sanctions").delete()
-        db.query(WatchlistEntry).filter(WatchlistEntry.list_type == "sanctions").delete()
-        db.commit()
-    finally:
-        db.close()
-
-    # Screen a transaction
-    res = await client.post("/api/v1/transactions", headers=admin_headers, json={
-        "amount": 1000.0,
-        "transaction_type": "wire",
-        "sender_name": "Test User",
-        "receiver_name": "Receiver",
-        "idempotency_key": "missing-list-test-" + __import__('uuid').uuid4().hex,
-    })
-    assert res.status_code == 200
-    data = res.json()["data"]
-
-    # Decision should be in_review due to missing list
-    assert data["status"] == "in_review"
-    assert data["degraded"] is True
-    assert "list_stale" in data["degraded_dependencies"]
+async def test_one_fresh_sanctions_source_is_enough(monkeypatch):
+    token = await _token()
+    _freshness(monkeypatch, [{"list_type": "sanctions", "stale": True}, {"list_type": "sanctions", "stale": False}])
+    d = await _screen(token)
+    assert "list_stale" not in d["degraded_dependencies"]
 
 
-@pytest.mark.asyncio
-async def test_fresh_sanctions_list_does_not_degrade(client: AsyncClient, admin_headers: dict):
-    """A fresh sanctions list does not add list_stale to degraded_dependencies."""
-    from app import config_service
+async def test_fresh_lists_do_not_degrade_and_sanctions_still_block():
+    token = await _token()
+    clean = await _screen(token)
+    assert clean["degraded"] is False and "list_stale" not in clean["degraded_dependencies"]
+    hit = await _screen(token, receiver=SANCTIONED)
+    assert hit["status"] == "blocked"
 
-    db = system_session()
-    try:
-        from app.db_models import User
-        admin_user = db.query(User).filter(User.role == "admin").first()
-        actor_id = admin_user.id if admin_user else "system"
 
-        # Set max_age_hours to 24 hours
-        config_service.set_setting(db, "lists.max_age_hours", 24.0, actor_id)
+async def test_freshness_check_failure_fails_safe(monkeypatch):
+    token = await _token()
 
-        # Insert a fresh sanctions list import (1 hour old)
-        db.query(ListImport).filter(ListImport.source == "OFAC").delete()
-        db.query(WatchlistEntry).filter(WatchlistEntry.source == "OFAC").delete()
-        db.commit()
+    def broken(db, max_age, now=None):
+        raise RuntimeError("list store unavailable")
 
-        fresh_import = ListImport(
-            source="OFAC",
-            list_type="sanctions",
-            list_version="2024-01-02",
-            entry_count=1,
-            imported_at=datetime.utcnow() - timedelta(hours=1),
-            is_fixture=True,
-        )
-        db.add(fresh_import)
-        db.add(WatchlistEntry(
-            id="test-fresh-1",
-            source="OFAC",
-            list_version="2024-01-02",
-            list_type="sanctions",
-            primary_name="TEST FRESH",
-            aliases=[],
-            entity_type="individual",
-            country="US",
-            effective_from=datetime.utcnow() - timedelta(days=365),
-        ))
-        db.commit()
-    finally:
-        db.close()
-
-    # Screen a transaction
-    res = await client.post("/api/v1/transactions", headers=admin_headers, json={
-        "amount": 1000.0,
-        "transaction_type": "wire",
-        "sender_name": "Test User",
-        "receiver_name": "Receiver",
-        "idempotency_key": "fresh-list-test-" + __import__('uuid').uuid4().hex,
-    })
-    assert res.status_code == 200
-    data = res.json()["data"]
-
-    # list_stale should NOT be in degraded_dependencies
-    assert "list_stale" not in (data.get("degraded_dependencies") or [])
+    monkeypatch.setattr(screening_service.lists, "status", broken)
+    d = await _screen(token)
+    assert d["status"] == "in_review" and "list_stale" in d["degraded_dependencies"]
