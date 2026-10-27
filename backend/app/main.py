@@ -177,6 +177,16 @@ async def startup():  # run by lifespan()
     # Schema is managed by Alembic (`alembic upgrade head` runs in the container entrypoint).
     crypto.public_key_pem()  # fail fast: DATA_ENCRYPTION_KEY is required outside tests
 
+    # S7.5: Production fail-safes
+    app_env = os.getenv("APP_ENV", "development").lower()
+    payments_mode = os.getenv("PAYMENTS_MODE", "simulated").lower()
+    allow_simulated = os.getenv("ALLOW_SIMULATED_PAYMENTS", "false").lower() == "true"
+    if app_env == "production" and payments_mode == "simulated" and not allow_simulated:
+        raise RuntimeError(
+            "Refusing to start: APP_ENV=production with PAYMENTS_MODE=simulated. "
+            "Set ALLOW_SIMULATED_PAYMENTS=true to override (local development only)."
+        )
+
     # RAG is optional: without RAG_DATABASE_URL decisions report rag_status="disabled".
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")
     app.state.rag_service = None

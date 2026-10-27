@@ -27,6 +27,11 @@ log = logging.getLogger("bootstrap")
 
 
 def _flag(name: str) -> bool:
+    # LISTS_DEMO_FIXTURES defaults to false unless APP_ENV=development (S7.5)
+    if name == "LISTS_DEMO_FIXTURES":
+        app_env = os.getenv("APP_ENV", "development").lower()
+        default = "true" if app_env == "development" else "false"
+        return os.getenv(name, default).lower() == "true"
     return os.getenv(name, "false").lower() == "true"
 
 

@@ -65,6 +65,19 @@ def build_context(db: Session, tenant_id: str, tx: TransactionRequest, rag_servi
         logger.warning("%s", e)
         failed.append("watchlist")
 
+    # S7.5: Check if sanctions list is stale (older than lists.max_age_hours)
+    try:
+        max_age = float(config_service.get_setting(db, "lists.max_age_hours"))
+        sanctions_status = lists.status(db, max_age, now)
+        sanctions = [s for s in sanctions_status if s["list_type"] == "sanctions"]
+        if not sanctions:
+            failed.append("list_stale")  # missing list is also stale
+        elif all(s["stale"] for s in sanctions):
+            failed.append("list_stale")
+    except Exception:
+        logger.warning("sanctions list freshness check failed", exc_info=True)
+        failed.append("list_stale")
+
     model = registry.BUILTIN
     shadow = None
     try:

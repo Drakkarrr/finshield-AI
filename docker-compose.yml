@@ -63,7 +63,9 @@ services:
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - HSTS_ENABLED=${HSTS_ENABLED:-false}
       # Payments (S6.1): "simulated" grants credits without payment (development only).
+      # S7.5: production with simulated payments requires explicit opt-in.
       - PAYMENTS_MODE=${PAYMENTS_MODE:-simulated}
+      - ALLOW_SIMULATED_PAYMENTS=${ALLOW_SIMULATED_PAYMENTS:-true}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - APP_BASE_URL=${APP_BASE_URL:-http://localhost:3000}

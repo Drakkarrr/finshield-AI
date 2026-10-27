@@ -86,8 +86,8 @@ def liveness_probe():
 @router.get("/api/health/ready", tags=["System"])
 def readiness_probe(request: Request, db: Session = Depends(get_db)):
     """Readiness probe — 503 when a hard dependency (DB, RAG) fails. Compliance signals (list
-    freshness, open breakers) are reported but do not take the instance out of rotation: it still
-    serves, and the gate holds affected decisions for review."""
+    freshness, open breakers) are reported; a stale or missing sanctions list degrades screening
+    decisions to in_review (S7.5) but does not take the instance out of rotation."""
     services, all_ok = _probe_dependencies(request, db)
     signals, _ = _compliance_signals(db)
     services.update(signals)
