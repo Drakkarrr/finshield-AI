@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import useSWR from 'swr';
 import PlatformLayout from '@/components/PlatformLayout';
-import { useCan } from '@/contexts/AuthContext';
+import { useAuth, useCan } from '@/contexts/AuthContext';
 import { api, errorMessage, ChangeRequest } from '@/lib/api';
 import {
   Alert, Badge, Button, Card, LoadingState, Modal, PageHeader, Textarea,
@@ -11,6 +11,7 @@ import {
 import { formatDateTime } from '@/lib/format';
 
 function Approvals() {
+  const { user } = useAuth();
   const can = useCan();
   const canApprove = can(['POST', '/api/v1/change-requests/{request_id}/approve']);
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | ''>('pending');
@@ -18,12 +19,14 @@ function Approvals() {
     ['change-requests', statusFilter],
     () => api.listChangeRequests(statusFilter || undefined),
   );
+  const users = useSWR(['admin-users'], () => api.listUsers());
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [processing, setProcessing] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<ChangeRequest | null>(null);
 
   const list = changeRequests.data ?? [];
+  const userMap = new Map(users.data?.map((u) => [u.id, `${u.first_name} ${u.last_name}`]));
 
   const handleApprove = async (id: string, reason: string) => {
     setProcessing(id);
@@ -130,7 +133,7 @@ function Approvals() {
                     </span>
                     <span className="font-mono text-xs text-ink-muted">{cr.resource_id}</span>
                   </div>
-                  {canApprove && cr.status === 'pending' && (
+                  {canApprove && cr.status === 'pending' && cr.proposed_by !== user?.id && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -143,7 +146,7 @@ function Approvals() {
                 </div>
                 <div className="space-y-2 text-xs text-ink-muted">
                   <p>
-                    <span className="text-ink-secondary">Proposed by:</span> {cr.proposed_by}
+                    <span className="text-ink-secondary">Proposed by:</span> {userMap.get(cr.proposed_by) ?? cr.proposed_by}
                   </p>
                   <p>
                     <span className="text-ink-secondary">Created:</span> {formatDateTime(cr.created_at)}
@@ -155,7 +158,7 @@ function Approvals() {
                   )}
                   {cr.approved_by && (
                     <p>
-                      <span className="text-ink-secondary">Approved by:</span> {cr.approved_by}
+                      <span className="text-ink-secondary">Approved by:</span> {userMap.get(cr.approved_by) ?? cr.approved_by}
                     </p>
                   )}
                 </div>

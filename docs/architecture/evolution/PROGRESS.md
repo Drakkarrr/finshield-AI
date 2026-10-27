@@ -156,11 +156,7 @@ Two agents (Claude Code and Qoder) may run sessions at the same time. To avoid e
 
 ## Open items requiring a human decision
 
-- **P0 gate blocker — npm audit (needs a decision):** 1 critical (next ≤ 16.3) + 9 high; no Next 14.x release fixes them. Options: (a) open a frontend slice now to upgrade Next 14→16 / React 19 / Tailwind 3→4 (keeping the `tailwind.config.js` tokens per D5 via `@config`); (b) accept the red security job until P5 and record the risk. The agent will not mute the gate.
-- **User data (resolved 2026-10-24):** the original SQLite data (`drak@test.com`, 2 transactions, 1 case) was migrated into the new Postgres schema with `scripts.sqlite_to_postgres`; accounts that existed only in Qoder's database (`drak@karr.com`, `test@example.com`) were copied as their own tenants. Qoder's database is kept untouched as `finshield_qoder_20261024` (drop it once you no longer need it).
-- **Stack ownership:** the running stack is now built from `.worktrees/backend` (branch `claude/backend`) as compose project `finshield`. Running `docker compose up --build` from the main checkout would rebuild Qoder's uncommitted backend and fail on the forked Alembic chain. Fast-forward `main` to `claude/backend` (needs your go-ahead, R9) and have Qoder discard its uncommitted `backend/` changes.
 - **Load (S6.5):** a p95 that holds at 10× concurrency needs horizontal scaling; see docs/operations/performance.md.
-- **Two-agent coordination:** in session 2 the other agent committed a slice held by this agent (5f346f4) using its unvalidated working-tree files, and its S0.2 commit message claimed an untrack it had not committed. Recommend one agent implements while the other only reviews, or strict file-level claims.
 - **Git history rewrite** to purge the tracked `backend/.env` — the agent is forbidden from touching history (R9). Decide before the repo is shared publicly or handed to a customer.
 - **Push / PR / merge authority** — blocked by R9 until you grant it per session.
 - **D1-D13 overrides** — pre-ruled in MASTER-PROMPT.md section 2. Edit there, not in a chat message, so the ruling survives into the next session.

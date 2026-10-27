@@ -1117,8 +1117,8 @@
       "type": "string"
      },
      "password": {
-      "description": "Password must be at least 8 characters",
-      "minLength": 8,
+      "description": "Password must be at least 12 characters",
+      "minLength": 12,
       "title": "Password",
       "type": "string"
      }
@@ -1696,7 +1696,7 @@
       "type": "string"
      },
      "password": {
-      "minLength": 8,
+      "minLength": 12,
       "title": "Password",
       "type": "string"
      },
@@ -1757,13 +1757,6 @@
    },
    "ValidationError": {
     "properties": {
-     "ctx": {
-      "title": "Context",
-      "type": "object"
-     },
-     "input": {
-      "title": "Input"
-     },
      "loc": {
       "items": {
        "anyOf": [

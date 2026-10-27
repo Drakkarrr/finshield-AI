@@ -17,7 +17,7 @@ Role = Literal["analyst", "investigator", "supervisor", "admin"]
 
 class UserCreate(BaseModel):
     email: str
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=12)
     first_name: str = Field(min_length=1)
     last_name: str = Field(min_length=1)
     role: Role = "analyst"

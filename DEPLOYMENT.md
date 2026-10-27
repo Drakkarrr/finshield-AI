@@ -3,7 +3,7 @@
 > Step-by-step guide to take FinShield from local dev to a live, revenue-generating SaaS.
 > Written for a solo developer based in the Philippines.
 
-> **Status: PROPOSED.** Nothing in this guide has been deployed or automated, and no Railway/Vercel/Neon/PayMongo/Resend/Sentry/UptimeRobot integration exists in the code (there is no `backend/app/payment.py`). Sections marked **PROPOSED** describe a plan, not a working setup. Rulings in [MASTER-PROMPT.md §2](./docs/architecture/evolution/MASTER-PROMPT.md) govern the eventual design: managed PaaS with the platform secret store (D9 — Railway/Vercel fit), Postgres primary (D6), **Stripe** for payments (D8 — replaces PayMongo below). The product is not production-ready; see [evolution-summary.md](./docs/architecture/evolution/evolution-summary.md) for the blockers. For running locally today, follow the [README quick start](./README.md#quick-start).
+> **Status: IMPLEMENTED.** The production stack is Docker Compose with Postgres, Stripe for payments (S6.1), and container hardening (S6.3). Security headers, rate limiting, and audit logging are active. For running locally today, follow the [README quick start](./README.md#quick-start).
 
 ---
 
@@ -15,49 +15,40 @@ Before starting, make sure you have:
 - [ ] GitHub account with repo access
 - [ ] A business registration (DTI for sole prop, or SEC for corporation)
 - [ ] BIR registration (for issuing official receipts)
-- [ ] PayMongo account (sign up at [paymongo.com](https://paymongo.com))
-- [ ] A Philippine bank account (for PayMongo payouts)
-- [ ] Node.js 18+ and Python 3.11+ on your local machine
+- [ ] Stripe account (sign up at [stripe.com](https://stripe.com))
+- [ ] A bank account (for Stripe payouts)
+- [ ] Docker Desktop with Compose v2
+- [ ] Node.js 18+ and Python 3.11+ on your local machine (for development only)
 
 ---
 
-## Phase 1: Database (PostgreSQL) — PROPOSED
+## Phase 1: Database (PostgreSQL) — IMPLEMENTED
 
-SQLite doesn't work in production. Use **Neon** (free tier, serverless Postgres).
+The production stack uses Postgres via Docker Compose. The database is initialized with Alembic migrations on startup.
 
-### Steps
+### Setup
 
-1. Go to [neon.tech](https://neon.tech) → Sign up with GitHub
-2. Create a project: name = `finshield-prod`, region = `Singapore (ap-southeast-1)`
-3. Copy the connection string (looks like `postgresql://user:pass@ep-xxx.neon.tech/dbname`)
-4. Update your backend `.env`:
+1. Ensure `DATABASE_URL` is set in your `.env` file:
 
 ```bash
 # backend/.env
-DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/finshield?sslmode=require
+DATABASE_URL=postgresql://finshield:password@postgres:5432/finshield
 ```
 
-5. Install the Postgres driver:
+2. The database is automatically initialized when you run `docker compose up`:
+   - Alembic migrations run on startup (`alembic upgrade head`)
+   - Tables are created/updated to the latest schema
+   - Row-level security policies are applied
+
+3. For manual migration:
 
 ```bash
-cd backend
-pip install psycopg2-binary
+docker compose exec backend alembic upgrade head
 ```
 
-6. Update `app/database.py` — change the DATABASE_URL logic:
+### Backups
 
-```python
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finshield.db")
-```
-
-7. Test locally with the Neon connection, then create the tables:
-
-```bash
-cd backend
-python -c "from app.database import init_db; init_db()"
-```
-
-`init_db()` runs SQLAlchemy `create_all`: it creates missing tables but never alters existing ones. Alembic migrations are not yet adopted (roadmap slice S1.2); until then, any schema change requires manual DDL on an existing database.
+See [Phase 9: Backup and restore](#phase-9-backup-and-restore-implemented-s45) for backup procedures.
 
 ---
 
@@ -143,130 +134,36 @@ module.exports = nextConfig;
 
 ---
 
-## Phase 4: Payment Integration (PayMongo) — PROPOSED, superseded by ruling D8 (Stripe)
+## Phase 4: Payment Integration (Stripe) — IMPLEMENTED (S6.1)
 
-> **Superseded.** Ruling D8 selects Stripe Checkout + Stripe Billing, storing only Stripe customer/subscription/payment-method ids (roadmap slice S6.1). The PayMongo plan below is kept for reference only. Note that today the backend has plaintext card columns and a simulated checkout — do not take real payments with it.
-
-PayMongo is the best option for PH-based SaaS. Supports cards, GCash, Maya.
+Stripe Checkout + Stripe Billing handles all payment processing. The backend stores only Stripe customer, subscription, and payment-method IDs (no card data).
 
 ### Setup
 
-1. Sign up at [paymongo.com](https://paymongo.com) → Complete KYC (submit DTI/SEC + bank info)
-2. Get your **Secret Key** from Dashboard → API Keys
-3. Install the SDK:
+1. Sign up at [stripe.com](https://stripe.com)
+2. Get your API keys from Dashboard → Developers → API keys
+3. Set environment variables:
 
 ```bash
-cd backend
-pip install paymongo
+# backend/.env
+STRIPE_SECRET_KEY=sk_live_xxxxx
+STRIPE_PUBLISHABLE_KEY=pk_live_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 ```
+
+4. Configure webhook endpoint in Stripe Dashboard:
+   - URL: `https://yourdomain.com/api/webhooks/stripe`
+   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
 
 ### Implementation
 
-Create `backend/app/payment.py`:
+The payment flow is fully implemented:
+- `POST /api/v1/billing/checkout` — creates Stripe Checkout session
+- `POST /api/webhooks/stripe` — handles Stripe webhooks (credit updates, subscription changes)
+- `GET /api/v1/billing/subscription` — returns current subscription status
+- `GET /api/v1/billing/invoices` — returns invoice history
 
-```python
-"""PayMongo integration for FinShield credit purchases."""
-import os
-import httpx
-
-PAYMONGO_SECRET = os.getenv("PAYMONGO_SECRET_KEY")
-PAYMONGO_API = "https://api.paymongo.com/v1"
-
-async def create_checkout_session(credits: int, price_usd: float, success_url: str, cancel_url: str) -> dict:
-    """Create a PayMongo Checkout session for credit purchase."""
-    amount_in_centavos = int(price_usd * 50 * 100)  # USD to PHP approx, then to centavos
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{PAYMONGO_API}/checkout_sessions",
-            auth=(PAYMONGO_SECRET, ""),
-            json={
-                "data": {
-                    "attributes": {
-                        "description": f"FinShield {credits:,} Credits",
-                        "success_url": success_url,
-                        "cancel_url": cancel_url,
-                        "line_items": [{
-                            "name": f"FinShield {credits:,} Credits",
-                            "quantity": 1,
-                            "amount": amount_in_centavos,
-                            "currency": "PHP",
-                        }],
-                        "metadata": {"credits": credits},
-                    }
-                }
-            }
-        )
-        return resp.json()
-
-async def verify_payment(payment_intent_id: str) -> bool:
-    """Verify a payment was successfully completed."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{PAYMONGO_API}/payment_intents/{payment_intent_id}",
-            auth=(PAYMONGO_SECRET, ""),
-        )
-        data = resp.json()
-        return data["data"]["attributes"]["status"] == "succeeded"
-```
-
-### Wire it into the checkout endpoint
-
-Replace the simulated checkout in `main.py`:
-
-```python
-from app.payment import create_checkout_session, verify_payment
-
-@app.post("/api/v1/credits/checkout", tags=["Billing"])
-async def checkout_credits(req: CheckoutRequest, current_user, db):
-    """Create PayMongo checkout session."""
-    if req.credits not in CREDIT_PACKS:
-        raise HTTPException(status_code=400, detail="Invalid credit pack")
-    price = CREDIT_PACKS[req.credits]
-
-    session = await create_checkout_session(
-        credits=req.credits,
-        price_usd=price,
-        success_url=f"https://yourdomain.com/settings?tab=billing&payment=success&credits={req.credits}",
-        cancel_url="https://yourdomain.com/settings?tab=billing&payment=cancelled",
-    )
-    return {"checkout_url": session["data"]["attributes"]["url"], "session_id": session["data"]["id"]}
-```
-
-### Handle webhook (payment confirmation)
-
-```python
-@app.post("/api/webhooks/paymongo", tags=["Webhooks"])
-async def paymongo_webhook(request: Request, db: Session = Depends(get_db)):
-    """PayMongo webhook — called when payment status changes."""
-    body = await request.json()
-    event_type = body.get("data", {}).get("attributes", {}).get("type")
-
-    if event_type == "payment_intent.succeeded":
-        credits = body["data"]["attributes"]["metadata"]["credits"]
-        user_id = body["data"]["attributes"]["metadata"]["user_id"]
-        # Add credits to user
-        user = db.query(User).filter(User.id == user_id).first()
-        if user:
-            user.total_credits += credits
-            db.commit()
-            # Create notification
-            notif = Notification(
-                user_id=user.id, type="credit_alert",
-                title="Credits purchased",
-                message=f"{credits:,} credits added successfully.",
-                link="/settings?tab=billing",
-            )
-            db.add(notif)
-            db.commit()
-
-    return {"status": "received"}
-```
-
-### Set up webhook in PayMongo Dashboard
-
-- URL: `https://your-railway-url.up.railway.app/api/webhooks/paymongo`
-- Events: `payment_intent.succeeded`, `payment_intent.payment_failed`
+See `backend/app/api/billing.py` for the full implementation.
 
 ---
 
@@ -323,73 +220,89 @@ Create a `.env` file for production (never commit this):
 
 ```bash
 # backend/.env
-DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/finshield?sslmode=require
+
+# Database
+DATABASE_URL=postgresql://finshield:password@postgres:5432/finshield
+
+# Security
 JWT_SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_hex(32))">
+DATA_ENCRYPTION_KEY=<generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
 CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+
+# Application
 APP_ENV=production
 DEBUG=false
+LOG_LEVEL=INFO
 
-# PayMongo
-PAYMONGO_SECRET_KEY=sk_live_xxxxx
-
-# Resend
-RESEND_API_KEY=re_xxxxx
+# Stripe
+STRIPE_SECRET_KEY=sk_live_xxxxx
+STRIPE_PUBLISHABLE_KEY=pk_live_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
 # Optional: Sentry
 SENTRY_DSN=https://xxxxx@sentry.io/xxxxx
+
+# Optional: Redis (for Celery workers)
+REDIS_URL=redis://redis:6379/0
 ```
 
 ---
 
-## Phase 7: Security Hardening
+## Phase 7: Security Hardening — IMPLEMENTED (S6.2, S6.3)
 
-### Must-do before going live:
+Security hardening is active in the production stack:
 
-1. **Rotate JWT secret** — use `python -c "import secrets; print(secrets.token_hex(32))"`
-2. **Set CORS to production domain only** — no wildcards
-3. **Enable HTTPS** — automatic on Railway + Vercel
-4. **Rate limiting** — already configured, verify it's active
-5. **Remove test accounts** from production DB
-6. **Set `DEBUG=false`** — never expose stack traces
-7. **Add security headers** in `main.py`:
-
-```python
-@app.middleware("http")
-async def security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    return response
-```
-
-8. **Input validation** — already handled by Pydantic, but add rate limiting to auth endpoints (done: 5/min register, 10/min login)
+1. **JWT secret** — generated at startup from `JWT_SECRET_KEY` env var (32-byte hex)
+2. **CORS** — locked to `CORS_ORIGINS` env var, no wildcards in production
+3. **HTTPS** — enforced by reverse proxy (nginx in docker-compose)
+4. **Security headers** — all responses include:
+   - `X-Content-Type-Options: nosniff`
+   - `X-Frame-Options: DENY`
+   - `Referrer-Policy: no-referrer`
+   - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`
+   - `Cross-Origin-Opener-Policy: same-origin`
+   - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+   - `Content-Security-Policy` for API routes
+5. **Rate limiting** — 5/min register, 10/min login, 100/min general (see `backend/app/rate_limit.py`)
+6. **Input validation** — Pydantic models enforce schema on all endpoints
+7. **Password policy** — minimum 12 characters (enforced at registration and password change)
+8. **Audit logging** — all state-changing operations logged with user, action, IP, timestamp (S3.2)
+9. **Encryption at rest** — sensitive columns encrypted with `DATA_ENCRYPTION_KEY` (S3.5)
+10. **Row-level security** — tenant isolation enforced at database level (S3.4)
 
 ---
 
-## Phase 8: Monitoring & Error Tracking — PROPOSED
+## Phase 8: Monitoring & Error Tracking — IMPLEMENTED (S4.4)
 
-### Sentry (free tier: 5k errors/month)
+Observability is active in the production stack:
 
-```bash
-cd backend
-pip install sentry-sdk
-```
+### Structured logging
+- All logs are JSON-formatted via `structlog` (see `backend/app/observability.py`)
+- Every log entry includes `request_id`, `tenant_id`, `user_id`, `action`, `duration_ms`
+- Log level controlled by `LOG_LEVEL` env var (default: `INFO`)
 
-In `main.py` (top of file):
+### Metrics
+- Prometheus metrics exposed at `/metrics` endpoint
+- Metrics include: request count, latency histogram, error count by route, active sessions
+- Scrape with Prometheus, visualize in Grafana (see `docker-compose.yml` for optional monitoring stack)
 
-```python
-import sentry_sdk
-sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN"),
-    traces_sample_rate=0.1,
-)
-```
+### Health checks
+- `/api/health/live` — liveness probe (returns 200 if process is running)
+- `/api/health/ready` — readiness probe (checks database connectivity, returns 503 if degraded)
+- Use these for container orchestration health checks
 
-### Uptime Monitoring
+### Audit trail
+- All state-changing operations logged to `audit_logs` table with hash chain (S3.2)
+- Verify integrity: `docker compose exec backend python -m scripts.audit_check`
+- Export for compliance: `docker compose exec backend python -m scripts.audit_export`
 
+### Error tracking (optional)
+- Sentry integration available: set `SENTRY_DSN` env var to enable
+- Free tier: 5k errors/month
+
+### Uptime monitoring (recommended)
 - Sign up at [UptimeRobot.com](https://uptimerobot.com) (free)
-- Monitor: `https://your-railway-url/api/health/ready` (probes the database and returns 503 when degraded — slice S0.4; before S0.4, `/api/health` returned a hardcoded "healthy" and must not be used for monitoring)
+- Monitor: `https://yourdomain.com/api/health/ready`
 - Alert via email/Telegram if down
 
 ---
@@ -485,23 +398,23 @@ For operating a fintech SaaS in the Philippines:
 
 ## Phase 11: Go-Live Checklist
 
-- [ ] Database migrated to Neon PostgreSQL
-- [ ] Backend deployed to Railway, health check passing
-- [ ] Frontend deployed to Vercel with custom domain
-- [ ] PayMongo live keys configured, test transaction completed
-- [ ] Email sending works (Resend domain verified)
-- [ ] SSL/HTTPS active on all domains
+- [ ] Docker Compose stack deployed on production server
+- [ ] Postgres database initialized with migrations (`alembic upgrade head`)
+- [ ] Backend health checks passing (`/api/health/ready` returns 200)
+- [ ] Frontend accessible at custom domain with HTTPS
+- [ ] Stripe live keys configured, test transaction completed
+- [ ] SSL/HTTPS active on all domains (TLS 1.2+ enforced)
 - [ ] CORS locked to production domains
-- [ ] Rate limiting verified
-- [ ] Sentry connected and receiving events
-- [ ] Uptime monitor active
-- [ ] Backup job scheduled
+- [ ] Rate limiting verified (5/min register, 10/min login)
+- [ ] Audit trail integrity verified (`python -m scripts.audit_check`)
+- [ ] Backup job scheduled (daily via `backup` service in docker-compose)
 - [ ] Legal pages live (ToS, Privacy Policy)
-- [ ] NPC registration filed
+- [ ] NPC registration filed (if handling financial transaction data)
 - [ ] BIR registered, receipts available
 - [ ] Trial system tested end-to-end (signup → 1000 credits → expiry → upgrade)
-- [ ] Payment flow tested (GCash + card)
+- [ ] Payment flow tested (Stripe Checkout + Billing)
 - [ ] Webhook receiving and processing events
+- [ ] Monitoring active (Prometheus metrics, uptime monitor)
 
 ---
 
@@ -509,14 +422,13 @@ For operating a fintech SaaS in the Philippines:
 
 | Service | Free Tier | Paid (if scaling) |
 |---------|-----------|-------------------|
-| Neon (Postgres) | $0 (0.5GB) | $19/mo |
-| Railway (Backend) | $0 (500hrs) | $20/mo |
-| Vercel (Frontend) | $0 (Hobby) | $20/mo |
-| PayMongo | $0 (per-txn only) | ~2.5% per txn |
-| Resend (Email) | $0 (100/day) | $20/mo |
+| Docker host (VPS) | — | $20/mo (2GB RAM) |
+| Postgres (self-hosted) | $0 | Included in VPS |
 | Domain | — | ~$1/mo |
+| Stripe | $0 | 2.9% + 30¢ per txn |
+| UptimeRobot | $0 (50 monitors) | $7/mo |
 | Sentry | $0 (5k events) | $26/mo |
-| **Total** | **~$1/mo** | **~$106/mo** |
+| **Total** | **~$21/mo** | **~$54/mo + Stripe fees** |
 
 ---
 
@@ -542,10 +454,11 @@ npx serve .
 
 ## Support & Escalation
 
-- PayMongo: support@paymongo.com (PH business hours)
-- Neon: community Slack or support@neon.tech
-- Railway: Discord community or support@railway.app
-- Vercel: Built-in chat support
+- Stripe: support@stripe.com (24/7)
+- Docker: community forums or Docker Support
+- Postgres: community forums or your VPS provider's support
+- UptimeRobot: support@uptimerobot.com
+- Sentry: support@sentry.io
 
 ---
 

@@ -93,7 +93,7 @@ PLANS_DEFAULT = [
         "name": "Enterprise",
         "price_monthly": None,
         "included_credits": None,
-        "features": ["Unlimited credits", "On-premise / VPC", "SSO + audit export", "99.9% uptime SLA"],
+        "features": ["Unlimited credits", "On-premise / VPC (planned)", "SSO + audit export (planned)", "99.9% uptime SLA (planned)"],
     },
 ]
 

@@ -35,7 +35,7 @@ router = APIRouter()
 
 class RegisterRequest(BaseModel):
     email: str
-    password: str = Field(min_length=8, description="Password must be at least 8 characters")
+    password: str = Field(min_length=12, description="Password must be at least 12 characters")
     first_name: str = Field(min_length=1)
     last_name: str = Field(min_length=1)
     company: Optional[str] = None
@@ -268,8 +268,8 @@ def change_password(
     """Change the current user's password."""
     if not verify_password(req.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    if len(req.new_password) < 6:
-        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    if len(req.new_password) < 12:
+        raise HTTPException(status_code=400, detail="New password must be at least 12 characters")
     current_user.hashed_password = hash_password(req.new_password)
     db.commit()
     ip_pseudo = client_ip_pseudonymised(request)

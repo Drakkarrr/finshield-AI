@@ -189,6 +189,28 @@ async def startup():  # run by lifespan()
 
     check_payments_config()  # S7.5: no free credits in production by accident
 
+    # S7.6: auto-refresh stale sanctions list at startup
+    from app.db import system_session
+    from app.domain.lists import provider as lists_provider
+    from app.worker.tasks import refresh_lists
+
+    max_age_hours = float(os.getenv("LISTS_MAX_AGE_HOURS", "24"))
+    try:
+        with system_session() as db:
+            freshness = lists_provider.status(db, max_age_hours)
+            sanctions_stale = any(
+                s["list_type"] == "sanctions" and s["stale"] and not s["is_fixture"]
+                for s in freshness
+            )
+            if sanctions_stale:
+                logger.info("Sanctions list is stale, triggering refresh at startup")
+                result = refresh_lists()
+                logger.info("Sanctions list refresh completed: %s", result)
+            else:
+                logger.info("Sanctions list is fresh (max_age=%sh)", max_age_hours)
+    except Exception as e:
+        logger.warning("Could not check/refresh sanctions list at startup: %s", e)
+
     # RAG is optional: without RAG_DATABASE_URL decisions report rag_status="disabled".
     rag_database_url = os.getenv("RAG_DATABASE_URL", "")
     app.state.rag_service = None

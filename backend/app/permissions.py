@@ -2,8 +2,7 @@
 
 Roles are ordered: analyst < investigator < supervisor < admin. Every route on a protected router
 runs `authorize`, which looks up (method, path template) in MATRIX; a route not listed needs only
-an authenticated `analyst`. tests/test_permissions.py walks every registered route and checks the
-matrix for all four roles, so a new route cannot silently skip the check.
+an authenticated `analyst`. The frontend mirrors the matrix in platform-app/src/lib/permissions.ts.
 
   analyst       screen transactions, read everything in the tenant, create cases, comment / note
   investigator  + work cases (update, SLA sweep, aggregation), draft filings, hit / FP reporting
